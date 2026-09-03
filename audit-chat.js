@@ -777,3 +777,28 @@ clinicAuditInput2026.focus();
 );
 
 })();
+
+/* Keep the floating invitation useful without letting it cover the live chat. */
+(function() {
+
+var auditChat = document.getElementById("clinic-audit-chat-2026");
+var floatingAction = document.querySelector(".audit-floating-action");
+
+if (!auditChat || !floatingAction || !("IntersectionObserver" in window)) {
+return;
+}
+
+var floatingActionObserver = new IntersectionObserver(
+function(entries) {
+floatingAction.classList.toggle("is-hidden", entries[0].isIntersecting);
+},
+{
+root: null,
+rootMargin: "-8% 0px -8% 0px",
+threshold: 0.08
+}
+);
+
+floatingActionObserver.observe(auditChat);
+
+})();
