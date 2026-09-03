@@ -27,7 +27,7 @@ fetchpriority="high"
 </span>
 <span class="ecn-desktop-brand-copy">
 <strong>clinicnet<span>.live</span></strong>
-<small>AI + Human <em>Team</em></small>
+<small>AI + <span>Human Team</span></small>
 </span>
 </a>
 <a class="ecn-desktop-cta" href="#clinic-audit-chat-2026">
@@ -212,7 +212,10 @@ aria-label="Send answer"
 <a href="https://clinicnet.live/#privacy">Privacy</a>
 <a href="https://clinicnet.live/#terms">ToS</a>
 </nav>
-<p>Missed call or late reply → recovered patient → measurable clinic revenue.</p>
+<p class="ecn-footer-promise">
+<span>Missed call or late reply = Lost patient</span>
+<strong>Get them back in seconds</strong>
+</p>
 <small>© 2026 Eden Clinic Network LLC</small>
 </footer>
 
@@ -1711,12 +1714,23 @@ background: #ffffff;
 }
 
 .ecn-site-header {
+position: relative;
 display: block;
 width: min(1180px, calc(100% - 48px));
 min-height: 0;
 margin: 0 auto;
-padding: 14px 0;
+padding: 18px 0 20px;
 background: #ffffff;
+}
+
+.ecn-site-header::after {
+content: "";
+position: absolute;
+right: 0;
+bottom: 0;
+left: 0;
+height: 1px;
+background: linear-gradient(90deg, transparent, rgba(79,58,163,.14) 18%, rgba(79,58,163,.14) 82%, transparent);
 }
 
 .ecn-mobile-header-art,
@@ -1729,7 +1743,7 @@ display: none;
 display: flex;
 align-items: center;
 justify-content: space-between;
-gap: 36px;
+gap: 42px;
 }
 
 .ecn-desktop-brand {
@@ -1765,21 +1779,27 @@ line-height: 1;
 .ecn-desktop-brand-copy strong {
 font-size: clamp(2rem, 3.5vw, 3rem);
 font-weight: 900;
-letter-spacing: -.06em;
+letter-spacing: -.045em;
 white-space: nowrap;
 }
 
-.ecn-desktop-brand-copy strong span,
-.ecn-desktop-brand-copy em {
+.ecn-desktop-brand-copy > strong span {
 color: #6a38ef;
-font-style: normal;
 }
 
 .ecn-desktop-brand-copy small {
 margin-top: 8px;
+color: #11163f;
 font-size: clamp(.88rem, 1.5vw, 1.15rem);
 font-weight: 720;
 letter-spacing: .04em;
+}
+
+.ecn-desktop-brand-copy small span {
+color: transparent;
+background: linear-gradient(90deg, #11163f 0%, #5541c9 54%, #7c35ef 100%);
+-webkit-background-clip: text;
+background-clip: text;
 }
 
 .ecn-desktop-cta {
@@ -1791,12 +1811,13 @@ flex: 0 0 auto;
 min-width: 270px;
 min-height: 82px;
 padding: 13px 28px;
+border: 1px solid rgba(255,255,255,.56);
 border-radius: 20px;
 color: #ffffff;
 text-align: center;
 text-decoration: none;
-background: linear-gradient(135deg, #862cf4 0%, #275be9 100%);
-box-shadow: 0 11px 25px rgba(67,54,190,.2);
+background: linear-gradient(112deg, #7e34ed 0%, #5144ed 52%, #2864e9 100%);
+box-shadow: 0 10px 22px rgba(55,49,174,.18), inset 0 1px 0 rgba(255,255,255,.22);
 transition: transform .18s ease, box-shadow .18s ease;
 }
 
@@ -1834,6 +1855,7 @@ background: #ffffff;
 .audit-hero-copy {
 position: relative;
 z-index: 3;
+box-sizing: border-box;
 align-items: center;
 justify-content: center;
 width: min(1080px, calc(100% - 40px));
@@ -1852,8 +1874,9 @@ letter-spacing: .14em;
 max-width: 980px;
 font-size: clamp(2.25rem, 4.4vw, 4.15rem);
 font-weight: 900;
-letter-spacing: -.052em;
+letter-spacing: -.026em;
 line-height: 1.04;
+text-wrap: balance;
 }
 
 .audit-hero-subtitle {
@@ -1926,7 +1949,17 @@ padding: clamp(48px, 7vw, 84px) 24px;
 
 .ecn-footer {
 padding-top: 44px;
-background: #faf8fa;
+border-top: 1px solid rgba(59,45,116,.09);
+background: linear-gradient(180deg, #fbfafc 0%, #f6f3f8 100%);
+}
+
+.ecn-footer-promise span,
+.ecn-footer-promise strong {
+display: block;
+}
+
+.ecn-footer-promise strong {
+margin-top: 5px;
 }
 
 @media (min-width: 821px) {
@@ -1945,39 +1978,72 @@ width: min(1160px, 100%);
 display: flex;
 align-items: center;
 min-height: 58px;
-padding: 15px 18px;
-border: 1px solid rgba(64,49,126,.1);
-border-radius: 15px;
+justify-content: space-between;
+padding: 15px 4px;
+border: 0;
+border-top: 1px solid rgba(39,38,66,.15);
+border-radius: 0;
 font-size: 1rem;
 text-align: left;
-background: rgba(255,255,255,.7);
-transition: transform .18s ease, border-color .18s ease, background .18s ease;
+background: transparent;
+transition: color .18s ease, border-color .18s ease;
+}
+
+.ecn-footer nav:first-of-type a::after {
+content: "↗";
+color: rgba(39,38,66,.34);
+font-size: .92rem;
+transition: color .18s ease, transform .18s ease;
 }
 
 .ecn-footer nav:first-of-type a:hover,
 .ecn-footer nav:first-of-type a.active {
-border-color: rgba(101,70,223,.25);
-background: #ffffff;
-transform: translateY(-1px);
+border-color: rgba(101,70,223,.42);
+background: transparent;
+}
+
+.ecn-footer nav:first-of-type a:hover::after,
+.ecn-footer nav:first-of-type a.active::after {
+color: #6546df;
+transform: translate(2px, -2px);
 }
 
 .ecn-footer nav + nav {
 display: flex;
 justify-content: space-between;
 gap: 22px;
-width: min(1080px, 100%);
-margin-top: 30px;
+width: min(1160px, 100%);
+margin-top: 34px;
+padding-top: 24px;
+border-top: 1px solid rgba(39,38,66,.09);
 }
 
 .ecn-footer-secondary a {
 font-size: .9rem;
 }
 
-.ecn-footer p {
+.ecn-footer .ecn-footer-promise {
+display: flex;
+flex-direction: column;
+align-items: center;
 width: min(1160px, 100%);
 margin-top: 38px;
 padding-top: 30px;
 font-size: 1rem;
+line-height: 1.35;
+}
+
+.ecn-footer-promise span {
+color: rgba(39,38,66,.7);
+font-weight: 650;
+}
+
+.ecn-footer-promise strong {
+margin-top: 6px;
+color: var(--audit-ink);
+font-size: clamp(1.35rem, 2vw, 1.7rem);
+font-weight: 850;
+letter-spacing: -.02em;
 }
 
 .ecn-footer > small {
@@ -2007,6 +2073,7 @@ padding: 38px 20px 34px;
 
 .audit-hero h1 {
 font-size: clamp(2.15rem, 9vw, 3.7rem);
+letter-spacing: -.044em;
 }
 }
 
