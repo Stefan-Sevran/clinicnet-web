@@ -1,0 +1,29 @@
+[
+  {
+    "id": "home",
+    "output": "index.html",
+    "title": "Patient Booking Recovery | Eden Clinic Network",
+    "description": "AI + Human Team helping clinics turn missed messages into patient bookings.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/home.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "audit",
+    "output": "audit/index.html",
+    "title": "Free Clinic Revenue Audit | Eden Clinic Network",
+    "description": "Talk with Mia about your clinic’s booking and revenue opportunities.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/audit.css"
+    ],
+    "scripts": [
+      "/audit-chat.js"
+    ]
+  }
+]
+

@@ -1,0 +1,1212 @@
+#clinic-audit-chat-2026,
+#clinic-audit-chat-2026 * {
+box-sizing: border-box;
+}
+
+#clinic-audit-chat-2026 {
+position: relative;
+z-index: 20;
+
+display: block;
+width: 100%;
+
+margin-top: -64vw;
+margin-bottom: 42px;
+
+padding: 0;
+
+background: transparent !important;
+
+font-family:
+system-ui,
+-apple-system,
+BlinkMacSystemFont,
+"Segoe UI",
+Arial,
+sans-serif;
+
+line-height: normal;
+scroll-margin-top: 24px;
+clear: both;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+position: relative;
+
+width: calc(100% - 28px);
+max-width: 560px;
+
+margin: 0 auto;
+padding: 0;
+
+border-radius: 28px;
+overflow: hidden;
+
+background:
+linear-gradient(
+145deg,
+rgba(255,255,255,0.83) 0%,
+rgba(243,239,255,0.76) 52%,
+rgba(225,234,255,0.73) 100%
+);
+
+-webkit-backdrop-filter:
+blur(22px)
+saturate(145%);
+
+backdrop-filter:
+blur(22px)
+saturate(145%);
+
+border:
+2px solid
+rgba(112,74,224,0.72);
+
+box-shadow:
+0 0 0 1px rgba(255,255,255,0.82) inset,
+0 0 0 4px rgba(112,74,224,0.12),
+0 22px 58px rgba(20,28,92,0.24);
+
+color: #10173e;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-header-2026 {
+display: flex;
+align-items: center;
+gap: 12px;
+
+padding: 14px 16px;
+
+border-bottom:
+1px solid rgba(104,84,177,0.19);
+
+background:
+rgba(255,255,255,0.32);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-2026 {
+position: relative;
+
+display: block;
+
+width: 58px;
+min-width: 58px;
+height: 58px;
+
+overflow: visible;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-image-wrap-2026 {
+position: relative;
+
+width: 58px;
+height: 58px;
+
+overflow: hidden;
+
+border-radius: 50%;
+
+background: #ffffff;
+
+border:
+3px solid rgba(255,255,255,0.96);
+
+box-shadow:
+0 7px 20px rgba(41,36,123,0.24),
+0 0 0 1px rgba(104,72,220,0.15);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-image-wrap-2026 img {
+display: block;
+
+width: 100%;
+height: 100%;
+
+margin: 0;
+padding: 0;
+
+border: 0;
+border-radius: 50%;
+
+object-fit: cover;
+object-position: center 24%;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-2026 i {
+position: absolute;
+
+right: -1px;
+bottom: 1px;
+
+z-index: 3;
+
+display: block;
+
+width: 16px;
+height: 16px;
+
+border:
+3px solid #ffffff;
+
+border-radius: 50%;
+
+background: #22c55e;
+
+box-shadow:
+0 2px 5px rgba(0,0,0,0.16);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-head-text-2026 {
+flex: 1;
+min-width: 0;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-title-2026 {
+color: #10173e;
+
+font-size: 18px;
+font-weight: 850;
+line-height: 1.17;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-status-2026 {
+margin-top: 4px;
+
+color: rgba(16,23,62,0.70);
+
+font-size: 12px;
+line-height: 1.25;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-status-2026 span {
+display: inline-block;
+
+width: 8px;
+height: 8px;
+
+margin-right: 5px;
+
+border-radius: 50%;
+
+background: #16a34a;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-menu-2026 {
+flex: 0 0 auto;
+
+color: #453297;
+
+font-size: 26px;
+line-height: 1;
+
+user-select: none;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-messages-2026 {
+min-height: 180px;
+max-height: 320px;
+
+padding: 14px 14px 5px;
+
+overflow-y: auto;
+overflow-x: hidden;
+
+background:
+rgba(255,255,255,0.15);
+
+scroll-behavior: smooth;
+
+-webkit-user-select: text;
+user-select: text;
+cursor: text;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-message-2026 {
+max-width: 87%;
+
+margin-bottom: 12px;
+padding: 13px 15px;
+
+border-radius: 20px;
+
+font-size: 14.5px;
+line-height: 1.43;
+
+white-space: pre-wrap;
+overflow-wrap: anywhere;
+word-break: normal;
+
+-webkit-user-select: text;
+user-select: text;
+cursor: text;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-bot-2026 {
+margin-right: auto;
+
+border:
+1px solid rgba(255,255,255,0.82);
+
+border-bottom-left-radius: 7px;
+
+background:
+rgba(255,255,255,0.79);
+
+box-shadow:
+0 8px 22px rgba(33,29,90,0.10);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-user-2026 {
+margin-left: auto;
+
+border-bottom-right-radius: 7px;
+
+background:
+linear-gradient(
+145deg,
+rgba(222,232,255,0.96) 0%,
+rgba(232,218,255,0.96) 100%
+);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-loading-2026 {
+opacity: 0.72;
+display: inline-flex;
+align-items: center;
+gap: 8px;
+font-style: normal;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-typing-dots-2026 {
+display: inline-flex;
+align-items: center;
+gap: 3px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-typing-dots-2026 i {
+width: 6px;
+height: 6px;
+border-radius: 50%;
+background: rgba(17,24,66,0.58);
+animation: clinic-audit-typing-bounce-2026 1.15s infinite ease-in-out;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-typing-dots-2026 i:nth-child(2) {
+animation-delay: 0.16s;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-typing-dots-2026 i:nth-child(3) {
+animation-delay: 0.32s;
+}
+
+@keyframes clinic-audit-typing-bounce-2026 {
+0%, 60%, 100% {
+transform: translateY(0);
+opacity: 0.42;
+}
+30% {
+transform: translateY(-4px);
+opacity: 1;
+}
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 {
+display: grid;
+
+grid-template-columns:
+repeat(2, minmax(0,1fr));
+
+gap: 8px;
+
+margin: 2px 0 12px;
+padding: 0;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 button {
+display: block;
+
+width: 100%;
+min-height: 43px;
+
+margin: 0;
+padding: 9px 10px;
+
+border:
+1px solid rgba(105,75,209,0.22);
+
+border-radius: 14px;
+
+background:
+rgba(255,255,255,0.70);
+
+color: #20275b;
+
+font: inherit;
+font-size: 12px;
+font-weight: 700;
+line-height: 1.25;
+
+cursor: pointer;
+
+box-shadow:
+0 5px 14px rgba(44,36,112,0.08);
+
+transition:
+transform 0.18s ease,
+background 0.18s ease;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 button:hover {
+background:
+rgba(255,255,255,0.94);
+
+transform: translateY(-1px);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-row-2026 {
+position: relative;
+z-index: 50;
+
+display: flex;
+align-items: center;
+
+padding: 10px 16px 8px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-2026 {
+display: block;
+
+width: 100%;
+min-height: 52px;
+max-height: 120px;
+
+margin: 0;
+padding: 15px 58px 15px 20px;
+
+resize: none;
+overflow-y: auto;
+
+border:
+1px solid rgba(255,255,255,0.88);
+
+border-radius: 999px;
+outline: none;
+
+background:
+rgba(255,255,255,0.79);
+
+color: #10173e;
+
+font-family: inherit;
+font-size: 16px;
+line-height: 1.3;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-2026::placeholder {
+color:
+rgba(16,23,62,0.46);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-2026:focus {
+background:
+rgba(255,255,255,0.96);
+
+box-shadow:
+0 0 0 3px rgba(111,72,221,0.14);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-send-2026 {
+position: absolute;
+
+right: 22px;
+top: 50%;
+
+z-index: 9999;
+
+width: 38px;
+min-width: 38px;
+height: 38px;
+
+margin: 0;
+padding: 0;
+
+transform: translateY(-50%);
+
+border:
+1px solid rgba(255,255,255,0.75);
+
+border-radius: 50%;
+
+background:
+linear-gradient(
+145deg,
+#6842d7 0%,
+#3568e8 100%
+);
+
+color: #ffffff;
+
+font-family: inherit;
+font-size: 18px;
+font-weight: 900;
+line-height: 1;
+
+cursor: pointer;
+pointer-events: auto;
+
+box-shadow:
+0 7px 18px rgba(57,54,153,0.23);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-send-2026:hover {
+filter: brightness(1.06);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-send-2026:active {
+transform:
+translateY(-50%)
+scale(0.96);
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-send-2026:disabled {
+opacity: 0.55;
+cursor: not-allowed;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-privacy-2026 {
+padding: 0 18px 18px;
+
+text-align: left;
+
+color:
+rgba(16,23,62,0.67);
+
+font-size: 11px;
+line-height: 1.25;
+
+opacity: 0.78;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-voice-row-2026 {
+display: flex;
+justify-content: center;
+padding: 10px 16px 0;
+}
+
+#clinic-audit-voice-button-2026 {
+border: 1px solid rgba(255,255,255,.86);
+border-radius: 999px;
+padding: 12px 20px;
+background: rgba(255,255,255,.84);
+color: #111842;
+font-family: inherit;
+font-size: 14px;
+font-weight: 750;
+cursor: pointer;
+box-shadow: 0 6px 18px rgba(49,40,130,.10);
+transition: transform .16s ease, background .16s ease;
+}
+
+#clinic-audit-voice-button-2026:hover {
+background: rgba(255,255,255,.98);
+}
+
+#clinic-audit-voice-button-2026:active {
+transform: scale(.98);
+}
+
+#clinic-audit-voice-button-2026:disabled {
+opacity: .58;
+cursor: wait;
+}
+
+@media screen and (min-width: 760px) {
+#clinic-audit-chat-2026 {
+margin-top: -64vw;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+width: min(900px, calc(100% - 64px));
+max-width: 900px;
+border-radius: 32px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-header-2026 {
+gap: 16px;
+padding: 20px 25px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-2026,
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-image-wrap-2026 {
+width: 66px;
+min-width: 66px;
+height: 66px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-title-2026 {
+font-size: 22px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-status-2026 {
+font-size: 13px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-messages-2026 {
+min-height: 390px;
+max-height: min(540px, 56vh);
+padding: 24px 25px 12px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-message-2026 {
+max-width: 76%;
+padding: 15px 18px;
+font-size: 16px;
+line-height: 1.5;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 {
+gap: 11px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 button {
+min-height: 50px;
+font-size: 14px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-row-2026 {
+padding: 16px 24px 11px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-input-2026 {
+min-height: 60px;
+padding: 17px 68px 17px 22px;
+font-size: 16px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-send-2026 {
+right: 31px;
+width: 46px;
+min-width: 46px;
+height: 46px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-privacy-2026 {
+padding: 0 26px 22px;
+font-size: 12px;
+}
+
+#clinic-audit-floating-bar-2026 {
+max-width: 620px !important;
+}
+
+#clinic-audit-floating-bar-2026 .clinic-audit-floating-cta-2026 {
+gap: 14px !important;
+padding: 11px 16px !important;
+}
+
+#clinic-audit-floating-bar-2026 .clinic-audit-floating-avatar-wrap-2026 {
+flex-basis: 54px !important;
+width: 54px !important;
+height: 54px !important;
+}
+
+#clinic-audit-floating-bar-2026 .clinic-audit-floating-text-2026 strong {
+font-size: 17px !important;
+}
+
+#clinic-audit-floating-bar-2026 .clinic-audit-floating-text-2026 small {
+font-size: 12px !important;
+}
+
+#clinic-audit-floating-bar-2026 .clinic-audit-floating-arrow-2026 {
+flex-basis: 40px !important;
+width: 40px !important;
+height: 40px !important;
+font-size: 21px !important;
+}
+}
+
+@media screen and (max-width: 600px) {
+#clinic-audit-chat-2026 {
+margin-top: -62vw;
+margin-bottom: 38px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+width: calc(100% - 24px);
+border-radius: 24px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-header-2026 {
+gap: 10px;
+padding: 13px 14px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-2026 {
+width: 50px;
+min-width: 50px;
+height: 50px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-image-wrap-2026 {
+width: 50px;
+height: 50px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-avatar-2026 i {
+width: 14px;
+height: 14px;
+
+right: -1px;
+bottom: 0;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-title-2026 {
+font-size: 16px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-status-2026 {
+font-size: 10.5px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-messages-2026 {
+min-height: 150px;
+max-height: 270px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-message-2026 {
+font-size: 14px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-quick-replies-2026 button {
+padding: 8px 6px;
+font-size: 11px;
+}
+}
+
+@media screen and (max-width: 380px) {
+#clinic-audit-chat-2026 {
+margin-top: -46vw;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-title-2026 {
+font-size: 15px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-status-2026 {
+font-size: 10px;
+}
+}
+
+#clinic-audit-chat-2026 {
+width: 100% !important;
+margin: 0 !important;
+scroll-margin-top: 24px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+width: min(900px, 100%) !important;
+max-width: 900px !important;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-messages-2026 {
+min-height: clamp(270px, 42vh, 470px) !important;
+max-height: min(52vh, 560px) !important;
+}
+
+.audit-floating-action {
+position: fixed;
+left: 50%;
+bottom: 16px;
+transform: translateX(-50%);
+z-index: 50;
+display: flex;
+align-items: center;
+gap: 12px;
+width: min(580px, calc(100% - 28px));
+padding: 10px 14px;
+border: 1px solid rgba(105,72,211,.58);
+border-radius: 999px;
+color: #111842;
+text-decoration: none;
+background: rgba(255,255,255,.78);
+box-shadow: 0 14px 36px rgba(22,31,91,.2), inset 0 0 0 1px rgba(255,255,255,.72);
+backdrop-filter: blur(22px) saturate(150%);
+-webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.audit-floating-avatar {
+position: relative;
+flex: 0 0 48px;
+width: 48px;
+height: 48px;
+}
+
+.audit-floating-avatar img {
+display: block;
+width: 100%;
+height: 100%;
+border: 2px solid white;
+border-radius: 50%;
+object-fit: cover;
+box-shadow: 0 6px 16px rgba(49,40,130,.2);
+}
+
+.audit-floating-avatar i {
+position: absolute;
+right: 0;
+bottom: 1px;
+width: 12px;
+height: 12px;
+border: 2px solid white;
+border-radius: 50%;
+background: #22c55e;
+}
+
+.audit-floating-copy {
+display: flex;
+flex: 1;
+flex-direction: column;
+min-width: 0;
+}
+
+.audit-floating-copy strong {
+font-size: 1rem;
+line-height: 1.2;
+}
+
+.audit-floating-copy small {
+margin-top: 3px;
+color: rgba(17,24,66,.65);
+font-size: .75rem;
+font-weight: 600;
+}
+
+.audit-floating-arrow {
+display: grid;
+place-items: center;
+flex: 0 0 38px;
+width: 38px;
+height: 38px;
+border-radius: 50%;
+color: white;
+font-size: 1.2rem;
+font-weight: 900;
+background: linear-gradient(145deg, #7044dc, #3568e8);
+box-shadow: 0 7px 16px rgba(69,58,170,.25);
+}
+
+@media (max-width: 600px) {
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+width: 100% !important;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-messages-2026 {
+min-height: 260px !important;
+max-height: 42vh !important;
+}
+
+.audit-floating-action {
+bottom: 9px;
+padding: 8px 10px;
+}
+
+.audit-floating-avatar {
+flex-basis: 42px;
+width: 42px;
+height: 42px;
+}
+
+.audit-floating-copy strong {
+font-size: .88rem;
+}
+
+.audit-floating-copy small {
+font-size: .66rem;
+}
+}
+
+.audit-hero {
+display: grid;
+grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr);
+align-items: stretch;
+width: min(1240px, 100%);
+margin: 0 auto;
+overflow: hidden;
+border-top: 1px solid #ece9f8;
+border-bottom: 1px solid #c8b8f4;
+background:
+radial-gradient(circle at 22% 30%, rgba(107,72,225,.14), transparent 22rem),
+linear-gradient(135deg, #ffffff 0%, #f6f1ff 52%, #d9c9fa 100%);
+}
+
+.audit-hero-copy {
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+justify-content: center;
+padding: clamp(48px, 7vw, 92px) clamp(28px, 5vw, 72px);
+}
+
+.audit-eyebrow {
+margin: 0 0 16px;
+color: #6244d8;
+font-size: .78rem;
+font-weight: 850;
+letter-spacing: .12em;
+text-transform: uppercase;
+}
+
+.audit-hero h1 {
+max-width: 650px;
+margin: 0;
+color: #111437;
+font-size: clamp(2.5rem, 5vw, 4.8rem);
+font-weight: 900;
+letter-spacing: -.06em;
+line-height: .98;
+}
+
+.audit-hero-subtitle {
+max-width: 600px;
+margin: 22px 0 0;
+color: rgba(17,20,55,.7);
+font-size: clamp(1.15rem, 2vw, 1.6rem);
+font-weight: 700;
+line-height: 1.35;
+}
+
+.audit-hero-visual {
+position: relative;
+min-height: 600px;
+overflow: hidden;
+background: #d9c9fa;
+}
+
+.audit-hero-visual::after {
+content: "";
+position: absolute;
+inset: 0;
+background: linear-gradient(180deg, transparent 55%, rgba(75,43,153,.34));
+pointer-events: none;
+}
+
+.audit-hero-visual img {
+display: block;
+width: 100%;
+height: 100%;
+object-fit: cover;
+object-position: center 20%;
+}
+
+.audit-hero-badge {
+position: absolute;
+right: 24px;
+bottom: 24px;
+z-index: 2;
+display: flex;
+flex-direction: column;
+max-width: calc(100% - 48px);
+padding: 13px 17px;
+border: 1px solid rgba(255,255,255,.65);
+border-radius: 16px;
+color: #ffffff;
+background: rgba(24,20,70,.48);
+backdrop-filter: blur(16px);
+-webkit-backdrop-filter: blur(16px);
+}
+
+.audit-hero-badge strong {
+font-size: .9rem;
+}
+
+.audit-hero-badge span {
+margin-top: 3px;
+font-size: .73rem;
+opacity: .8;
+}
+
+.audit-chat-stage {
+position: relative;
+padding: clamp(54px, 7vw, 94px) 20px 132px;
+background:
+radial-gradient(circle at 50% 35%, rgba(255,255,255,.72), transparent 32rem),
+linear-gradient(145deg, #d9c6f8 0%, #bda7ee 50%, #9d8bdc 100%);
+}
+
+.audit-chat-stage::before {
+content: "";
+position: absolute;
+inset: 0;
+background-image: url("https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Audit/Clinic-revenue-rescue-AI-audit-chat.webp");
+background-position: center 32%;
+background-size: cover;
+opacity: .055;
+pointer-events: none;
+}
+
+#clinic-audit-chat-2026 {
+position: relative;
+z-index: 2;
+}
+
+.audit-proof {
+padding: clamp(44px, 6vw, 76px) 24px;
+text-align: center;
+background: #ffffff;
+}
+
+.audit-proof div {
+width: min(980px, 100%);
+margin: 0 auto;
+}
+
+.audit-proof p {
+margin: 0;
+color: #202447;
+font-size: clamp(1.35rem, 2.6vw, 2rem);
+font-weight: 760;
+line-height: 1.3;
+}
+
+.audit-proof p strong {
+color: #6546df;
+font-weight: 900;
+}
+
+.audit-proof small {
+display: block;
+margin-top: 10px;
+color: rgba(32,36,71,.62);
+font-size: .92rem;
+line-height: 1.5;
+}
+
+@media (max-width: 820px) {
+.audit-hero {
+grid-template-columns: 1fr;
+}
+
+.audit-hero-copy {
+align-items: center;
+padding: 44px 22px 38px;
+text-align: center;
+}
+
+.audit-hero h1 {
+font-size: clamp(2.35rem, 11vw, 4rem);
+}
+
+.audit-hero-visual {
+min-height: clamp(390px, 112vw, 620px);
+}
+
+.audit-hero-visual img {
+object-position: center 18%;
+}
+}
+
+@media (max-width: 600px) {
+.audit-eyebrow {
+font-size: .7rem;
+}
+
+.audit-hero-copy {
+padding-top: 38px;
+}
+
+.audit-chat-stage {
+padding: 38px 10px 112px;
+}
+
+.audit-proof {
+padding-inline: 18px;
+}
+
+.audit-proof small {
+font-size: .82rem;
+}
+
+.audit-floating-action {
+width: calc(100% - 18px);
+}
+}
+
+@media (max-width: 390px) {
+.audit-floating-copy strong {
+font-size: .82rem;
+}
+
+.audit-floating-copy small {
+font-size: .61rem;
+}
+}
+
+.audit-hero {
+display: flex;
+flex-direction: column;
+width: 100%;
+margin: 0;
+overflow: visible;
+border: 0;
+background: #ffffff;
+}
+
+.audit-hero-copy {
+position: relative;
+z-index: 3;
+box-sizing: border-box;
+align-items: center;
+justify-content: center;
+width: min(1080px, calc(100% - 40px));
+margin: 0 auto;
+padding: clamp(46px, 6vw, 78px) 20px clamp(34px, 4.5vw, 58px);
+text-align: center;
+}
+
+.audit-eyebrow {
+margin-bottom: 15px;
+font-size: clamp(.7rem, 1vw, .82rem);
+letter-spacing: .14em;
+}
+
+.audit-hero h1 {
+max-width: 980px;
+font-size: clamp(2.25rem, 4.4vw, 4.15rem);
+font-weight: 900;
+letter-spacing: -.026em;
+line-height: 1.04;
+text-wrap: balance;
+}
+
+.audit-hero-subtitle {
+max-width: 780px;
+margin-top: 12px;
+color: rgba(17,22,63,.68);
+font-size: clamp(1.05rem, 2vw, 1.5rem);
+font-weight: 690;
+line-height: 1.4;
+}
+
+.audit-hero-visual {
+position: relative;
+width: 100%;
+height: auto;
+min-height: 0;
+overflow: hidden;
+background: #eee5fb;
+}
+
+.audit-hero-visual img {
+display: block;
+width: 100%;
+height: auto;
+object-fit: contain;
+filter: none;
+}
+
+.audit-hero-visual::before {
+display: none;
+}
+
+.audit-hero-visual::after {
+display: none;
+}
+
+.audit-chat-stage {
+position: relative;
+z-index: 3;
+margin-top: -64vw;
+padding: 0 20px clamp(52px, 6vw, 86px);
+background: linear-gradient(
+180deg,
+transparent 0,
+transparent calc(64vw - 18px),
+var(--audit-lavender-3) 64vw,
+var(--audit-lavender-3) 100%
+);
+}
+
+.audit-chat-stage::before {
+display: none;
+}
+
+#clinic-audit-chat-2026 {
+width: 100% !important;
+margin: 0 !important;
+scroll-margin-top: 28px;
+}
+
+#clinic-audit-chat-2026 .clinic-audit-chat-card-2026 {
+width: min(900px, 100%) !important;
+max-width: 900px !important;
+box-shadow: 0 22px 55px rgba(47,33,115,.16) !important;
+}
+
+.audit-proof {
+padding: clamp(48px, 7vw, 84px) 24px;
+}
+
+.audit-floating-action {
+left: 50%;
+right: auto;
+transform: translateX(-50%);
+transition: opacity .24s ease, transform .24s ease, visibility .24s ease;
+}
+
+.audit-floating-action.is-hidden {
+visibility: hidden;
+opacity: 0;
+pointer-events: none;
+transform: translate(-50%, calc(100% + 38px));
+}
+
+@media (max-width: 820px) {
+.audit-hero-copy {
+padding: 38px 20px 34px;
+}
+
+.audit-hero h1 {
+font-size: clamp(2.15rem, 9vw, 3.7rem);
+letter-spacing: -.044em;
+}
+}
+
+@media (max-width: 720px) {
+.audit-floating-action {
+bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+}
+
+@media (max-width: 600px) {
+.audit-hero-copy {
+width: 100%;
+padding: 34px 18px 30px;
+}
+
+.audit-eyebrow {
+margin-bottom: 12px;
+font-size: .64rem;
+}
+
+.audit-hero h1 {
+font-size: clamp(2rem, 10.8vw, 3rem);
+line-height: 1.06;
+}
+
+.audit-hero-subtitle {
+margin-top: 10px;
+font-size: 1rem;
+}
+
+.audit-chat-stage {
+margin-top: -64vw;
+padding: 0 10px 62px;
+}
+}
+
+@media (prefers-reduced-motion: reduce) {
+.audit-floating-action {
+transition: none;
+}
+}
