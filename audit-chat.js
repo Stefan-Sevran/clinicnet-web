@@ -784,21 +784,42 @@ clinicAuditInput2026.focus();
 var auditChat = document.getElementById("clinic-audit-chat-2026");
 var floatingAction = document.querySelector(".audit-floating-action");
 
-if (!auditChat || !floatingAction || !("IntersectionObserver" in window)) {
+if (!auditChat || !floatingAction) {
 return;
 }
 
-var floatingActionObserver = new IntersectionObserver(
-function(entries) {
-floatingAction.classList.toggle("is-hidden", entries[0].isIntersecting);
-},
-{
-root: null,
-rootMargin: "-8% 0px -8% 0px",
-threshold: 0.08
-}
-);
+var updatePending = false;
 
-floatingActionObserver.observe(auditChat);
+function updateFloatingAction() {
+updatePending = false;
+var viewportHeight = window.innerHeight;
+var chatBounds = auditChat.getBoundingClientRect();
+var chatVisible = chatBounds.bottom > viewportHeight * 0.08 &&
+chatBounds.top < viewportHeight * 0.92;
+var page = document.scrollingElement || document.documentElement;
+var mobile = window.matchMedia("(max-width: 720px)").matches;
+var atPageBottom = window.scrollY + viewportHeight >= page.scrollHeight - 24;
+
+// The footer's reserved bottom space is the mobile invitation's final home.
+floatingAction.classList.toggle("is-hidden", chatVisible && !(mobile && atPageBottom));
+}
+
+function scheduleFloatingUpdate() {
+if (updatePending) return;
+updatePending = true;
+window.requestAnimationFrame(updateFloatingAction);
+}
+
+window.addEventListener("scroll", scheduleFloatingUpdate, { passive: true });
+window.addEventListener("resize", scheduleFloatingUpdate);
+window.addEventListener("pageshow", scheduleFloatingUpdate);
+window.addEventListener("load", scheduleFloatingUpdate);
+
+if ("ResizeObserver" in window) {
+var pageSizeObserver = new ResizeObserver(scheduleFloatingUpdate);
+pageSizeObserver.observe(document.body);
+}
+
+updateFloatingAction();
 
 })();

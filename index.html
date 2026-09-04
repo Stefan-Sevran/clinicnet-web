@@ -1981,7 +1981,6 @@ min-height: 58px;
 justify-content: space-between;
 padding: 15px 4px;
 border: 0;
-border-top: 1px solid rgba(39,38,66,.15);
 border-radius: 0;
 font-size: 1rem;
 text-align: left;
@@ -1990,10 +1989,7 @@ transition: color .18s ease, border-color .18s ease;
 }
 
 .ecn-footer nav:first-of-type a::after {
-content: "↗";
-color: rgba(39,38,66,.34);
-font-size: .92rem;
-transition: color .18s ease, transform .18s ease;
+content: none;
 }
 
 .ecn-footer nav:first-of-type a:hover,
@@ -2014,8 +2010,11 @@ justify-content: space-between;
 gap: 22px;
 width: min(1160px, 100%);
 margin-top: 34px;
-padding-top: 24px;
-border-top: 1px solid rgba(39,38,66,.09);
+box-sizing: border-box;
+padding: 22px 28px;
+border: 0;
+border-radius: 16px;
+background: rgba(111,72,210,.045);
 }
 
 .ecn-footer-secondary a {
@@ -2029,6 +2028,7 @@ align-items: center;
 width: min(1160px, 100%);
 margin-top: 38px;
 padding-top: 30px;
+border-top: 0;
 font-size: 1rem;
 line-height: 1.35;
 }
@@ -2080,9 +2080,17 @@ letter-spacing: -.044em;
 @media (max-width: 720px) {
 .ecn-site-header {
 position: relative;
-width: 100%;
-margin: 0;
+width: 85%;
+margin: 0 auto;
 padding: 0;
+}
+
+.audit-floating-action {
+bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.ecn-footer {
+padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
 }
 
 .ecn-desktop-header {
