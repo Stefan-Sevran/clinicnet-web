@@ -24,6 +24,16 @@
     "scripts": [
       "/audit-chat.js"
     ]
+  },
+  {
+    "id": "clinic",
+    "output": "clinic/index.html",
+    "title": "Clinic Workspace | Eden Clinic Network",
+    "description": "Set up your clinic account and location, then see connection requests and incoming bookings in one place.",
+    "header": true,
+    "footer": true,
+    "styles": ["/assets/clinic.css"],
+    "scripts": ["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js", "/assets/clinic.js"]
   }
 ]
 
