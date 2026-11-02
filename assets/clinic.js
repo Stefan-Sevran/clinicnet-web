@@ -96,6 +96,17 @@
       meta.textContent = [event.channel, event.status, event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
       if (['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key) {
+        const alert = document.createElement('small');
+        const alertLabels = {
+          sent: 'Email alert: sent to provider',
+          pending: 'Email alert: pending',
+          sending: 'Email alert: sending',
+          retry: 'Email alert: retry pending',
+          failed: 'Email alert: delivery failed',
+          not_configured: 'Email alert: no destination configured'
+        };
+        alert.textContent = alertLabels[event.notification_state] || 'Email alert: status unavailable';
+        row.append(alert);
         const handled = state.followups.get(event.event_key)?.action === 'handled';
         const followup = document.createElement('small');
         followup.textContent = handled ? 'Staff follow-up: handled' : 'Staff follow-up: open';
