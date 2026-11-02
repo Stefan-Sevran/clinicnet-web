@@ -2,7 +2,7 @@
   'use strict';
   const API = 'https://eden-webhook-ixdd.onrender.com';
   const byId = id => document.getElementById(id);
-  const state = { client: null, session: null, accounts: [], locations: [], connections: [], generation: 0 };
+  const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
@@ -71,7 +71,8 @@
       const info = document.createElement('div');
       const title = document.createElement('strong'); title.textContent = name;
       const detail = document.createElement('small');
-      detail.textContent = connection ? 'Status: ' + connection.status.replace(/_/g, ' ') : 'Not requested';
+      detail.textContent = connection ? 'Status: ' + connection.status.replace(/_/g, ' ') +
+        (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') : 'Not requested';
       info.append(title, detail);
       row.append(info);
       if (!connection) {
@@ -93,8 +94,33 @@
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const meta = document.createElement('small');
       meta.textContent = [event.channel, event.status, event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
-      row.append(title, meta); container.append(row);
+      row.append(title, meta);
+      if (['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key) {
+        const handled = state.followups.get(event.event_key)?.action === 'handled';
+        const followup = document.createElement('small');
+        followup.textContent = handled ? 'Staff follow-up: handled' : 'Staff follow-up: open';
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'clinic-secondary clinic-followup-button';
+        button.textContent = handled ? 'Reopen' : 'Mark handled';
+        button.addEventListener('click', () => updateFollowup(event.event_key,
+          handled ? 'reopened' : 'handled', button));
+        row.append(followup, button);
+      }
+      container.append(row);
     }
+  }
+
+  async function updateFollowup(eventKey, action, button) {
+    button.disabled = true;
+    try {
+      await request('/clinic/followups', { method: 'POST', body: JSON.stringify({
+        accountId: byId('clinic-account').value,
+        locationId: byId('clinic-location').value,
+        eventKey, action
+      }) });
+      await refreshActivity();
+      status(action === 'handled' ? 'Follow-up marked handled.' : 'Follow-up reopened.', 'success');
+    } catch (error) { status(error.message, 'error'); button.disabled = false; }
   }
 
   async function refreshActivity() {
@@ -103,11 +129,13 @@
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
     const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
-    const [connections, bookings, inbox] = await Promise.all([
-      request('/clinic/connections' + query), request('/clinic/bookings' + query), request('/clinic/inbox' + query)
+    const [connections, bookings, inbox, followups] = await Promise.all([
+      request('/clinic/connections' + query), request('/clinic/bookings' + query),
+      request('/clinic/inbox' + query), request('/clinic/followups' + query)
     ]);
     if (generation !== state.generation) return;
     state.connections = connections;
+    state.followups = new Map(followups.map(row => [row.event_key, row]));
     renderChannels();
     renderEvents('clinic-bookings', bookings, 'No booking requests yet. Requests will appear when a verified channel delivers them.');
     renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
