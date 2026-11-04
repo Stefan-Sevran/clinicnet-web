@@ -5,10 +5,10 @@
 <title>Clinic Workspace | Eden Clinic Network</title>
 <meta name="description" content="Set up your clinic account and location, then see connection requests and incoming bookings in one place.">
 <link rel="stylesheet" href="/assets/site.css">
-<link rel="stylesheet" href="/assets/clinic.css">
+<link rel="stylesheet" href="/assets/clinic.css?v=20261104-2">
 <script src="/assets/navigation.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js"></script>
+<script defer src="/assets/clinic.js?v=20261104-2"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -99,7 +99,7 @@ fetchpriority="high"
             <p id="clinic-alert-email-help">Used for new alerts. Clear the address and save to turn off email alerts.</p>
           </form>
           <button id="clinic-inbox-sound" type="button" class="clinic-secondary" aria-pressed="false" aria-describedby="clinic-inbox-sound-help">Inbox sound</button>
-          <p id="clinic-inbox-sound-help">Play a sound for new requests while this workspace tab is visible.</p>
+          <p id="clinic-inbox-sound-help" role="status">Sound off. Turn it on to hear a preview.</p>
         </div>
         <div id="clinic-inbox" class="clinic-events" aria-live="polite"></div>
       </section>
