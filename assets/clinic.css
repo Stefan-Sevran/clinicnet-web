@@ -40,3 +40,7 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-next { background: #fefbff; }
 [hidden] { display: none !important; }
 @media (max-width: 760px) { .clinic-shell { width: min(100% - 24px, 560px); } .clinic-hero { padding: 32px 24px; } .clinic-grid, .clinic-columns { grid-template-columns: 1fr; } .clinic-selectors, .clinic-form-row { flex-direction: column; align-items: stretch; } .clinic-selectors label { width: 100%; } }
+
+.clinic-inbox-alerts { display: grid; gap: 8px; margin-bottom: 18px; justify-items: start; }
+.clinic-inbox-alerts .clinic-form { width: 100%; margin-bottom: 8px; }
+.clinic-inbox-alerts button[aria-pressed="true"] { background: #eee8fb; }

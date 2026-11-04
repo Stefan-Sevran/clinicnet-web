@@ -3,6 +3,17 @@
   const API = 'https://eden-webhook-ixdd.onrender.com';
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
+  const alertEmailForm = byId('clinic-alert-email-form');
+  const alertEmailInput = byId('clinic-alert-email');
+  const soundButton = byId('clinic-inbox-sound');
+  let canEditAlertEmail = false;
+  let staffEmailAvailable = false;
+  let soundContext;
+  let soundTimer;
+  let backgroundRefresh = false;
+  let loadedGeneration = -1;
+  let inboxSnapshot;
+
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
@@ -54,10 +65,17 @@
     const generation = ++state.generation;
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
-    const locations = await request('/clinic/locations?accountId=' + encodeURIComponent(accountId));
+    if (alertEmailForm) alertEmailForm.hidden = true;
+    const [locations, membership] = await Promise.all([
+      request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
+      alertEmailForm && state.client.from('clinic_memberships').select('role')
+        .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle()
+    ]);
     if (generation !== state.generation) return;
     state.locations = locations;
+    canEditAlertEmail = ['owner', 'admin'].includes(membership?.data?.role);
     selectOptions(byId('clinic-location'), locations, byId('clinic-location').value, 'name');
+    loadAlertEmail();
     await refreshActivity();
   }
 
@@ -134,8 +152,8 @@
     } catch (error) { status(error.message, 'error'); button.disabled = false; }
   }
 
-  async function refreshActivity() {
-    const generation = ++state.generation;
+  async function refreshActivity(quiet = false) {
+    const generation = quiet ? state.generation : ++state.generation;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
@@ -150,8 +168,103 @@
     renderChannels();
     renderEvents('clinic-bookings', bookings, 'No booking requests yet. Requests will appear when a verified channel delivers them.');
     renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
-    status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
+    const keys = inboxAlertKeys(inbox);
+    if (soundContext?.state === 'running' && !document.hidden && inboxSnapshot?.locationId === locationId &&
+        [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();
+    inboxSnapshot = { locationId, keys };
+    loadedGeneration = generation;
+    if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
   }
+
+  function loadAlertEmail() {
+    if (!alertEmailForm) return;
+    const location = state.locations.find(row => row.id === byId('clinic-location').value);
+    alertEmailForm.hidden = !staffEmailAvailable || !canEditAlertEmail || !location;
+    alertEmailInput.value = location?.alert_email || '';
+  }
+
+  alertEmailForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const alertEmail = alertEmailInput.value.trim() || null;
+    const button = alertEmailForm.querySelector('button');
+    button.disabled = true;
+    try {
+      const { data, error } = await state.client.from('clinic_locations')
+        .update({ alert_email: alertEmail }).eq('account_id', accountId).eq('id', locationId)
+        .select('id,alert_email').maybeSingle();
+      if (error || !data) throw Error('Could not save the staff alert email. Check the address and your workspace access.');
+      const location = state.locations.find(row => row.id === data.id);
+      if (location) location.alert_email = data.alert_email;
+      if (byId('clinic-location').value === locationId) {
+        status(alertEmail ? 'Staff alert email saved.' : 'Staff email alerts turned off for this location.', 'success');
+      }
+    } catch (error) { status(error.message, 'error'); }
+    finally { button.disabled = false; }
+  });
+
+  function inboxAlertKeys(inbox) {
+    return new Set(inbox.filter(event => ['call.followup_needed', 'booking.requested'].includes(event.kind))
+      .map(event => event.event_key).filter(Boolean));
+  }
+
+  function playInboxSound() {
+    const tone = soundContext.createOscillator();
+    const volume = soundContext.createGain();
+    const now = soundContext.currentTime;
+    tone.frequency.value = 660;
+    volume.gain.setValueAtTime(0.07, now);
+    volume.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    tone.connect(volume);
+    volume.connect(soundContext.destination);
+    tone.start(now);
+    tone.stop(now + 0.18);
+  }
+
+  function stopInboxSound() {
+    clearInterval(soundTimer);
+    soundTimer = undefined;
+    soundContext?.close().catch(() => {});
+    soundContext = undefined;
+    soundButton?.setAttribute('aria-pressed', 'false');
+  }
+
+  soundButton?.addEventListener('click', async () => {
+    if (soundContext) {
+      stopInboxSound();
+      return;
+    }
+    soundButton.disabled = true;
+    try {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) throw Error('Inbox sound is unavailable in this browser.');
+      const context = new Audio();
+      soundContext = context;
+      await context.resume();
+      if (soundContext !== context) return;
+      if (context.state !== 'running') throw Error('The browser could not enable inbox sound.');
+      soundButton.setAttribute('aria-pressed', 'true');
+      playInboxSound();
+      soundTimer = setInterval(async () => {
+        if (document.hidden || !state.session || backgroundRefresh || loadedGeneration !== state.generation) return;
+        backgroundRefresh = true;
+        try {
+          const generation = state.generation;
+          const accountId = byId('clinic-account').value;
+          const locationId = byId('clinic-location').value;
+          const query = new URLSearchParams({ accountId, locationId });
+          const inbox = await request('/clinic/inbox?' + query);
+          if (soundContext !== context || document.hidden || generation !== state.generation) return;
+          if ([...inboxAlertKeys(inbox)].some(key => !inboxSnapshot.keys.has(key))) await refreshActivity(true);
+        } catch { /* The next refresh will retry without interrupting staff. */ }
+        finally { backgroundRefresh = false; }
+      }, 20000);
+    } catch (error) {
+      stopInboxSound();
+      status(error.message, 'error');
+    } finally { soundButton.disabled = false; }
+  });
 
   async function requestConnection(channel, button) {
     button.disabled = true;
@@ -185,7 +298,13 @@
     }
     show('clinic-signin', !session);
     show('clinic-authenticated', Boolean(session));
-    if (!session) { ++state.generation; status('Sign in to create or open your workspace.'); return; }
+    if (!session) {
+      ++state.generation;
+      inboxSnapshot = undefined;
+      stopInboxSound();
+      status('Sign in to create or open your workspace.');
+      return;
+    }
     byId('clinic-identity').textContent = 'Signed in as ' + (session.user?.email || 'clinic member');
     try { await refreshAccounts(); } catch (error) { status(error.message, 'error'); }
   }
@@ -245,7 +364,10 @@
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => refreshLocations().catch(error => status(error.message, 'error')));
-  byId('clinic-location').addEventListener('change', () => refreshActivity().catch(error => status(error.message, 'error')));
+  byId('clinic-location').addEventListener('change', () => {
+    loadAlertEmail();
+    refreshActivity().catch(error => status(error.message, 'error'));
+  });
   byId('clinic-refresh').addEventListener('click', () => refreshAccounts().catch(error => status(error.message, 'error')));
 
   (async () => {
@@ -255,6 +377,7 @@
       const config = await response.json();
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
+      staffEmailAvailable = config.staffEmailAvailable === true;
       state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
       const { data, error } = await state.client.auth.getSession();
       if (error) throw error;
