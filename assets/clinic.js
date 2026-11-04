@@ -5,6 +5,7 @@
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
+  const alertEmailStatus = byId('clinic-alert-email-status');
   const soundButton = byId('clinic-inbox-sound');
   const soundHelp = byId('clinic-inbox-sound-help');
   let canEditAlertEmail = false;
@@ -177,20 +178,38 @@
     if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
   }
 
+  function showAlertEmailStatus(message = '', kind = 'info') {
+    if (!alertEmailStatus) {
+      if (message) status(message, kind);
+      return;
+    }
+    alertEmailStatus.className = message ? 'clinic-status' : '';
+    alertEmailStatus.dataset.kind = kind;
+    alertEmailStatus.textContent = message;
+  }
+
   function loadAlertEmail() {
     if (!alertEmailForm) return;
     const location = state.locations.find(row => row.id === byId('clinic-location').value);
     alertEmailForm.hidden = !staffEmailAvailable || !canEditAlertEmail || !location;
     alertEmailInput.value = location?.alert_email || '';
+    showAlertEmailStatus();
   }
 
+  alertEmailInput?.addEventListener('input', () => showAlertEmailStatus());
   alertEmailForm?.addEventListener('submit', async event => {
     event.preventDefault();
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
     const alertEmail = alertEmailInput.value.trim() || null;
     const button = alertEmailForm.querySelector('button');
+    if (button.disabled) return;
+    const isCurrentLocation = () => byId('clinic-account').value === accountId &&
+      byId('clinic-location').value === locationId;
     button.disabled = true;
+    alertEmailInput.disabled = true;
+    button.textContent = 'Saving…';
+    showAlertEmailStatus('Saving staff alert email…');
     try {
       const { data, error } = await state.client.from('clinic_locations')
         .update({ alert_email: alertEmail }).eq('account_id', accountId).eq('id', locationId)
@@ -198,11 +217,16 @@
       if (error || !data) throw Error('Could not save the staff alert email. Check the address and your workspace access.');
       const location = state.locations.find(row => row.id === data.id);
       if (location) location.alert_email = data.alert_email;
-      if (byId('clinic-location').value === locationId) {
-        status(alertEmail ? 'Staff alert email saved.' : 'Staff email alerts turned off for this location.', 'success');
+      if (isCurrentLocation()) {
+        showAlertEmailStatus(alertEmail ? 'Staff alert email saved.' : 'Staff email alerts turned off for this location.', 'success');
       }
-    } catch (error) { status(error.message, 'error'); }
-    finally { button.disabled = false; }
+    } catch (error) {
+      if (isCurrentLocation()) showAlertEmailStatus(error.message, 'error');
+    } finally {
+      button.textContent = 'Save email';
+      button.disabled = false;
+      alertEmailInput.disabled = false;
+    }
   });
 
   function inboxAlertKeys(inbox) {
