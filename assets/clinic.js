@@ -7,6 +7,7 @@
   const alertEmailInput = byId('clinic-alert-email');
   const soundButton = byId('clinic-inbox-sound');
   let canEditAlertEmail = false;
+  let staffEmailAvailable = false;
   let soundContext;
   let soundTimer;
   let backgroundRefresh = false;
@@ -178,7 +179,7 @@
   function loadAlertEmail() {
     if (!alertEmailForm) return;
     const location = state.locations.find(row => row.id === byId('clinic-location').value);
-    alertEmailForm.hidden = !canEditAlertEmail || !location;
+    alertEmailForm.hidden = !staffEmailAvailable || !canEditAlertEmail || !location;
     alertEmailInput.value = location?.alert_email || '';
   }
 
@@ -376,6 +377,7 @@
       const config = await response.json();
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
+      staffEmailAvailable = config.staffEmailAvailable === true;
       state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
       const { data, error } = await state.client.auth.getSession();
       if (error) throw error;
