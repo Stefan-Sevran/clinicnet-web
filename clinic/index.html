@@ -48,10 +48,15 @@ fetchpriority="high"
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
 
   <section id="clinic-signin" class="clinic-panel" hidden>
-    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>We’ll email you a secure sign-in link. Use the same email each time.</p></div></div>
+    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>Use the same work email each time. We’ll send you a sign-in email.</p></div></div>
     <form id="clinic-signin-form" class="clinic-form">
       <label for="clinic-email">Work email</label>
-      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in link</button></div>
+      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in email</button></div>
+    </form>
+    <form id="clinic-code-form" class="clinic-form" hidden>
+      <label for="clinic-code">One-time code</label>
+      <div class="clinic-form-row"><input id="clinic-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="clinic-code-help" required><button type="submit">Verify code</button></div>
+      <p id="clinic-code-help"></p>
     </form>
   </section>
 

@@ -164,8 +164,25 @@
     } catch (error) { status(error.message, 'error'); button.disabled = false; }
   }
 
+  const signInForm = byId('clinic-signin-form');
+  const codeForm = byId('clinic-code-form');
+  const codeInput = byId('clinic-code');
+  const sendButton = signInForm.querySelector('button');
+  const verifyButton = codeForm?.querySelector('button');
+  let codeEmail = '';
+
+  const setSignInBusy = busy => {
+    sendButton.disabled = busy;
+    if (verifyButton) verifyButton.disabled = busy;
+  };
+
   async function authenticated(session) {
     state.session = session;
+    if (session && codeForm) {
+      codeEmail = '';
+      codeInput.value = '';
+      show('clinic-code-form', false);
+    }
     show('clinic-signin', !session);
     show('clinic-authenticated', Boolean(session));
     if (!session) { ++state.generation; status('Sign in to create or open your workspace.'); return; }
@@ -173,16 +190,42 @@
     try { await refreshAccounts(); } catch (error) { status(error.message, 'error'); }
   }
 
-  byId('clinic-signin-form').addEventListener('submit', async event => {
+  signInForm.addEventListener('submit', async event => {
     event.preventDefault();
-    const button = event.target.querySelector('button'); button.disabled = true;
+    if (sendButton.disabled) return;
+    const email = byId('clinic-email').value.trim();
+    setSignInBusy(true);
     try {
-      const { error } = await state.client.auth.signInWithOtp({ email: byId('clinic-email').value.trim(),
+      const { error } = await state.client.auth.signInWithOtp({ email,
         options: { emailRedirectTo: location.origin + '/clinic/' } });
       if (error) throw error;
-      status('Check your email for the sign-in link.', 'success');
+      if (!codeForm) {
+        status('Check your email for the sign-in link.', 'success');
+        return;
+      }
+      codeEmail = email;
+      codeInput.value = '';
+      byId('clinic-code-help').textContent = 'Enter the code from the email to ' + email + ', or follow its sign-in link if it has one.';
+      show('clinic-code-form', true);
+      status('Check your email for sign-in instructions.', 'success');
     } catch (error) { status(error.message, 'error'); }
-    finally { button.disabled = false; }
+    finally { setSignInBusy(false); }
+  });
+
+  codeForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (verifyButton.disabled || !codeEmail) return;
+    setSignInBusy(true);
+    try {
+      const { data, error } = await state.client.auth.verifyOtp({
+        email: codeEmail, token: codeInput.value, type: 'email'
+      });
+      if (error) throw error;
+      if (!data.session) throw Error('Sign-in could not be completed. Request a new email and try again.');
+      if (data.session.access_token !== state.session?.access_token) await authenticated(data.session);
+    } catch (error) {
+      status(error.code === 'otp_expired' ? 'This code is invalid or expired. Try again or request a new email.' : error.message, 'error');
+    } finally { setSignInBusy(false); }
   });
   byId('clinic-create-form').addEventListener('submit', async event => {
     event.preventDefault();
@@ -217,7 +260,9 @@
       if (error) throw error;
       await authenticated(data.session);
       state.client.auth.onAuthStateChange((_event, session) => {
-        if (session?.access_token !== state.session?.access_token) setTimeout(() => authenticated(session), 0);
+        setTimeout(() => {
+          if (session?.access_token !== state.session?.access_token) authenticated(session);
+        }, 0);
       });
     } catch (error) { status(error.message, 'error'); }
   })();
