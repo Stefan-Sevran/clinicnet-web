@@ -6,6 +6,7 @@
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const soundButton = byId('clinic-inbox-sound');
+  const soundHelp = byId('clinic-inbox-sound-help');
   let canEditAlertEmail = false;
   let staffEmailAvailable = false;
   let soundContext;
@@ -213,13 +214,14 @@
     const tone = soundContext.createOscillator();
     const volume = soundContext.createGain();
     const now = soundContext.currentTime;
-    tone.frequency.value = 660;
-    volume.gain.setValueAtTime(0.07, now);
-    volume.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    tone.frequency.value = 780;
+    volume.gain.setValueAtTime(0.001, now);
+    volume.gain.exponentialRampToValueAtTime(0.16, now + 0.025);
+    volume.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
     tone.connect(volume);
     volume.connect(soundContext.destination);
     tone.start(now);
-    tone.stop(now + 0.18);
+    tone.stop(now + 0.36);
   }
 
   function stopInboxSound() {
@@ -228,6 +230,7 @@
     soundContext?.close().catch(() => {});
     soundContext = undefined;
     soundButton?.setAttribute('aria-pressed', 'false');
+    if (soundHelp) soundHelp.textContent = 'Sound off. Turn it on to hear a preview.';
   }
 
   soundButton?.addEventListener('click', async () => {
@@ -236,6 +239,7 @@
       return;
     }
     soundButton.disabled = true;
+    if (soundHelp) soundHelp.textContent = 'Enabling inbox sound…';
     try {
       const Audio = window.AudioContext || window.webkitAudioContext;
       if (!Audio) throw Error('Inbox sound is unavailable in this browser.');
@@ -244,8 +248,9 @@
       await context.resume();
       if (soundContext !== context) return;
       if (context.state !== 'running') throw Error('The browser could not enable inbox sound.');
-      soundButton.setAttribute('aria-pressed', 'true');
       playInboxSound();
+      soundButton.setAttribute('aria-pressed', 'true');
+      if (soundHelp) soundHelp.textContent = 'Sound on. Keep this tab visible to hear new requests.';
       soundTimer = setInterval(async () => {
         if (document.hidden || !state.session || backgroundRefresh || loadedGeneration !== state.generation) return;
         backgroundRefresh = true;
@@ -262,7 +267,7 @@
       }, 20000);
     } catch (error) {
       stopInboxSound();
-      status(error.message, 'error');
+      if (soundHelp) soundHelp.textContent = error.message;
     } finally { soundButton.disabled = false; }
   });
 
