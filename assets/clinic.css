@@ -34,7 +34,7 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-event { padding: 12px 14px; border: 1px solid #ece8f4; border-radius: 12px; }
 .clinic-event strong { display: block; margin-bottom: 4px; }
 .clinic-event small { color: #6b6579; }
-.clinic-event .clinic-followup-button { margin-top: 10px; padding: 7px 11px; }
+.clinic-event .clinic-followup-button { margin: 10px 6px 0 0; padding: 7px 11px; }
 .clinic-event small + small { display: block; margin-top: 6px; }
 .clinic-empty { padding: 18px; border-radius: 12px; background: #f7f5fc; color: #6c657c; }
 .clinic-next { background: #fefbff; }

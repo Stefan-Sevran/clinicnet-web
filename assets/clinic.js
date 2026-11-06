@@ -45,7 +45,13 @@
     if (!response.ok) {
       if (response.status === 401) throw Error('Your session has expired. Please sign in again.');
       if (response.status === 403) throw Error('This account does not permit that action.');
-      if (response.status === 409) throw Error('That channel has already been requested.');
+      if (response.status === 409) {
+        const error = Error(path === '/clinic/followups' ?
+          'This inquiry changed. Review its current state before trying again.' :
+          'That channel has already been requested.');
+        error.status = 409;
+        throw error;
+      }
       throw Error('Workspace request failed (' + response.status + '). Please retry.');
     }
     return response.json();
@@ -112,10 +118,17 @@
     for (const event of events) {
       const row = document.createElement('article'); row.className = 'clinic-event';
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
+      const needsFollowup = ['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key;
       const meta = document.createElement('small');
-      meta.textContent = [event.channel, event.status, event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
+      meta.textContent = [event.channel, needsFollowup ? null : event.status,
+        event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
-      if (['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key) {
+      if (needsFollowup) {
+        if (event.details?.requestedTime) {
+          const timing = document.createElement('small');
+          timing.textContent = event.details.requestedTime;
+          row.append(timing);
+        }
         const alert = document.createElement('small');
         const alertLabels = {
           sent: 'Email alert: sent to provider',
@@ -125,33 +138,71 @@
           failed: 'Email alert: delivery failed',
           not_configured: 'Email alert: no destination configured'
         };
-        alert.textContent = alertLabels[event.notification_state] || 'Email alert: status unavailable';
+        alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
+          alertLabels[event.notification_state] || 'Email alert: status unavailable';
         row.append(alert);
-        const handled = state.followups.get(event.event_key)?.action === 'handled';
+        const latest = state.followups.get(event.event_key);
+        const ownClaim = latest?.actor_user_id === state.session?.user?.id;
         const followup = document.createElement('small');
-        followup.textContent = handled ? 'Staff follow-up: handled' : 'Staff follow-up: open';
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'clinic-secondary clinic-followup-button';
-        button.textContent = handled ? 'Reopen' : 'Mark handled';
-        button.addEventListener('click', () => updateFollowup(event.event_key,
-          handled ? 'reopened' : 'handled', button));
-        row.append(followup, button);
+        followup.textContent = {
+          booked: 'Booked',
+          claimed: ownClaim ? 'Claimed by you · Follow up with the patient' : 'Claimed by another staff member',
+          handled: 'Staff follow-up: handled'
+        }[latest?.action] || (event.kind === 'call.followup_needed' ? 'Needs callback' : 'Needs confirmation');
+        row.append(followup);
+        const actions = latest?.action === 'booked' ? [] :
+          latest?.action === 'claimed' ? (ownClaim ? [
+            ['booked', 'Mark booked'], ['reopened', 'Release claim'], ['handled', 'Mark handled']
+          ] : []) :
+          latest?.action === 'handled' ? [['reopened', 'Reopen']] :
+          [['claimed', 'Claim inquiry'], ['handled', 'Mark handled']];
+        if (actions.length) {
+          const controls = document.createElement('div');
+          for (const [action, label] of actions) {
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'clinic-secondary clinic-followup-button';
+            button.textContent = label;
+            button.addEventListener('click', () => updateFollowup(event, action, controls));
+            controls.append(button);
+          }
+          row.append(controls);
+        }
       }
       container.append(row);
     }
   }
 
-  async function updateFollowup(eventKey, action, button) {
-    button.disabled = true;
+  async function updateFollowup(event, action, controls) {
+    const buttons = [...controls.querySelectorAll('button')];
+    const generation = state.generation;
+    buttons.forEach(button => { button.disabled = true; });
     try {
       await request('/clinic/followups', { method: 'POST', body: JSON.stringify({
-        accountId: byId('clinic-account').value,
-        locationId: byId('clinic-location').value,
-        eventKey, action
+        accountId: event.account_id,
+        locationId: event.location_id,
+        eventKey: event.event_key, action
       }) });
+      if (state.generation !== generation) return;
       await refreshActivity();
-      status(action === 'handled' ? 'Follow-up marked handled.' : 'Follow-up reopened.', 'success');
-    } catch (error) { status(error.message, 'error'); button.disabled = false; }
+      status({
+        claimed: 'Inquiry claimed. Mark it booked after the patient confirms.',
+        booked: 'Booking outcome recorded.',
+        handled: 'Follow-up marked handled.',
+        reopened: 'Inquiry available for follow-up.'
+      }[action], 'success');
+    } catch (error) {
+      if (state.generation !== generation) return;
+      if (error.status === 409) await refreshActivity().catch(() => {});
+      status(error.message, 'error');
+      buttons.forEach(button => { button.disabled = false; });
+    }
+  }
+
+  function renderBookingOutcomes(inbox) {
+    const outcomes = inbox.filter(event => state.followups.get(event.event_key)?.action === 'booked');
+    const demos = outcomes.filter(event => event.details?.demo === true);
+    byId('clinic-booked-count').textContent = (outcomes.length - demos.length) + ' clinic · ' + demos.length + ' sample';
+    renderEvents('clinic-booked-outcomes', outcomes, 'No confirmed booking outcomes in the recent inbox.');
   }
 
   async function refreshActivity(quiet = false) {
@@ -170,6 +221,7 @@
     renderChannels();
     renderEvents('clinic-bookings', bookings, 'No booking requests yet. Requests will appear when a verified channel delivers them.');
     renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
+    renderBookingOutcomes(inbox);
     const keys = inboxAlertKeys(inbox);
     if (soundContext?.state === 'running' && !document.hidden && inboxSnapshot?.locationId === locationId &&
         [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();

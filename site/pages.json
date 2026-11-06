@@ -33,11 +33,11 @@
     "header": true,
     "footer": true,
     "styles": [
-      "/assets/clinic.css"
+      "/assets/clinic.css?v=booking-outcomes-1"
     ],
     "scripts": [
       "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
-      "/assets/clinic.js"
+      "/assets/clinic.js?v=booking-outcomes-1"
     ]
   },
   {
