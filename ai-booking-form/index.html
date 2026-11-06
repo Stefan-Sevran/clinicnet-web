@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Booking Form for Clinics | Eden Clinic Network</title>
+<meta name="description" content="See how instant AI chat can help clinics turn booking-form drop-off into patient conversations and appointments.">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/desktop-navigation.css">
+<link rel="stylesheet" href="/assets/forms.css">
+<link rel="stylesheet" href="/assets/demo.css">
+<script src="/assets/navigation.js?v=2"></script>
+<script defer src="/assets/forms.js"></script>
+<script defer src="/assets/demo.js"></script>
+</head><body data-page="ai-booking-form" data-header="visible" data-footer="visible">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="ecn-site-header">
+<img
+class="ecn-mobile-header-art"
+src="/clinicnet-header-free-clinic-audit.jpg"
+width="1736"
+height="290"
+alt=""
+fetchpriority="high"
+>
+<a class="ecn-header-home-link" href="/" aria-label="Eden Clinic Network home"></a>
+<a class="ecn-header-audit-link" href="/audit/" aria-label="Start the free Clinic Audit"></a>
+<div class="ecn-desktop-header">
+<a class="ecn-desktop-brand" href="/" aria-label="Eden Clinic Network home">
+<span class="ecn-desktop-logo" aria-hidden="true">
+<img src="/clinicnet-header-free-clinic-audit.jpg" alt="">
+</span>
+<span class="ecn-desktop-brand-copy">
+<strong>clinicnet<span>.live</span></strong>
+<small>AI + <span>Human Team</span></small>
+</span>
+</a>
+<nav class="ecn-desktop-nav" aria-label="Main services">
+    <a  href="/audit/">
+      <strong>Clinic Audit</strong>
+      <small>Find revenue leakage</small>
+    </a>
+    <a  href="/ai-receptionist/">
+      <strong>AI Receptionist</strong>
+      <small>Reply &amp; book 24/7</small>
+    </a>
+    <a  href="/missed-call-booking/">
+      <strong>Missed Calls</strong>
+      <small>Recover lost callers</small>
+    </a>
+    <a  href="/eden-standard/">
+      <strong>Eden Standard</strong>
+      <small>How clinics are measured</small>
+    </a>
+  </nav>
+<a class="ecn-desktop-cta" href="/audit/">
+<strong>FREE Clinic Audit <span aria-hidden="true">›</span></strong>
+<small>₱25,000 value</small>
+</a>
+</div>
+</header>
+
+<main id="main-content" class="forms-page">
+  <section class="booking-story booking-story-friction">
+    <div class="forms-shell booking-story-grid">
+      <div class="booking-story-copy">
+        <p class="forms-kicker left">WHEN INTEREST MEETS FRICTION</p>
+        <h1>She was ready to book.<br><span>Then the form got in the way.</span></h1>
+        <p>A new patient should not need to decode a website, fill a long form, wait for confirmation and wonder whether anybody saw it.</p>
+        <div class="story-steps">
+          <div><b>1</b><span>Patient is interested</span></div>
+          <div><b>2</b><span>Booking path creates effort</span></div>
+          <div><b>3</b><span>Momentum disappears</span></div>
+        </div>
+      </div>
+      <div class="booking-phone" aria-label="Traditional booking friction illustration">
+        <div class="phone-top"></div>
+        <div class="phone-screen">
+          <small>Appointment request</small>
+          <div class="fake-field">Full name</div><div class="fake-field">Phone number</div><div class="fake-field">Treatment</div><div class="fake-field">Preferred date</div>
+          <div class="fake-button muted">Submit request</div>
+          <p>We'll get back to you.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="booking-story booking-story-solution">
+    <div class="forms-shell booking-story-grid reverse">
+      <div class="booking-conversation" aria-label="AI booking conversation illustration">
+        <div class="mini-chat-head"><i></i><strong>Clinic booking assistant</strong><span>online</span></div>
+        <div class="mini-bubble user">Hi, can I book a cleaning tomorrow?</div>
+        <div class="mini-bubble bot">Absolutely. We have 2 PM and 4 PM available. Which works better?</div>
+        <div class="mini-bubble user">4 PM 😊</div>
+        <div class="mini-status">✓ Next step confirmed</div>
+      </div>
+      <div class="booking-story-copy">
+        <p class="forms-kicker left">A BETTER PATH</p>
+        <h2>Chat first.<br><span>Guide the patient forward.</span></h2>
+        <p>AI can answer immediately, ask one useful question at a time, and keep the booking moving. The clinic or Human Team can step in when judgment matters.</p>
+        <div class="solution-points">
+          <div><strong>Instant response</strong><span>No waiting for a form submission to be noticed.</span></div>
+          <div><strong>Clinic alert</strong><span>The right people can see when follow-through is needed.</span></div>
+          <div><strong>Conversation context</strong><span>Less repetition for the patient.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="forms-demo" aria-labelledby="forms-demo-title">
+    <div class="forms-shell">
+      <p class="forms-kicker">SEE HOW EASY BOOKING CAN BE:</p>
+      <h1 id="forms-demo-title">Pretend you are a patient and <span>send a message below.</span> 👇</h1>
+      <div id="booking-chat" class="booking-chat" aria-label="AI booking assistant demo">
+        <div id="booking-header" class="booking-header"><div id="booking-icon" class="booking-icon" aria-hidden="true">💬</div><div><strong>AI Booking Assistant</strong><span>Replies in seconds</span></div></div>
+        <div id="booking-messages" class="booking-messages" aria-live="polite"><div class="booking-msg booking-user">Hi 😊 I'd like to book a teeth cleaning.</div><div class="booking-msg booking-bot">Hi Sarah! 👋 We have openings tomorrow at 2 PM and 4 PM. Which works better for you?</div></div>
+        <div id="booking-input-row" class="booking-input-row"><textarea id="booking-input" placeholder="Reply as the patient..." rows="1" aria-label="Reply as the patient"></textarea><button id="booking-send" type="button" data-eden-event="booking_demo_message">Send</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="forms-proof">
+    <div class="forms-shell forms-proof-inner">
+      <h2>Imagine every patient feeling this <span>taken care of.</span></h2>
+      <div class="forms-reactions-heading"><p class="forms-reactions-kicker">CLINIC REACTIONS</p><h3>What clinics say after trying Eden</h3><p>Four reactions from clinic owners testing Eden's AI patient-response experience.</p></div>
+      <div class="demo-carousel" data-demo-carousel><button class="demo-arrow demo-prev" type="button" aria-label="Previous testimonial">‹</button><div class="demo-carousel-stage"><img class="demo-testimonial-card" data-demo-image src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Carousel%20Demo%20page/Ai-autoresponse-missed-calls1.webp" alt="Clinic owner reaction after trying Eden's AI patient-response experience"></div><button class="demo-arrow demo-next" type="button" aria-label="Next testimonial">›</button></div>
+      <div class="demo-dots" data-demo-dots aria-label="Choose testimonial"></div>
+      <p class="forms-proof-note">Real clinic reactions from Eden demos — shown here beside the booking experience.</p>
+      <p class="forms-setup">Fast setup. No full website rebuild required.</p>
+      <p class="forms-ready">Ready to give patients a simpler next step?</p>
+      <a class="forms-cta" href="#forms-demo-title" data-eden-event="booking_demo_cta">Try the AI Booking Chat™ above ☝</a>
+    </div>
+  </section>
+</main>
+
+<footer class="ecn-footer">
+<nav aria-label="Eden Clinic Network services">
+<a  href="/audit/">🔥 Clinic Audit</a>
+<a href="/ai-receptionist/">🌶️ AI Receptionist</a>
+<a href="/calculator/">Revenue Calculator</a>
+<a href="/missed-call-booking/">Missed Call Booking</a>
+<a  href="/">Message Booking</a>
+<a href="/ai-booking-form/">AI Booking Form</a>
+</nav>
+<nav class="ecn-footer-secondary" aria-label="Company information">
+<a href="/about/">About</a>
+<a href="/research/">Research</a>
+<a href="/certification/">Certification</a>
+<a href="/for-hospitals/">For Hospitals</a>
+<a href="/privacy/">Privacy</a>
+<a href="/terms/">ToS</a>
+</nav>
+<p class="ecn-footer-promise">
+<span>Missed call or late reply = Lost patient</span>
+<strong>Get them back in seconds</strong>
+</p>
+<small>© 2026 Eden Clinic Network LLC</small>
+</footer>
+
+</body></html>

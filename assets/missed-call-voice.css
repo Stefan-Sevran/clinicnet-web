@@ -1,0 +1,33 @@
+.eden-voice-panel {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  padding: clamp(42px, 7vw, 94px) 24px;
+  background: radial-gradient(circle at 50% 0%, #343468 0, #171932 46%, #0d1227 100%);
+  color: #fff;
+  text-align: center;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.eden-voice-panel * { box-sizing: border-box; }
+.eden-voice-panel__inner { max-width: 750px; margin: auto; }
+.eden-voice-panel__eyebrow { margin: 0 0 14px; color: #b9dcff; font-size: .82rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.eden-voice-panel h2 { margin: 0; color: #fff; font-size: clamp(2.2rem, 6vw, 4.5rem); line-height: 1.05; letter-spacing: -.045em; }
+.eden-voice-panel__intro { margin: 20px auto 30px; max-width: 580px; color: #d9ddec; font-size: clamp(1rem, 2vw, 1.23rem); line-height: 1.55; }
+.eden-voice-panel__talk {
+  display: grid; place-items: center; align-content: center; gap: 6px;
+  width: clamp(144px, 20vw, 182px); height: clamp(144px, 20vw, 182px);
+  margin: 0 auto; padding: 15px; border: 2px solid #d6fff4; border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #38edcc, #078d84 65%, #066175);
+  box-shadow: 0 0 0 9px #ffffff14, 0 22px 55px #0008;
+  color: #061e2b; cursor: pointer; font: inherit; transition: transform .2s ease, box-shadow .2s ease;
+}
+.eden-voice-panel__talk:hover:not(:disabled) { transform: scale(1.045); box-shadow: 0 0 0 12px #ffffff21, 0 25px 55px #0009; }
+.eden-voice-panel__talk:active:not(:disabled) { transform: scale(.98); }
+.eden-voice-panel__talk:focus-visible { outline: 4px solid #fff; outline-offset: 7px; }
+.eden-voice-panel__talk:disabled { cursor: wait; opacity: .75; }
+.eden-voice-panel__icon { font-size: 2.3rem; line-height: 1; }
+.eden-voice-panel__label { font-size: 1.55rem; font-weight: 900; line-height: 1.1; }
+.eden-voice-panel__talk[data-live="true"] { background: radial-gradient(circle at 30% 25%, #ffcdc0, #ed7a72 68%, #b84b6a); }
+.eden-voice-panel__status { min-height: 1.6em; margin: 26px auto 8px; color: #edf5ff; font-size: .98rem; }
+.eden-voice-panel__note { margin: 0 auto; color: #aeb8cd; font-size: .84rem; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .eden-voice-panel__talk { transition: none; } }

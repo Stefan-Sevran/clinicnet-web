@@ -1,0 +1,73 @@
+
+/* Compact company/legal text pages migrated from the Carrd site. */
+.ecn-text-page {
+  width: min(1040px, calc(100% - 72px));
+  margin: 0 auto;
+  padding: 74px 0 88px;
+  color: #101010;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.ecn-text-page h1 {
+  margin: 0 0 48px;
+  font-size: clamp(2rem, 4vw, 3.05rem);
+  line-height: 1.08;
+  font-weight: 900;
+  letter-spacing: -.03em;
+}
+.ecn-text-page h2 {
+  margin: 34px 0 8px;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  line-height: 1.25;
+  font-weight: 900;
+}
+.ecn-text-page p,
+.ecn-text-page li {
+  font-size: clamp(1.05rem, 2.05vw, 1.35rem);
+  line-height: 1.52;
+  font-weight: 700;
+}
+.ecn-text-page p { margin: 0 0 22px; }
+.ecn-text-page ul {
+  margin: 10px 0 28px 1.1em;
+  padding: 0;
+}
+.ecn-text-page li { margin: 5px 0; }
+.ecn-text-page .lead {
+  max-width: 900px;
+  margin-bottom: 38px;
+  font-size: clamp(1.32rem, 2.6vw, 2rem);
+  line-height: 1.42;
+  font-weight: 900;
+}
+.ecn-text-page hr {
+  margin: 52px 0;
+  border: 0;
+  border-top: 1px solid #cfc9c9;
+}
+.ecn-text-page .about-points {
+  list-style: square;
+  margin-left: 1.45em;
+}
+.ecn-text-page .contact-block {
+  margin-top: 28px;
+}
+.ecn-text-page .contact-block p { margin-bottom: 4px; }
+.ecn-text-page .updated {
+  margin-top: 28px;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.ecn-text-page em {
+  font-weight: 800;
+}
+@media (max-width: 700px) {
+  .ecn-text-page {
+    width: calc(100% - 48px);
+    padding: 54px 0 68px;
+  }
+  .ecn-text-page h1 { margin-bottom: 38px; }
+  .ecn-text-page h2 { margin-top: 30px; }
+}
+@media (max-width: 430px) {
+  .ecn-text-page { width: calc(100% - 32px); }
+}
