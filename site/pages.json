@@ -37,7 +37,7 @@
     ],
     "scripts": [
       "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
-      "/assets/clinic.js?v=clinic-daily-1"
+      "/assets/clinic.js?v=clinic-messenger-1"
     ]
   },
   {
