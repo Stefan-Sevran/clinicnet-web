@@ -1,0 +1,1255 @@
+<main id="main-content">
+<section id="ecn-ai-receptionist-page" data-ecn-page="ai-receptionist" aria-label="AI Receptionist">
+<div id="eve-ai-receptionist-hero-2026">
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist-Eve.webp"
+alt="AI Receptionist for clinics"
+>
+</div>
+
+<style>
+#eve-ai-receptionist-hero-2026,
+#eve-ai-receptionist-hero-2026 * {
+box-sizing: border-box;
+}
+
+#eve-ai-receptionist-hero-2026 {
+position: relative;
+z-index: 1;
+isolation: isolate;
+
+display: block;
+width: 100vw;
+max-width: none;
+
+margin-left: calc(50% - 50vw);
+margin-right: calc(50% - 50vw);
+margin-top: 0;
+margin-bottom: 0;
+
+padding: 0;
+overflow: hidden;
+line-height: 0;
+background: #ffffff;
+}
+
+#eve-ai-receptionist-hero-2026 img {
+position: relative;
+display: block;
+
+width: 100%;
+max-width: none;
+height: auto;
+
+margin: 0;
+padding: 0;
+border: 0;
+}
+</style>
+
+
+<section id="eve-ai-reception-chat-2026">
+
+<div class="eve-ai-card-2026">
+
+<div class="eve-ai-header-2026">
+
+<div class="eve-ai-avatar-2026">
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Pearlsmile-avatar.webp"
+alt="Eve AI Receptionist"
+>
+</div>
+
+<div class="eve-ai-head-text-2026">
+<div class="eve-ai-title-2026">
+Eve – AI Receptionist
+</div>
+
+<div class="eve-ai-status-2026">
+<span></span>
+AI + Human Team · Usually replies in 60 sec
+</div>
+</div>
+
+<div class="eve-ai-menu-2026">⋮</div>
+
+</div>
+
+<div id="eve-ai-messages-2026">
+
+<div class="eve-ai-message-2026 eve-ai-bot-2026">👋 Hi!
+
+Imagine this receptionist working for your clinic 24/7. No lost bookings. No lost revenue.
+
+What clinic do you run?</div>
+
+</div>
+
+<div class="eve-ai-input-row-2026">
+
+<textarea
+id="eve-ai-input-2026"
+placeholder="Type your message..."
+rows="1"
+></textarea>
+
+<button
+id="eve-ai-send-2026"
+type="button"
+aria-label="Send message"
+>➤</button>
+
+</div>
+
+<div class="eve-ai-privacy-2026">
+🔒 Private clinic qualification chat
+</div>
+
+</div>
+
+</section>
+
+<style>
+#eve-ai-reception-chat-2026,
+#eve-ai-reception-chat-2026 * {
+box-sizing: border-box;
+}
+
+#eve-ai-reception-chat-2026 {
+position: relative;
+z-index: 20;
+isolation: isolate;
+display: flow-root;
+
+width: 100%;
+margin: 0;
+padding: 0 0 28px;
+
+background: transparent !important;
+font-family: Arial, Helvetica, sans-serif;
+
+scroll-margin-top: 90px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-card-2026 {
+position: relative;
+z-index: 2;
+
+width: calc(100% - 28px);
+max-width: 540px;
+
+margin: -205px auto 0;
+padding: 0;
+
+overflow: hidden;
+border-radius: 28px;
+
+background: rgba(224, 196, 158, 0.34);
+
+backdrop-filter: blur(22px);
+-webkit-backdrop-filter: blur(22px);
+
+border: 1.5px solid rgba(255, 255, 255, 0.62);
+
+box-shadow:
+0 10px 28px rgba(20, 30, 45, 0.10),
+0 2px 10px rgba(20, 30, 45, 0.06);
+
+color: #08284a;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-header-2026 {
+display: flex;
+align-items: center;
+gap: 12px;
+
+padding: 14px 16px;
+
+border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-avatar-2026 {
+width: 54px;
+min-width: 54px;
+height: 54px;
+
+overflow: hidden;
+border-radius: 50%;
+
+background: #ffffff;
+box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-avatar-2026 img {
+display: block;
+width: 100%;
+height: 100%;
+object-fit: cover;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-head-text-2026 {
+flex: 1;
+min-width: 0;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-title-2026 {
+font-size: 19px;
+font-weight: 850;
+line-height: 1.15;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-status-2026 {
+margin-top: 4px;
+
+font-size: 12px;
+line-height: 1.3;
+color: rgba(8, 40, 74, 0.72);
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-status-2026 span {
+display: inline-block;
+
+width: 8px;
+height: 8px;
+margin-right: 5px;
+
+border-radius: 50%;
+background: #16a34a;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-menu-2026 {
+flex-shrink: 0;
+
+font-size: 26px;
+line-height: 1;
+color: #062b55;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-messages-2026 {
+min-height: 170px;
+max-height: 300px;
+
+overflow-x: hidden;
+overflow-y: auto;
+
+padding: 14px 14px 4px;
+
+background: rgba(255, 250, 245, 0.18);
+overscroll-behavior: contain;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-message-2026 {
+display: block;
+
+max-width: 86%;
+margin: 0 0 12px;
+padding: 13px 15px;
+
+border-radius: 20px;
+
+font-size: 14.5px;
+line-height: 1.43;
+
+white-space: pre-wrap;
+overflow-wrap: anywhere;
+word-break: normal;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-bot-2026 {
+margin-right: auto;
+
+background: rgba(255, 255, 255, 0.72);
+border: 1px solid rgba(255, 255, 255, 0.78);
+border-bottom-left-radius: 7px;
+
+box-shadow: 0 8px 22px rgba(64, 36, 12, 0.10);
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-user-2026 {
+margin-left: auto;
+
+background: rgba(222, 240, 255, 0.88);
+border-bottom-right-radius: 7px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-loading-2026 {
+opacity: 0.72;
+font-style: italic;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-input-row-2026 {
+position: relative;
+z-index: 10;
+
+display: block;
+width: 100%;
+
+padding: 10px 16px 8px;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-input-2026 {
+display: block;
+width: 100%;
+min-height: 52px;
+
+margin: 0;
+padding: 15px 58px 15px 20px;
+
+resize: none;
+overflow: hidden;
+
+border: 1px solid rgba(255, 255, 255, 0.82);
+border-radius: 999px;
+outline: none;
+
+background: rgba(255, 255, 255, 0.74);
+
+color: #08284a;
+font-family: inherit;
+font-size: 16px;
+line-height: 1.25;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-input-2026:focus {
+background: rgba(255, 255, 255, 0.94);
+box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.38);
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-send-2026 {
+position: absolute;
+z-index: 20;
+
+right: 22px;
+top: 50%;
+transform: translateY(-50%);
+
+display: grid;
+place-items: center;
+
+width: 38px;
+min-width: 38px;
+height: 38px;
+
+margin: 0;
+padding: 0;
+
+border: 1px solid rgba(255, 255, 255, 0.68);
+border-radius: 50%;
+
+background: rgba(224, 196, 158, 0.72);
+color: #062b55;
+
+font-size: 18px;
+font-weight: 900;
+line-height: 1;
+
+cursor: pointer;
+pointer-events: auto;
+touch-action: manipulation;
+
+box-shadow: 0 6px 16px rgba(56, 32, 10, 0.12);
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-send-2026:active {
+transform: translateY(-50%) scale(0.96);
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-send-2026:disabled {
+opacity: 0.55;
+cursor: not-allowed;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-privacy-2026 {
+padding: 0 18px 19px;
+
+text-align: left;
+font-size: 11px;
+line-height: 1.3;
+
+color: rgba(8, 40, 74, 0.70);
+opacity: 0.62;
+}
+
+
+@media (min-width: 760px) {
+#eve-ai-reception-chat-2026 {
+padding-bottom: 42px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-card-2026 {
+width: min(860px, calc(100% - 56px));
+max-width: 860px;
+margin-top: -220px;
+border-radius: 32px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-header-2026 {
+gap: 15px;
+padding: 20px 24px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-avatar-2026 {
+width: 64px;
+min-width: 64px;
+height: 64px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-title-2026 {
+font-size: 23px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-status-2026 {
+font-size: 13.5px;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-messages-2026 {
+min-height: 390px;
+max-height: min(540px, 58vh);
+padding: 24px 25px 12px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-message-2026 {
+max-width: 76%;
+padding: 15px 18px;
+font-size: 16px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-input-row-2026 {
+padding: 16px 24px 11px;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-input-2026 {
+min-height: 58px;
+padding: 17px 66px 17px 22px;
+font-size: 16px;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-send-2026 {
+right: 31px;
+width: 46px;
+min-width: 46px;
+height: 46px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-privacy-2026 {
+padding: 0 26px 22px;
+font-size: 12px;
+}
+}
+
+@media (max-width: 600px) {
+#eve-ai-reception-chat-2026 {
+padding-bottom: 24px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-card-2026 {
+width: calc(100% - 24px);
+margin-top: -205px;
+border-radius: 24px;
+}
+
+#eve-ai-reception-chat-2026 #eve-ai-messages-2026 {
+min-height: 135px;
+max-height: 260px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-title-2026 {
+font-size: 18px;
+}
+
+#eve-ai-reception-chat-2026 .eve-ai-message-2026 {
+font-size: 14px;
+}
+}
+</style>
+
+<script>
+(function () {
+const chatRoot = document.getElementById("eve-ai-reception-chat-2026");
+
+if (!chatRoot || chatRoot.dataset.eveChatReady === "true") {
+return;
+}
+
+chatRoot.dataset.eveChatReady = "true";
+
+const input = chatRoot.querySelector("#eve-ai-input-2026");
+const sendButton = chatRoot.querySelector("#eve-ai-send-2026");
+const messages = chatRoot.querySelector("#eve-ai-messages-2026");
+
+if (!input || !sendButton || !messages) {
+return;
+}
+
+function addMessage(text, className) {
+const message = document.createElement("div");
+
+message.className =
+"eve-ai-message-2026 " + className;
+
+message.textContent = text;
+
+messages.appendChild(message);
+messages.scrollTop = messages.scrollHeight;
+
+return message;
+}
+
+async function sendReceptionMessage(event) {
+if (event) {
+event.preventDefault();
+event.stopPropagation();
+}
+
+const text = (input.value || "").trim();
+
+if (!text || sendButton.disabled) {
+return;
+}
+
+addMessage(text, "eve-ai-user-2026");
+
+input.value = "";
+sendButton.disabled = true;
+
+const loadingMessage = addMessage(
+"Eve is typing...",
+"eve-ai-bot-2026 eve-ai-loading-2026"
+);
+
+try {
+let sessionId =
+localStorage.getItem("eveAiReceptionSessionId2026");
+
+if (!sessionId) {
+sessionId =
+"eve_reception_" +
+Date.now() +
+"_" +
+Math.random().toString(36).slice(2, 9);
+
+localStorage.setItem(
+"eveAiReceptionSessionId2026",
+sessionId
+);
+}
+
+const response = await fetch(
+"https://eden-audit-chat.onrender.com/revenue-receptionist-chat",
+{
+method: "POST",
+headers: {
+"Content-Type": "application/json"
+},
+body: JSON.stringify({
+message: text,
+sessionId: sessionId
+})
+}
+);
+
+if (!response.ok) {
+throw new Error(
+"Server returned " + response.status
+);
+}
+
+const data = await response.json();
+
+loadingMessage.remove();
+
+addMessage(
+data.reply ||
+"Got it 😊 What clinic do you run?",
+"eve-ai-bot-2026"
+);
+
+} catch (error) {
+loadingMessage.remove();
+
+addMessage(
+"Connection issue. Please try again.",
+"eve-ai-bot-2026"
+);
+
+console.error(
+"Eve AI Receptionist chat error:",
+error
+);
+} finally {
+sendButton.disabled = false;
+input.focus();
+}
+}
+
+sendButton.addEventListener(
+"click",
+sendReceptionMessage
+);
+
+input.addEventListener("keydown", function (event) {
+if (
+event.key === "Enter" &&
+!event.shiftKey
+) {
+sendReceptionMessage(event);
+}
+});
+})();
+</script>
+
+
+
+<nav
+id="eve-ai-floating-bar-2026"
+aria-label="Chat with Eve"
+>
+
+<a
+href="#eve-ai-reception-chat-2026"
+class="eve-ai-float-item-2026"
+id="eve-ai-floating-chat-link-2026"
+>
+
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Pearlsmile-avatar.webp"
+alt=""
+class="eve-ai-float-avatar-2026"
+>
+
+<span class="eve-ai-float-text-2026">
+<strong>Chat with Eve 24/7</strong>
+<small>Get your free AI receptionist</small>
+</span>
+
+<span
+class="eve-ai-float-arrow-2026"
+aria-hidden="true"
+>↑</span>
+
+</a>
+
+</nav>
+
+<style>
+#eve-ai-floating-bar-2026,
+#eve-ai-floating-bar-2026 * {
+box-sizing: border-box;
+}
+
+#eve-ai-floating-bar-2026 {
+position: fixed;
+z-index: 99999;
+
+left: 50%;
+bottom: 12px;
+transform: translateX(-50%);
+
+width: calc(100% - 24px);
+max-width: 430px;
+
+margin: 0;
+padding: 7px;
+
+border: 1px solid rgba(255, 255, 255, 0.82);
+border-radius: 999px;
+
+background: rgba(255, 255, 255, 0.56);
+
+backdrop-filter: blur(22px);
+-webkit-backdrop-filter: blur(22px);
+
+box-shadow:
+0 14px 38px rgba(8, 40, 74, 0.18),
+inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+
+isolation: isolate;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-item-2026 {
+display: flex;
+align-items: center;
+width: 100%;
+gap: 11px;
+
+margin: 0;
+padding: 8px 9px 8px 10px;
+
+border-radius: 999px;
+
+color: #08284a;
+text-decoration: none;
+
+font-family:
+system-ui,
+-apple-system,
+BlinkMacSystemFont,
+"Segoe UI",
+sans-serif;
+
+transition:
+transform 0.18s ease,
+background 0.18s ease,
+box-shadow 0.18s ease;
+
+touch-action: manipulation;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-item-2026:hover {
+background: rgba(255, 255, 255, 0.26);
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-item-2026:active {
+transform: scale(0.98);
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-avatar-2026 {
+flex: 0 0 auto;
+
+display: block;
+width: 45px;
+height: 45px;
+
+border: 2px solid #ffffff;
+border-radius: 50%;
+
+object-fit: cover;
+
+box-shadow:
+0 3px 10px rgba(0, 0, 0, 0.16);
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 {
+flex: 1;
+min-width: 0;
+
+display: flex;
+flex-direction: column;
+justify-content: center;
+gap: 3px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 strong {
+overflow: hidden;
+
+font-size: 16px;
+font-weight: 850;
+line-height: 1.1;
+white-space: nowrap;
+text-overflow: ellipsis;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 small {
+overflow: hidden;
+
+color: rgba(8, 40, 74, 0.68);
+
+font-size: 12px;
+font-weight: 600;
+line-height: 1.15;
+white-space: nowrap;
+text-overflow: ellipsis;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-arrow-2026 {
+flex: 0 0 auto;
+
+display: flex;
+align-items: center;
+justify-content: center;
+
+width: 43px;
+height: 43px;
+
+border-radius: 50%;
+
+background: linear-gradient(
+135deg,
+#f0d9b3,
+#dfbd88
+);
+color: #08284a;
+
+font-size: 23px;
+font-weight: 800;
+line-height: 1;
+
+box-shadow:
+0 7px 18px rgba(72, 73, 220, 0.28);
+}
+
+
+@media (min-width: 760px) {
+#eve-ai-floating-bar-2026 {
+bottom: 20px;
+width: min(720px, calc(100% - 60px));
+max-width: 720px;
+padding: 10px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-item-2026 {
+gap: 14px;
+padding: 11px 14px 11px 15px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-avatar-2026 {
+width: 52px;
+height: 52px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 strong {
+font-size: 18px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 small {
+font-size: 13px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-arrow-2026 {
+width: 48px;
+height: 48px;
+font-size: 25px;
+}
+}
+
+@media (max-width: 420px) {
+#eve-ai-floating-bar-2026 {
+bottom: 9px;
+width: calc(100% - 18px);
+padding: 6px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-item-2026 {
+gap: 9px;
+padding: 7px 8px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-avatar-2026 {
+width: 42px;
+height: 42px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 strong {
+font-size: 15px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-text-2026 small {
+font-size: 11px;
+}
+
+#eve-ai-floating-bar-2026 .eve-ai-float-arrow-2026 {
+width: 40px;
+height: 40px;
+font-size: 21px;
+}
+}
+</style>
+
+<script>
+(function () {
+const chatLink = document.getElementById(
+"eve-ai-floating-chat-link-2026"
+);
+
+const chatSection = document.getElementById(
+"eve-ai-reception-chat-2026"
+);
+
+if (!chatLink || !chatSection) {
+return;
+}
+
+chatLink.addEventListener("click", function (event) {
+event.preventDefault();
+
+chatSection.scrollIntoView({
+behavior: "smooth",
+block: "center"
+});
+});
+})();
+</script>
+
+
+
+<!-- =========================================================
+EVE AI RECEPTIONIST — CLINIC PREVIEW GALLERY
+Local thumbnails; preview destinations intentionally remain the existing clinicnet.live hash links.
+========================================================= -->
+<section id="eve-ai-preview-gallery-2026" aria-labelledby="eve-ai-preview-title-2026">
+  <div class="eve-ai-preview-inner-2026">
+    <p class="eve-ai-preview-kicker-2026">👆 Chat with Eve to see if your clinic qualifies for a <strong>free website and AI receptionist like this</strong> <span>(normal price ₱25,000–₱100,000).</span></p>
+    <h2 id="eve-ai-preview-title-2026">Test other clinics’ AI Receptionists:</h2>
+    <div class="eve-ai-preview-grid-2026">
+      <a class="eve-ai-preview-card-2026" href="/mabuhay-medical-center-philippines/" aria-label="Open Mabuhay Medical Center AI receptionist preview">
+        <img src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Mabuhay/AI-medical-center-receptionist-Aira.webp" alt="Mabuhay Medical Center AI receptionist preview" loading="lazy">
+        <span>Mabuhay Medical Center</span>
+      </a>
+      <a class="eve-ai-preview-card-2026" href="/lumiere-aesthetics-manila/" aria-label="Open Lumière Aesthetics Manila AI receptionist preview">
+        <img src="/assets/ai-receptionist-thumbnails/lumiere-aesthetics.png" alt="Lumière Aesthetics Manila AI receptionist preview" loading="lazy">
+        <span>Lumière Aesthetics Manila</span>
+      </a>
+      <a class="eve-ai-preview-card-2026" href="/siam-serenity-thailand/" aria-label="Open Siam Serenity AI receptionist preview">
+        <img src="/assets/ai-receptionist-thumbnails/siam-serenity.png" alt="Siam Serenity AI receptionist preview" loading="lazy">
+        <span>Siam Serenity</span>
+      </a>
+      <a class="eve-ai-preview-card-2026" href="/pearlsmile-cebu/" aria-label="Open PearlSmile Dental Cebu AI receptionist preview">
+        <img src="/assets/ai-receptionist-thumbnails/pearlsmile-cebu.png" alt="PearlSmile Dental Cebu AI receptionist preview" loading="lazy">
+        <span>PearlSmile Dental Cebu</span>
+      </a>
+      <a class="eve-ai-preview-card-2026" href="/pattaya-smile-dental/" aria-label="Open Pattaya Smile Dental AI receptionist preview">
+        <img src="/assets/ai-receptionist-thumbnails/pattaya-smile.png" alt="Pattaya Smile Dental AI receptionist preview" loading="lazy">
+        <span>Pattaya Smile Dental</span>
+      </a>
+      <div class="eve-ai-preview-card-2026 eve-ai-preview-next-2026" aria-label="Your clinic next?">
+        <img src="/assets/ai-receptionist-thumbnails/your-clinic-next.png" alt="Your clinic next?" loading="lazy">
+        <span>Your clinic next?</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+#eve-ai-preview-gallery-2026, #eve-ai-preview-gallery-2026 * { box-sizing:border-box; }
+#eve-ai-preview-gallery-2026 { background:#fff; color:#08284a; padding:34px 20px 42px; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-inner-2026 { width:min(1040px,100%); margin:0 auto; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-kicker-2026 { max-width:880px; margin:0 auto 34px; text-align:center; font-size:clamp(1rem,2.25vw,1.28rem); line-height:1.48; color:#34313a; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-kicker-2026 strong { font-weight:850; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-kicker-2026 span { white-space:nowrap; }
+#eve-ai-preview-gallery-2026 h2 { margin:0 0 24px; text-align:center; color:#28252c; font-size:clamp(1.65rem,4vw,2.35rem); line-height:1.12; letter-spacing:-.025em; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-grid-2026 { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:16px; align-items:start; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-card-2026 { display:flex; flex-direction:column; gap:10px; min-width:0; color:#08284a; text-decoration:none; font-weight:750; font-size:.84rem; line-height:1.2; text-align:center; transition:transform .18s ease, filter .18s ease; }
+#eve-ai-preview-gallery-2026 a.eve-ai-preview-card-2026:hover { transform:translateY(-3px); filter:brightness(1.02); }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-card-2026 img { display:block; width:100%; aspect-ratio:9/16; object-fit:cover; object-position:top center; border-radius:14px; box-shadow:0 10px 28px rgba(8,40,74,.10); background:#f7f4ef; }
+#eve-ai-preview-gallery-2026 .eve-ai-preview-next-2026 { cursor:default; }
+@media (max-width:900px) {
+  #eve-ai-preview-gallery-2026 .eve-ai-preview-grid-2026 { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 14px; }
+}
+@media (max-width:520px) {
+  #eve-ai-preview-gallery-2026 { padding:28px 14px 34px; }
+  #eve-ai-preview-gallery-2026 .eve-ai-preview-grid-2026 { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 12px; }
+  #eve-ai-preview-gallery-2026 .eve-ai-preview-card-2026 { font-size:.78rem; }
+  #eve-ai-preview-gallery-2026 .eve-ai-preview-card-2026 img { border-radius:11px; }
+}
+</style>
+
+<!-- =========================================================
+EVE AI RECEPTIONIST — FULL-BLEED 3 STEPS + CLICKABLE CTA
+========================================================= -->
+
+<section id="eve-ai-below-chat-2026">
+
+<!-- STEP 1 -->
+<section class="eve-ai-content-section-2026">
+<img
+class="eve-ai-wide-image-2026"
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist/AI-clinic-receptionist-booking.webp"
+alt="Step 1 — Get your free AI Receptionist and custom clinic page"
+loading="lazy"
+decoding="async"
+>
+</section>
+
+<!-- STEP 2 -->
+<section class="eve-ai-content-section-2026">
+<img
+class="eve-ai-wide-image-2026"
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist/AI--clinic-receptionist-eve2.webp"
+alt="Step 2 — Eve replies to patients and books appointments 24 hours a day"
+loading="lazy"
+decoding="async"
+>
+</section>
+
+<!-- STEP 3 -->
+<section class="eve-ai-content-section-2026">
+<img
+class="eve-ai-wide-image-2026"
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist/AI-chat-booking-receptionist.webp"
+alt="Step 3 — Your clinic team receives every booking instantly"
+loading="lazy"
+decoding="async"
+>
+</section>
+
+<!-- FINAL CLICKABLE CTA -->
+<section class="eve-ai-content-section-2026 eve-ai-final-section-2026">
+<button
+type="button"
+class="eve-ai-image-cta-2026"
+id="eve-ai-final-image-cta-2026"
+aria-label="Chat with Eve and see if your clinic qualifies"
+>
+<img
+class="eve-ai-wide-image-2026"
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist/AI-dentist-receptionist-booker-eve4.webp"
+alt="Chat with Eve now to see if your clinic qualifies for a free AI Receptionist"
+loading="lazy"
+decoding="async"
+>
+</button>
+</section>
+
+</section>
+
+<style>
+/* =========================================================
+COMPLETE ISOLATION
+========================================================= */
+
+#eve-ai-below-chat-2026,
+#eve-ai-below-chat-2026 * {
+box-sizing: border-box;
+}
+
+#eve-ai-below-chat-2026 {
+position: relative !important;
+z-index: 1;
+isolation: isolate;
+
+display: flow-root;
+clear: both;
+float: none;
+
+inset: auto !important;
+transform: none !important;
+
+width: 100%;
+max-width: none;
+
+margin: 0 !important;
+padding: 0 0 0px;
+
+overflow: visible;
+
+background: #ffffff;
+
+font-family: Arial, Helvetica, sans-serif;
+}
+
+/* =========================================================
+FULL-BLEED IMAGE SECTIONS
+========================================================= */
+
+#eve-ai-below-chat-2026
+.eve-ai-content-section-2026 {
+position: relative;
+z-index: 1;
+
+display: block;
+clear: both;
+float: none;
+
+width: 100vw;
+max-width: 100vw;
+
+margin-top: 0;
+margin-bottom: 0;
+margin-left: calc(50% - 50vw);
+margin-right: calc(50% - 50vw);
+
+padding: 0;
+
+overflow: hidden;
+
+transform: none;
+}
+
+/* =========================================================
+ALL IMAGES
+========================================================= */
+
+#eve-ai-below-chat-2026
+.eve-ai-wide-image-2026 {
+position: relative;
+
+display: block;
+float: none;
+
+width: 100vw;
+max-width: 100vw;
+height: auto;
+
+margin: 0;
+padding: 0;
+
+border: 0;
+border-radius: 0;
+box-shadow: none;
+
+transform: none;
+}
+
+/* =========================================================
+CLICKABLE FINAL CTA
+========================================================= */
+
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026 {
+position: relative;
+
+display: block;
+
+width: 100vw;
+max-width: 100vw;
+
+margin: 0;
+padding: 0;
+
+border: 0;
+border-radius: 0;
+
+background: transparent;
+
+appearance: none;
+-webkit-appearance: none;
+
+cursor: pointer;
+
+overflow: hidden;
+
+text-align: inherit;
+
+transition:
+filter 180ms ease,
+transform 180ms ease;
+}
+
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026:hover {
+filter: brightness(1.025);
+}
+
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026:active {
+transform: scale(0.997);
+}
+
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026:focus-visible {
+outline: 4px solid rgba(232, 201, 141, 0.95);
+outline-offset: -4px;
+}
+
+/* =========================================================
+MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+#eve-ai-below-chat-2026 {
+padding-bottom: 0px;
+}
+
+#eve-ai-below-chat-2026
+.eve-ai-content-section-2026,
+
+#eve-ai-below-chat-2026
+.eve-ai-wide-image-2026,
+
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026 {
+width: 100vw;
+max-width: 100vw;
+border-radius: 0;
+}
+}
+
+/* =========================================================
+REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+#eve-ai-below-chat-2026
+.eve-ai-image-cta-2026 {
+transition: none;
+}
+}
+</style>
+
+<script>
+(function () {
+
+const finalCTA =
+document.getElementById(
+'eve-ai-final-image-cta-2026'
+);
+
+if (!finalCTA) return;
+
+finalCTA.addEventListener('click', function () {
+
+/*
+Tries likely Eve chatbox IDs.
+The first matching element is used.
+*/
+
+const possibleChatTargets = [
+'eve-ai-reception-chat-2026',
+'eve-ai-reception-chat',
+'eve-ai-chat-2026',
+'eden-reception-chat',
+'hero-chat'
+];
+
+let chatTarget = null;
+
+for (
+let i = 0;
+i < possibleChatTargets.length;
+i++
+) {
+const candidate =
+document.getElementById(
+possibleChatTargets[i]
+);
+
+if (candidate) {
+chatTarget = candidate;
+break;
+}
+}
+
+if (!chatTarget) {
+console.warn(
+'Eve chatbox could not be found. Check its HTML ID.'
+);
+return;
+}
+
+chatTarget.scrollIntoView({
+behavior: 'smooth',
+block: 'center',
+inline: 'nearest'
+});
+
+/*
+Focus the text field after scrolling.
+*/
+
+window.setTimeout(function () {
+
+const messageInput =
+chatTarget.querySelector(
+'textarea, input[type="text"], input:not([type])'
+);
+
+if (messageInput) {
+try {
+messageInput.focus({
+preventScroll: true
+});
+} catch (error) {
+messageInput.focus();
+}
+}
+
+}, 750);
+
+});
+
+})();
+</script>
+</section>
+
+</main>

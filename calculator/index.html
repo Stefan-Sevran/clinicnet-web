@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clinic Revenue Leakage Calculator | Eden Clinic Network</title>
+<meta name="description" content="Estimate potential clinic revenue leakage from slow replies, missed calls, and booking friction using your own patient value and inquiry volume.">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/desktop-navigation.css">
+<link rel="stylesheet" href="/assets/calculator.css">
+<script src="/assets/navigation.js?v=2"></script>
+<script defer src="/assets/calculator.js"></script>
+</head><body data-page="calculator" data-header="visible" data-footer="visible">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="ecn-site-header">
+<img
+class="ecn-mobile-header-art"
+src="/clinicnet-header-free-clinic-audit.jpg"
+width="1736"
+height="290"
+alt=""
+fetchpriority="high"
+>
+<a class="ecn-header-home-link" href="/" aria-label="Eden Clinic Network home"></a>
+<a class="ecn-header-audit-link" href="/audit/" aria-label="Start the free Clinic Audit"></a>
+<div class="ecn-desktop-header">
+<a class="ecn-desktop-brand" href="/" aria-label="Eden Clinic Network home">
+<span class="ecn-desktop-logo" aria-hidden="true">
+<img src="/clinicnet-header-free-clinic-audit.jpg" alt="">
+</span>
+<span class="ecn-desktop-brand-copy">
+<strong>clinicnet<span>.live</span></strong>
+<small>AI + <span>Human Team</span></small>
+</span>
+</a>
+<nav class="ecn-desktop-nav" aria-label="Main services">
+    <a  href="/audit/">
+      <strong>Clinic Audit</strong>
+      <small>Find revenue leakage</small>
+    </a>
+    <a  href="/ai-receptionist/">
+      <strong>AI Receptionist</strong>
+      <small>Reply &amp; book 24/7</small>
+    </a>
+    <a  href="/missed-call-booking/">
+      <strong>Missed Calls</strong>
+      <small>Recover lost callers</small>
+    </a>
+    <a  href="/eden-standard/">
+      <strong>Eden Standard</strong>
+      <small>How clinics are measured</small>
+    </a>
+  </nav>
+<a class="ecn-desktop-cta" href="/audit/">
+<strong>FREE Clinic Audit <span aria-hidden="true">›</span></strong>
+<small>₱25,000 value</small>
+</a>
+</div>
+</header>
+
+<main id="main-content" class="calc-page">
+  <section class="calc-hero">
+    <div class="calc-shell calc-hero-inner">
+      <p class="calc-eyebrow">CLINIC REVENUE RECOVERY CALCULATOR</p>
+      <h1>Where could your clinic be <span>leaking patient revenue?</span></h1>
+      <p class="calc-deck">Model slow replies, missed calls and booking friction in about 60 seconds — then see which recovery path may matter most.</p>
+      <div class="calc-trust-row" aria-label="Calculator principles">
+        <span>Illustrative model</span><span>No revenue guarantee</span><span>Built for clinics</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="calc-shell calc-app" id="calcApp">
+    <div class="calc-stage active" data-stage="0">
+      <div class="calc-start-card">
+        <div>
+          <p class="calc-step-label">START HERE</p>
+          <h2>Build your clinic scenario.</h2>
+          <p>Use rough estimates if you do not know the exact numbers. You can change everything later.</p>
+        </div>
+        <div class="calc-mini-grid" aria-hidden="true">
+          <div><strong>1</strong><span>Inquiries</span></div>
+          <div><strong>2</strong><span>Missed calls</span></div>
+          <div><strong>3</strong><span>Patient value</span></div>
+          <div><strong>4</strong><span>Booking friction</span></div>
+        </div>
+      </div>
+      <button class="calc-primary" id="calcStart" data-eden-event="calculator_started">Start my estimate <span>→</span></button>
+      <p class="calc-fine">No login. No clinic data is sent anywhere by this calculator.</p>
+    </div>
+
+    <div class="calc-stage" data-stage="1">
+      <div class="calc-progress"><div><strong>Patient inquiries</strong><span>1 / 4</span></div><div class="track"><i style="width:25%"></i></div></div>
+      <h2>How much patient interest reaches you?</h2>
+      <p class="calc-step-copy">Think website chat, messages, forms and other digital inquiries combined.</p>
+
+      <div class="question">
+        <h3>Approximate new patient inquiries per day</h3>
+        <div class="options options-4" data-key="inquiries">
+          <button data-value="5">1–5<small>Light</small></button>
+          <button data-value="12">6–15<small>Steady</small></button>
+          <button data-value="25">16–30<small>Busy</small></button>
+          <button data-value="45">30+<small>High volume</small></button>
+        </div>
+      </div>
+
+      <div class="question">
+        <h3>How quickly does a new inquiry usually get a useful reply?</h3>
+        <div class="options" data-key="replyRisk">
+          <button data-value="0.04">Under 1 minute<small>Very low delay risk</small></button>
+          <button data-value="0.10">1–5 minutes<small>Low delay risk</small></button>
+          <button data-value="0.20">5–30 minutes<small>Meaningful delay</small></button>
+          <button data-value="0.32">30+ minutes / inconsistent<small>Higher delay risk</small></button>
+        </div>
+      </div>
+      <button class="calc-primary calc-next" data-next="2">Continue <span>→</span></button>
+    </div>
+
+    <div class="calc-stage" data-stage="2">
+      <div class="calc-progress"><div><strong>Calls &amp; recovery</strong><span>2 / 4</span></div><div class="track"><i style="width:50%"></i></div></div>
+      <h2>What happens when the phone is not answered?</h2>
+      <p class="calc-step-copy">A missed call is not automatically a lost patient. The risk rises when there is no fast recovery path.</p>
+
+      <div class="question">
+        <h3>Approximate missed new-patient calls per day</h3>
+        <div class="options options-4" data-key="calls">
+          <button data-value="0.5">0–1</button>
+          <button data-value="2">1–3</button>
+          <button data-value="5">3–7</button>
+          <button data-value="9">7+</button>
+        </div>
+      </div>
+
+      <div class="question">
+        <h3>How reliably are missed calls recovered?</h3>
+        <div class="options" data-key="callRisk">
+          <button data-value="0.12">Usually within minutes<small>Strong recovery</small></button>
+          <button data-value="0.30">Usually within an hour<small>Some leakage risk</small></button>
+          <button data-value="0.52">Later / when staff has time<small>Higher leakage risk</small></button>
+          <button data-value="0.70">No consistent recovery<small>Highest leakage risk</small></button>
+        </div>
+      </div>
+      <button class="calc-primary calc-next" data-next="3">Continue <span>→</span></button>
+    </div>
+
+    <div class="calc-stage" data-stage="3">
+      <div class="calc-progress"><div><strong>Patient value</strong><span>3 / 4</span></div><div class="track"><i style="width:75%"></i></div></div>
+      <h2>What is one new patient worth initially?</h2>
+      <p class="calc-step-copy">Use the expected first-visit or near-term booking value — not lifetime value.</p>
+
+      <div class="calc-value-row">
+        <label>Currency
+          <select id="currencySelect" aria-label="Currency">
+            <option value="PHP">PHP ₱</option>
+            <option value="THB">THB ฿</option>
+            <option value="USD">USD $</option>
+          </select>
+        </label>
+        <label>Average patient value
+          <input id="patientValue" type="number" min="1" step="100" value="2500" inputmode="decimal" aria-label="Average patient value">
+        </label>
+      </div>
+      <div class="value-presets" aria-label="Patient value presets">
+        <button type="button" data-value-preset="1500">1,500</button>
+        <button type="button" data-value-preset="2500">2,500</button>
+        <button type="button" data-value-preset="5000">5,000</button>
+        <button type="button" data-value-preset="10000">10,000</button>
+      </div>
+      <button class="calc-primary calc-next" data-next="4">Continue <span>→</span></button>
+    </div>
+
+    <div class="calc-stage" data-stage="4">
+      <div class="calc-progress"><div><strong>Booking path</strong><span>4 / 4</span></div><div class="track"><i style="width:100%"></i></div></div>
+      <h2>How easy is it to go from interest to booking?</h2>
+      <p class="calc-step-copy">Choose the closest description of your current patient journey.</p>
+
+      <div class="question">
+        <div class="options booking-options" data-key="bookingRisk">
+          <button data-value="0.04"><strong>Very easy</strong><small>Clear CTA, short path, fast confirmation</small></button>
+          <button data-value="0.10"><strong>Mostly easy</strong><small>A little friction, but patients know what to do</small></button>
+          <button data-value="0.18"><strong>Mixed</strong><small>Multiple steps, forms or unclear confirmation</small></button>
+          <button data-value="0.28"><strong>Hard</strong><small>Hidden CTA, long form, broken or confusing path</small></button>
+        </div>
+      </div>
+      <button class="calc-primary" id="showResult" data-eden-event="calculator_completed">Show my recovery model <span>→</span></button>
+    </div>
+
+    <div class="calc-stage result" data-stage="5">
+      <div class="result-topline"><span>YOUR ILLUSTRATIVE MODEL</span><button class="calc-text-button" id="calcReset">Recalculate</button></div>
+      <h2>Your clinic may have <span id="riskLabel">meaningful</span> recoverable friction.</h2>
+      <p class="result-lead">Based on the assumptions you entered — not measured clinic data.</p>
+
+      <div class="result-metrics">
+        <article class="metric-card metric-primary">
+          <small>Potential monthly revenue at risk</small>
+          <strong id="lossRange">₱0 – ₱0</strong>
+          <span>Illustrative range</span>
+        </article>
+        <article class="metric-card">
+          <small>Patient opportunities at risk</small>
+          <strong id="patientRange">0–0</strong>
+          <span>per month</span>
+        </article>
+        <article class="metric-card">
+          <small>Largest modeled source</small>
+          <strong id="topSource">Reply delay</strong>
+          <span id="topSourceNote">Worth checking first</span>
+        </article>
+      </div>
+
+      <section class="recovery-simulator" aria-labelledby="recovery-title">
+        <div class="recovery-copy">
+          <p class="calc-step-label">RECOVERY SCENARIO</p>
+          <h3 id="recovery-title">What if you recover only part of the leakage?</h3>
+          <p>This does not predict Eden results. It simply applies a recovery percentage to your own illustrative model.</p>
+        </div>
+        <div class="recovery-controls" role="group" aria-label="Recovery percentage">
+          <button data-recovery="0.15">15%<small>Conservative</small></button>
+          <button data-recovery="0.25" class="selected">25%<small>Middle case</small></button>
+          <button data-recovery="0.35">35%<small>Stronger case</small></button>
+        </div>
+        <div class="recovery-output">
+          <small>Modeled monthly revenue recovered</small>
+          <strong id="recoveredRevenue">₱0 – ₱0</strong>
+          <span id="annualRecovery">Annualized: ₱0 – ₱0</span>
+        </div>
+      </section>
+
+      <section class="result-breakdown" aria-labelledby="breakdown-title">
+        <div>
+          <p class="calc-step-label">WHERE TO LOOK FIRST</p>
+          <h3 id="breakdown-title">Your modeled leakage mix</h3>
+        </div>
+        <div class="breakdown-bars">
+          <div><div><span>Late / inconsistent replies</span><b id="replyPct">0%</b></div><i><em id="replyBar"></em></i></div>
+          <div><div><span>Missed-call recovery</span><b id="callPct">0%</b></div><i><em id="callBar"></em></i></div>
+          <div><div><span>Booking friction</span><b id="bookingPct">0%</b></div><i><em id="bookingBar"></em></i></div>
+        </div>
+      </section>
+
+      <section class="result-next">
+        <p class="calc-step-label">NEXT STEP</p>
+        <h3>Turn the estimate into evidence.</h3>
+        <p>The calculator is directional. The Clinic Audit looks at your actual patient journey and identifies specific friction, evidence and practical fixes.</p>
+        <div class="result-actions">
+          <a class="calc-primary-link" href="/audit/" data-eden-event="calculator_to_audit">Run the Free Clinic Audit <span>→</span></a>
+          <a class="calc-secondary-link" href="/ai-receptionist/" data-eden-event="calculator_to_receptionist">Try the AI Receptionist</a>
+          <a class="calc-secondary-link" href="/missed-call-booking/" data-eden-event="calculator_to_missed_calls">Explore Missed Calls</a>
+        </div>
+        <button class="copy-summary" id="copySummary" type="button">Copy my estimate</button>
+        <p class="result-disclaimer">Illustrative estimate only. Actual patient behavior, booking rates and revenue vary by clinic, channel, treatment mix, market and implementation. No specific revenue outcome is guaranteed.</p>
+      </section>
+    </div>
+  </section>
+</main>
+
+<footer class="ecn-footer">
+<nav aria-label="Eden Clinic Network services">
+<a  href="/audit/">🔥 Clinic Audit</a>
+<a href="/ai-receptionist/">🌶️ AI Receptionist</a>
+<a href="/calculator/">Revenue Calculator</a>
+<a href="/missed-call-booking/">Missed Call Booking</a>
+<a  href="/">Message Booking</a>
+<a href="/ai-booking-form/">AI Booking Form</a>
+</nav>
+<nav class="ecn-footer-secondary" aria-label="Company information">
+<a href="/about/">About</a>
+<a href="/research/">Research</a>
+<a href="/certification/">Certification</a>
+<a href="/for-hospitals/">For Hospitals</a>
+<a href="/privacy/">Privacy</a>
+<a href="/terms/">ToS</a>
+</nav>
+<p class="ecn-footer-promise">
+<span>Missed call or late reply = Lost patient</span>
+<strong>Get them back in seconds</strong>
+</p>
+<small>© 2026 Eden Clinic Network LLC</small>
+</footer>
+
+</body></html>

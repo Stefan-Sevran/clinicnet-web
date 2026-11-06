@@ -1,0 +1,971 @@
+<main id="main-content">
+<div id="hero-chat"></div>
+<div style="
+width:100vw;
+margin-left:calc(50% - 50vw);
+margin-right:calc(50% - 50vw);
+margin-top:0;
+margin-bottom:0;
+overflow:hidden;
+line-height:0;
+">
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI2.webp"
+style="
+display:block;
+width:100vw;
+height:auto;
+margin:0;
+padding:0;
+"
+alt="Welcome to Lumière Aesthetics Manila"
+>
+</div>
+
+
+
+<!-- =========================================================
+LUMIÈRE AESTHETICS MANILA
+AI + HUMAN RECEPTION CHAT
+Fully isolated from all other ClinicNet pages
+========================================================== -->
+
+<section id="lumiere-ae-chat-2026">
+
+<div class="lumiere-ae-chat-card">
+
+<div class="lumiere-ae-chat-header">
+
+<div class="lumiere-ae-chat-avatar">
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist-avatar.webp"
+alt="Lumi at Lumière Aesthetics"
+>
+</div>
+
+<div class="lumiere-ae-chat-head-text">
+
+<div class="lumiere-ae-chat-title">
+Lumi at Lumière Aesthetics
+</div>
+
+<div class="lumiere-ae-chat-status">
+<span></span>
+AI + Human Team · Usually replies in 60 sec
+</div>
+
+</div>
+
+<div
+class="lumiere-ae-chat-menu"
+aria-hidden="true"
+>
+⋮
+</div>
+
+</div>
+
+<div
+id="lumiere-ae-messages-2026"
+class="lumiere-ae-chat-messages"
+aria-live="polite"
+>
+
+<div class="lumiere-ae-chat-message lumiere-ae-chat-bot">
+Hi! 👋 Welcome to Lumière Aesthetics. Are you looking for skin treatments, injectables, laser, wellness, or would you like some guidance on what suits your goals?
+</div>
+
+</div>
+
+<div class="lumiere-ae-chat-input-row">
+
+<textarea
+id="lumiere-ae-input-2026"
+class="lumiere-ae-chat-input"
+placeholder="Type your message..."
+rows="1"
+aria-label="Type your message"
+></textarea>
+
+<button
+id="lumiere-ae-send-2026"
+class="lumiere-ae-chat-send"
+type="button"
+aria-label="Send message"
+>
+➤
+</button>
+
+</div>
+
+<div class="lumiere-ae-chat-privacy">
+🔒 Private clinic chat
+</div>
+
+</div>
+
+</section>
+
+<style>
+/* =========================================================
+COMPLETE LUMIÈRE CHAT ISOLATION
+No generic Eden selectors are used
+========================================================== */
+
+#lumiere-ae-chat-2026,
+#lumiere-ae-chat-2026 * {
+box-sizing: border-box;
+}
+
+#lumiere-ae-chat-2026 {
+position: relative;
+z-index: 20;
+
+display: block;
+width: 100%;
+
+/*
+The negative top margin creates the intended overlap
+with the image above.
+*/
+margin-top: -180px;
+
+/*
+Positive bottom spacing keeps later images below the chat.
+Do not change this back to a negative value.
+*/
+margin-bottom: 40px;
+
+padding: 0;
+
+background: transparent !important;
+font-family: Arial, Helvetica, sans-serif;
+line-height: normal;
+
+scroll-margin-top: 24px;
+clear: both;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+position: relative;
+
+width: calc(100% - 28px);
+max-width: 540px;
+
+margin: 0 auto;
+padding: 0;
+
+border-radius: 28px;
+overflow: hidden;
+
+background: rgba(224, 196, 158, 0.34);
+
+-webkit-backdrop-filter: blur(22px);
+backdrop-filter: blur(22px);
+
+border: 3px solid #b07a14;
+
+box-shadow:
+0 0 0 1px rgba(255, 240, 190, 0.75) inset,
+0 0 0 4px rgba(176, 122, 20, 0.18),
+0 14px 34px rgba(13, 42, 87, 0.10);
+
+color: #08284a;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-header {
+display: flex;
+align-items: center;
+gap: 12px;
+
+padding: 14px 16px;
+
+border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-avatar {
+width: 54px;
+min-width: 54px;
+height: 54px;
+
+border-radius: 50%;
+overflow: hidden;
+
+background: #ffffff;
+
+box-shadow:
+0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-avatar img {
+display: block;
+
+width: 100%;
+height: 100%;
+
+margin: 0;
+padding: 0;
+
+object-fit: cover;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-head-text {
+flex: 1;
+min-width: 0;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-title {
+font-size: 19px;
+font-weight: 850;
+line-height: 1.15;
+
+color: #08284a;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-status {
+margin-top: 4px;
+
+font-size: 12px;
+line-height: 1.25;
+
+color: rgba(8, 40, 74, 0.72);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-status span {
+display: inline-block;
+
+width: 8px;
+height: 8px;
+
+margin-right: 5px;
+
+border-radius: 50%;
+background: #16a34a;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-menu {
+flex: 0 0 auto;
+
+font-size: 26px;
+line-height: 1;
+
+color: #062b55;
+
+user-select: none;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-messages {
+min-height: 170px;
+max-height: 300px;
+
+padding: 14px 14px 4px;
+
+overflow-y: auto;
+overflow-x: hidden;
+
+background: rgba(255, 250, 245, 0.18);
+
+scroll-behavior: smooth;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-message {
+max-width: 86%;
+
+margin-bottom: 12px;
+padding: 13px 15px;
+
+border-radius: 20px;
+
+font-size: 14.5px;
+line-height: 1.43;
+
+white-space: pre-wrap;
+overflow-wrap: anywhere;
+word-break: normal;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-bot {
+margin-right: auto;
+
+border: 1px solid rgba(255, 255, 255, 0.78);
+border-bottom-left-radius: 7px;
+
+background: rgba(255, 255, 255, 0.72);
+
+box-shadow:
+0 8px 22px rgba(64, 36, 12, 0.10);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-user {
+margin-left: auto;
+
+border-bottom-right-radius: 7px;
+
+background: rgba(222, 240, 255, 0.88);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-loading {
+opacity: 0.72;
+font-style: italic;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-input-row {
+position: relative;
+z-index: 50;
+
+display: flex;
+align-items: center;
+
+padding: 10px 16px 8px;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-input {
+display: block;
+
+width: 100%;
+min-height: 52px;
+max-height: 120px;
+
+margin: 0;
+padding: 15px 58px 15px 20px;
+
+resize: none;
+overflow-y: auto;
+
+border: 1px solid rgba(255, 255, 255, 0.82);
+border-radius: 999px;
+outline: none;
+
+background: rgba(255, 255, 255, 0.74);
+
+color: #08284a;
+
+font-family: inherit;
+font-size: 16px;
+line-height: 1.3;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-input::placeholder {
+color: rgba(8, 40, 74, 0.48);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-input:focus {
+background: rgba(255, 255, 255, 0.94);
+
+box-shadow:
+0 0 0 3px rgba(255, 255, 255, 0.38);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-send {
+position: absolute;
+
+right: 22px;
+top: 50%;
+
+z-index: 9999;
+
+width: 38px;
+min-width: 38px;
+height: 38px;
+
+padding: 0;
+
+transform: translateY(-50%);
+
+border: 1px solid rgba(255, 255, 255, 0.68);
+border-radius: 50%;
+
+background: rgba(224, 196, 158, 0.72);
+color: #062b55;
+
+font-family: inherit;
+font-size: 18px;
+font-weight: 900;
+line-height: 1;
+
+cursor: pointer;
+pointer-events: auto;
+
+box-shadow:
+0 6px 16px rgba(56, 32, 10, 0.12);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-send:hover {
+background: rgba(224, 196, 158, 0.90);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-send:active {
+transform: translateY(-50%) scale(0.96);
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-send:disabled {
+opacity: 0.55;
+cursor: not-allowed;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-privacy {
+padding: 0 18px 19px;
+
+text-align: left;
+
+color: rgba(8, 40, 74, 0.70);
+
+font-size: 11px;
+line-height: 1.2;
+
+opacity: 0.62;
+}
+
+
+@media screen and (min-width: 768px) {
+#lumiere-ae-chat-2026 {
+  margin-top: -220px;
+  margin-bottom: 30px;
+}
+#lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+  max-width: 640px;
+}
+}
+
+@media screen and (min-width: 1180px) {
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 {
+    margin-top: -270px;
+    margin-bottom: 26px;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+    max-width: 760px;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-title {
+    font-size: 22px;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-message {
+    font-size: 15px;
+  }
+}
+
+@media screen and (max-width: 600px) {
+
+#lumiere-ae-chat-2026 {
+margin-top: -180px;
+margin-bottom: 36px;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+width: calc(100% - 24px);
+border-radius: 24px;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-messages {
+min-height: 135px;
+max-height: 260px;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-title {
+font-size: 18px;
+}
+
+#lumiere-ae-chat-2026 .lumiere-ae-chat-message {
+font-size: 14px;
+}
+}
+</style>
+
+<script>
+(function lumiereAestheticsChat2026() {
+
+const LUMIERE_AE_CHAT_API_URL_2026 =
+"https://eden-audit-chat.onrender.com/revenue-receptionist-chat";
+
+const LUMIERE_AE_STORAGE_KEY_2026 =
+"lumiereAestheticsManilaReceptionSession2026";
+
+let lumiereAeSessionId2026 =
+localStorage.getItem(LUMIERE_AE_STORAGE_KEY_2026);
+
+if (!lumiereAeSessionId2026) {
+
+lumiereAeSessionId2026 =
+"lumiere_ae_" +
+Math.random().toString(36).substring(2) +
+Date.now();
+
+localStorage.setItem(
+LUMIERE_AE_STORAGE_KEY_2026,
+lumiereAeSessionId2026
+);
+}
+
+const lumiereAeRoot2026 =
+document.getElementById("lumiere-ae-chat-2026");
+
+if (!lumiereAeRoot2026) {
+return;
+}
+
+const lumiereAeMessages2026 =
+document.getElementById("lumiere-ae-messages-2026");
+
+const lumiereAeInput2026 =
+document.getElementById("lumiere-ae-input-2026");
+
+const lumiereAeSendButton2026 =
+document.getElementById("lumiere-ae-send-2026");
+
+if (
+!lumiereAeMessages2026 ||
+!lumiereAeInput2026 ||
+!lumiereAeSendButton2026
+) {
+return;
+}
+
+function lumiereAeAddMessage2026(
+text,
+sender,
+isLoading
+) {
+
+const messageElement =
+document.createElement("div");
+
+messageElement.className =
+"lumiere-ae-chat-message " +
+(
+sender === "user"
+? "lumiere-ae-chat-user"
+: "lumiere-ae-chat-bot"
+);
+
+if (isLoading) {
+messageElement.classList.add(
+"lumiere-ae-chat-loading"
+);
+}
+
+messageElement.textContent = text;
+
+lumiereAeMessages2026.appendChild(
+messageElement
+);
+
+lumiereAeMessages2026.scrollTop =
+lumiereAeMessages2026.scrollHeight;
+
+return messageElement;
+}
+
+async function lumiereAeSendMessage2026(
+customText
+) {
+
+const messageText =
+(
+customText ||
+lumiereAeInput2026.value ||
+""
+).trim();
+
+if (!messageText) {
+return;
+}
+
+lumiereAeAddMessage2026(
+messageText,
+"user",
+false
+);
+
+lumiereAeInput2026.value = "";
+lumiereAeSendButton2026.disabled = true;
+
+const loadingMessage =
+lumiereAeAddMessage2026(
+"Lumi is typing...",
+"bot",
+true
+);
+
+try {
+
+const response = await fetch(
+LUMIERE_AE_CHAT_API_URL_2026,
+{
+method: "POST",
+
+headers: {
+"Content-Type": "application/json"
+},
+
+body: JSON.stringify({
+message: messageText,
+sessionId: lumiereAeSessionId2026
+})
+}
+);
+
+if (!response.ok) {
+throw new Error(
+"Chat request failed: " +
+response.status
+);
+}
+
+const data = await response.json();
+
+loadingMessage.remove();
+
+lumiereAeAddMessage2026(
+data.reply ||
+"Thank you 😊 How may Lumière Aesthetics help you?",
+"bot",
+false
+);
+
+} catch (error) {
+
+loadingMessage.remove();
+
+lumiereAeAddMessage2026(
+"Small connection issue. Please try again in a moment.",
+"bot",
+false
+);
+
+} finally {
+
+lumiereAeSendButton2026.disabled = false;
+lumiereAeInput2026.focus();
+
+}
+}
+
+lumiereAeSendButton2026.addEventListener(
+"click",
+function (event) {
+
+event.preventDefault();
+event.stopPropagation();
+
+lumiereAeSendMessage2026();
+
+}
+);
+
+lumiereAeInput2026.addEventListener(
+"keydown",
+function (event) {
+
+if (
+event.key === "Enter" &&
+!event.shiftKey
+) {
+
+event.preventDefault();
+lumiereAeSendMessage2026();
+
+}
+}
+);
+
+})();
+</script>
+
+
+
+<div id="eden-floating-bar">
+
+<a href="javascript:void(0)"
+onclick="event.preventDefault();
+document.getElementById('lumiere-ae-chat-2026').scrollIntoView({
+behavior:'smooth',
+block:'start'
+});"
+class="eden-float-item active">
+
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/AI-receptionist-avatar.webp"
+alt="AI Receptionist"
+class="eden-float-avatar">
+<strong>Chat 24/7</strong>
+</a>
+
+<a href="tel:+1234567890" class="eden-float-item">
+<span>☎︎</span>
+<strong>Call 24/7</strong>
+</a>
+
+<a href="https://maps.google.com/?q=Ayala%20Center%20Cebu" target="_blank" class="eden-float-item">
+<span>⌖</span>
+<strong>Find us</strong>
+</a>
+</div>
+
+<style>
+html{
+scroll-behavior:smooth;
+}
+
+#lumiere-ae-chat-2026{
+scroll-margin-top:90px;
+}
+
+#eden-floating-bar{
+position:fixed;
+left:50%;
+bottom:12px;
+transform:translateX(-50%);
+z-index:9999;
+
+width:calc(100% - 24px);
+max-width:430px;
+
+display:flex;
+align-items:center;
+justify-content:space-between;
+
+padding:8px;
+border-radius:999px;
+
+background:rgba(255,255,255,0.24);
+backdrop-filter:blur(22px);
+-webkit-backdrop-filter:blur(22px);
+
+border: 2px solid #b8891c;
+
+box-shadow:
+0 0 0 1px rgba(255,245,210,.70) inset,
+0 0 0 3px rgba(184,137,28,.12),
+0 12px 28px rgba(8,40,74,.12);
+}
+
+.eden-float-item{
+flex:1;
+text-decoration:none;
+color:#08284a;
+display:flex;
+align-items:center;
+justify-content:center;
+gap:6px;
+padding:10px 8px;
+border-radius:999px;
+font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+font-size:14px;
+transition:all .18s ease;
+}
+
+.eden-float-item span{
+color:#c79a2b;
+font-size:20px;
+font-weight:500;
+}
+
+.eden-float-item strong{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:28px;
+padding:4px 12px;
+border-radius:999px;
+background:rgba(224,196,158,.46);
+box-shadow:0 1px 0 rgba(255,255,255,.5) inset, 0 2px 8px rgba(54,36,12,.08);
+font-weight:800;
+line-height:1;
+white-space:nowrap;
+}
+
+
+.eden-float-item.active{
+background:transparent;
+color:#08284a;
+box-shadow:none;
+}
+
+.eden-float-item:active{
+transform:scale(.97);
+}
+
+.eden-float-avatar{
+width:32px;
+height:32px;
+border-radius:50%;
+object-fit:cover;
+border:2px solid #d4af37;
+box-shadow:
+0 0 0 1px rgba(255,245,210,.65),
+0 3px 10px rgba(0,0,0,.18);
+}
+
+@media (max-width:420px){
+.eden-float-item strong{
+padding:4px 10px;
+min-height:26px;
+font-size:12.5px;
+}
+#eden-floating-bar{
+bottom:9px;
+width:calc(100% - 18px);
+padding:7px;
+}
+
+.eden-float-item{
+font-size:13px;
+gap:4px;
+padding:9px 6px;
+}
+}
+</style>
+
+
+
+<!-- =========================================================
+LUMIÈRE AESTHETICS MANILA
+IMAGES BELOW CHATBOX
+Fully isolated from every other page
+========================================================== -->
+
+<style>
+#lumiere-ae-manila-postchat-2026,
+#lumiere-ae-manila-postchat-2026 * {
+box-sizing: border-box;
+}
+
+#lumiere-ae-manila-postchat-2026 {
+position: relative;
+z-index: 2;
+
+display: block;
+
+width: 100vw;
+max-width: none;
+
+margin-top: 0;
+margin-bottom: 0;
+
+margin-left: calc(50% - 50vw);
+margin-right: calc(50% - 50vw);
+
+padding: 0;
+
+overflow: hidden;
+line-height: 0;
+clear: both;
+}
+
+#lumiere-ae-manila-postchat-2026
+.lumiere-ae-manila-postchat-image-2026 {
+display: block;
+
+width: 100%;
+max-width: none;
+height: auto;
+
+margin: 0;
+padding: 0;
+
+border: 0;
+}
+
+#lumiere-ae-manila-postchat-2026
+.lumiere-ae-manila-welcome-image-2026 {
+margin-bottom: 32px;
+}
+
+#lumiere-ae-manila-postchat-2026
+.lumiere-ae-manila-visit-link-2026 {
+display: block;
+
+width: 100%;
+
+margin: 0;
+padding: 0;
+
+text-decoration: none;
+line-height: 0;
+cursor: pointer;
+}
+</style>
+
+<div id="lumiere-ae-manila-postchat-2026">
+
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Lumiere/Welcome-luminere-clinic-Manila-AI-receptionist.webp"
+class="
+lumiere-ae-manila-postchat-image-2026
+lumiere-ae-manila-welcome-image-2026
+"
+alt="Welcome to Lumière Aesthetics Manila - AI reception"
+>
+
+<a
+href="#lumiere-ae-chat-2026"
+class="lumiere-ae-manila-visit-link-2026"
+aria-label="Return to the Lumière Aesthetics chat"
+onclick="
+event.preventDefault();
+
+const lumiereChat =
+document.getElementById('lumiere-ae-chat-2026');
+
+if (lumiereChat) {
+lumiereChat.scrollIntoView({
+behavior: 'smooth',
+block: 'start'
+});
+}
+"
+>
+
+<img
+src="https://pub-f73102b5466f401ba8b4ee944dca2a6f.r2.dev/Lumiere/Visit-lumiere-clinic-manila.webp"
+class="lumiere-ae-manila-postchat-image-2026"
+alt="Visit Lumière Aesthetics Manila"
+>
+
+</a>
+
+</div>
+
+
+
+
+
+<style>
+/* V18: laptop/desktop Lumière polish and discrete floating-bar hit areas. */
+@media (min-width: 768px) {
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 {
+    margin-top: -315px !important;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+    max-width: 820px !important;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-messages {
+    min-height: 220px !important;
+    max-height: 380px !important;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #eden-floating-bar {
+    max-width: 720px !important;
+    padding: 10px 18px !important;
+    justify-content: space-around !important;
+    pointer-events: none;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #eden-floating-bar .eden-float-item {
+    flex: 0 0 auto !important;
+    min-width: 150px;
+    padding: 12px 14px !important;
+    pointer-events: auto;
+  }
+}
+@media (min-width: 1180px) {
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 {
+    margin-top: -365px !important;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-card {
+    max-width: 900px !important;
+  }
+  body[data-page="lumiere-aesthetics-manila"] #lumiere-ae-chat-2026 .lumiere-ae-chat-messages {
+    min-height: 245px !important;
+  }
+}
+</style>
+
+</main>

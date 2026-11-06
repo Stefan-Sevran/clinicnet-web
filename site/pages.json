@@ -32,8 +32,237 @@
     "description": "Set up your clinic account and location, then see connection requests and incoming bookings in one place.",
     "header": true,
     "footer": true,
-    "styles": ["/assets/clinic.css"],
-    "scripts": ["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js", "/assets/clinic.js"]
+    "styles": [
+      "/assets/clinic.css"
+    ],
+    "scripts": [
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+      "/assets/clinic.js"
+    ]
+  },
+  {
+    "id": "ai-receptionist",
+    "output": "ai-receptionist/index.html",
+    "title": "AI Receptionist for Clinics | Eden Clinic Network",
+    "description": "Meet Eve, Eden Clinic Network's AI receptionist for 24/7 patient replies, booking capture, and clinic follow-up.",
+    "header": true,
+    "footer": true,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "pattaya-smile-dental",
+    "output": "pattaya-smile-dental/index.html",
+    "title": "Pattaya Smile Dental | AI Receptionist Preview",
+    "description": "Pattaya Smile Dental patient experience and Nida AI receptionist preview.",
+    "header": false,
+    "footer": false,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "siam-serenity-thailand",
+    "output": "siam-serenity-thailand/index.html",
+    "title": "Siam Serenity Thailand | AI Receptionist Preview",
+    "description": "Siam Serenity Thai Massage & Wellness patient experience and Namfon AI receptionist preview.",
+    "header": false,
+    "footer": false,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "mabuhay-medical-center-philippines",
+    "output": "mabuhay-medical-center-philippines/index.html",
+    "title": "Mabuhay Medical Center Philippines | AI Receptionist Preview",
+    "description": "Mabuhay Medical Center patient experience and Aira AI receptionist preview.",
+    "header": false,
+    "footer": false,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "lumiere-aesthetics-manila",
+    "output": "lumiere-aesthetics-manila/index.html",
+    "title": "Lumière Aesthetics Manila | AI Receptionist Preview",
+    "description": "Lumière Aesthetics Manila patient experience and Lumi AI receptionist preview.",
+    "header": false,
+    "footer": false,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "pearlsmile-cebu",
+    "output": "pearlsmile-cebu/index.html",
+    "title": "PearlSmile Dental Cebu | AI Receptionist Preview",
+    "description": "PearlSmile Dental Cebu patient experience and Maria AI receptionist preview.",
+    "header": false,
+    "footer": false,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "about",
+    "output": "about/index.html",
+    "title": "About Eden Clinic Network | AI + Human Team for Clinics",
+    "description": "Learn how Eden Clinic Network combines clinic audits, AI reception, missed-call recovery, and trained human support to improve patient access and booking journeys.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/about.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "privacy",
+    "output": "privacy/index.html",
+    "title": "Privacy Policy | Eden Clinic Network",
+    "description": "Eden Clinic Network privacy policy.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/text-pages.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "terms",
+    "output": "terms/index.html",
+    "title": "Terms of Service | Eden Clinic Network",
+    "description": "Eden Clinic Network terms of service.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/text-pages.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "for-hospitals",
+    "output": "for-hospitals/index.html",
+    "title": "For Hospitals | Eden Clinic Network",
+    "description": "A preview of Eden Clinic Network patient communication for hospitals, with early access by email.",
+    "header": true,
+    "footer": true,
+    "styles": [],
+    "scripts": []
+  },
+  {
+    "id": "research",
+    "output": "research/index.html",
+    "title": "Eden Research Institute | Patient Booking Research",
+    "description": "Research on patient communication, booking conversion, clinic access, response speed, and patient leakage across Southeast Asia.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/research.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "philippine-dental-conversion-report-2026",
+    "output": "research/philippine-dental-conversion-report-2026/index.html",
+    "title": "Philippine Dental Conversion Report 2026 | Eden Research Institute",
+    "description": "Executive summary of Eden Research Institute’s preliminary 2026 field study of patient booking friction across 300 dental clinics in Cebu, Manila, and Davao.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/research-report.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "calculator",
+    "output": "calculator/index.html",
+    "title": "Clinic Revenue Leakage Calculator | Eden Clinic Network",
+    "description": "Estimate potential clinic revenue leakage from slow replies, missed calls, and booking friction using your own patient value and inquiry volume.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/calculator.css"
+    ],
+    "scripts": [
+      "/assets/calculator.js"
+    ]
+  },
+  {
+    "id": "missed-call-booking",
+    "output": "missed-call-booking/index.html",
+    "title": "Missed Call Recovery for Clinics | Eden Clinic Network",
+    "description": "See how Eden can follow up missed clinic calls quickly with AI + Human Team support and help keep more patient opportunities moving toward booking.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/recovery.css",
+      "/assets/missed-call-voice.css"
+    ],
+    "scripts": [
+      "/assets/missed-call-voice.js"
+    ]
+  },
+  {
+    "id": "demo",
+    "output": "demo/index.html",
+    "title": "Free Live Clinic Demo | Eden Clinic Network",
+    "description": "Hear how Eden can respond to missed clinic calls quickly with AI + Human Team support.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/demo.css"
+    ],
+    "scripts": [
+      "/assets/demo.js"
+    ]
+  },
+  {
+    "id": "ai-booking-form",
+    "output": "ai-booking-form/index.html",
+    "title": "AI Booking Form for Clinics | Eden Clinic Network",
+    "description": "See how instant AI chat can help clinics turn booking-form drop-off into patient conversations and appointments.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/forms.css",
+      "/assets/demo.css"
+    ],
+    "scripts": [
+      "/assets/forms.js",
+      "/assets/demo.js"
+    ]
+  },
+  {
+    "id": "certification",
+    "output": "certification/index.html",
+    "title": "The Eden Standard | Clinic Certification",
+    "description": "The Eden Standard framework for clinic patient acquisition, response speed, booking clarity, follow-up, and recovery systems.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/certification.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "eden-standard",
+    "output": "eden-standard/index.html",
+    "title": "The Eden Standard | Patient Access Benchmark for Clinics",
+    "description": "The Eden Standard benchmarks clinic response speed, booking clarity, trust, follow-up, and recovery systems.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/eden-standard.css"
+    ],
+    "scripts": []
+  },
+  {
+    "id": "human-team",
+    "output": "human-team/index.html",
+    "title": "Human Team for Clinics | Eden Clinic Network",
+    "description": "AI for speed. Humans for judgment. Meet the trained Eden specialists who support booking, reassurance, escalation, and patient follow-through.",
+    "header": true,
+    "footer": true,
+    "styles": [
+      "/assets/human-team.css"
+    ],
+    "scripts": []
   }
 ]
-
