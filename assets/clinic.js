@@ -8,6 +8,11 @@
   const alertEmailStatus = byId('clinic-alert-email-status');
   const soundButton = byId('clinic-inbox-sound');
   const soundHelp = byId('clinic-inbox-sound-help');
+  const pearlPilotLink = document.createElement('a');
+  pearlPilotLink.href = '/pearlsmile-cebu/?workspace-pilot=1#pearlsmile-reception-chat-2026';
+  pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
+  pearlPilotLink.hidden = true;
+  byId('clinic-inbox').before(pearlPilotLink);
   let canEditAlertEmail = false;
   let staffEmailAvailable = false;
   let soundContext;
@@ -120,7 +125,8 @@
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = ['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key;
       const meta = document.createElement('small');
-      meta.textContent = [event.channel, needsFollowup ? null : event.status,
+      meta.textContent = [event.channel === 'website_chat' ? labels.website_chat : event.channel,
+        needsFollowup ? null : event.status,
         event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
       if (needsFollowup) {
@@ -150,6 +156,15 @@
           handled: 'Staff follow-up: handled'
         }[latest?.action] || (event.kind === 'call.followup_needed' ? 'Needs callback' : 'Needs confirmation');
         row.append(followup);
+        if (latest?.appointment_at) {
+          const appointment = document.createElement('small');
+          const timeZone = state.locations.find(location => location.id === event.location_id)?.timezone;
+          appointment.textContent = 'Appointment · ' + new Date(latest.appointment_at).toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            timeZone, timeZoneName: 'short'
+          });
+          row.append(appointment);
+        }
         const actions = latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ['booked', 'Mark booked'], ['reopened', 'Release claim'], ['handled', 'Mark handled']
@@ -162,7 +177,10 @@
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'clinic-secondary clinic-followup-button';
             button.textContent = label;
-            button.addEventListener('click', () => updateFollowup(event, action, controls));
+            button.addEventListener('click', () => {
+              if (action === 'booked') showAppointmentEditor(event, controls, button);
+              else updateFollowup(event, action, controls);
+            });
             controls.append(button);
           }
           row.append(controls);
@@ -172,7 +190,40 @@
     }
   }
 
-  async function updateFollowup(event, action, controls) {
+  function showAppointmentEditor(event, controls, opener) {
+    const form = document.createElement('form');
+    form.className = 'clinic-appointment-editor';
+    form.innerHTML = '<label>Confirmed appointment <input type="datetime-local" required></label>' +
+      '<small></small><button type="submit" class="clinic-secondary">Save booking</button>' +
+      '<button type="button" class="clinic-secondary">Cancel</button>';
+    form.querySelector('small').textContent = 'Enter the time in your device time zone (' +
+      Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
+    const input = form.querySelector('input');
+    form.querySelector('[type="button"]').addEventListener('click', () => {
+      form.remove(); opener.disabled = false; opener.focus();
+    });
+    form.addEventListener('submit', async submission => {
+      submission.preventDefault();
+      const appointment = new Date(input.value);
+      if (!Number.isFinite(appointment.getTime())) return;
+      const localTime = new Date(appointment.getTime() - appointment.getTimezoneOffset() * 60000);
+      if (localTime.toISOString().slice(0, 16) !== input.value) {
+        input.setCustomValidity('Choose an available local time.');
+        input.reportValidity();
+        return;
+      }
+      input.disabled = true;
+      await updateFollowup(event, 'booked', controls, appointment.toISOString());
+      input.disabled = false;
+      opener.disabled = true;
+    });
+    opener.disabled = true;
+    input.addEventListener('input', () => input.setCustomValidity(''));
+    controls.append(form);
+    input.focus();
+  }
+
+  async function updateFollowup(event, action, controls, appointmentAt) {
     const buttons = [...controls.querySelectorAll('button')];
     const generation = state.generation;
     buttons.forEach(button => { button.disabled = true; });
@@ -180,7 +231,7 @@
       await request('/clinic/followups', { method: 'POST', body: JSON.stringify({
         accountId: event.account_id,
         locationId: event.location_id,
-        eventKey: event.event_key, action
+        eventKey: event.event_key, action, appointmentAt
       }) });
       if (state.generation !== generation) return;
       await refreshActivity();
@@ -215,11 +266,13 @@
       request('/clinic/connections' + query), request('/clinic/bookings' + query),
       request('/clinic/inbox' + query), request('/clinic/followups' + query)
     ]);
-    if (generation !== state.generation) return;
+    if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
     state.connections = connections;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
+    pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
     renderChannels();
-    renderEvents('clinic-bookings', bookings, 'No booking requests yet. Requests will appear when a verified channel delivers them.');
+    renderEvents('clinic-bookings', bookings.filter(event => event.details?.demo !== true),
+      'No booking requests yet. Requests will appear when a verified channel delivers them.');
     renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
     renderBookingOutcomes(inbox);
     const keys = inboxAlertKeys(inbox);
