@@ -13,6 +13,32 @@
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
   pearlPilotLink.hidden = true;
   byId('clinic-inbox').before(pearlPilotLink);
+  const daily = document.createElement('div');
+  daily.className = 'clinic-daily';
+  daily.hidden = true;
+  daily.innerHTML = `
+    <section class="clinic-panel clinic-daily-primary" aria-labelledby="clinic-attention-title">
+      <h2 id="clinic-attention-title">Needs attention <span id="clinic-attention-count" class="clinic-daily-count"></span></h2>
+      <p>Unclaimed inquiries from the recent inbox, oldest first.</p>
+      <div id="clinic-attention" class="clinic-events"></div>
+    </section>
+    <div class="clinic-daily-columns">
+      <section class="clinic-panel" aria-labelledby="clinic-assigned-title">
+        <h2 id="clinic-assigned-title">Assigned to me <span id="clinic-assigned-count" class="clinic-daily-count"></span></h2>
+        <p>Inquiries you claimed and can follow up on.</p>
+        <div id="clinic-assigned" class="clinic-events"></div>
+      </section>
+      <section class="clinic-panel" aria-labelledby="clinic-today-title">
+        <h2 id="clinic-today-title">Today's appointments <span id="clinic-today-count" class="clinic-daily-count"></span></h2>
+        <p id="clinic-today-date"></p>
+        <div id="clinic-today" class="clinic-events"></div>
+      </section>
+    </div>`;
+  document.querySelector('.clinic-selectors').after(daily);
+  const channelPanel = byId('clinic-channels').closest('.clinic-panel');
+  const channelColumns = channelPanel.parentElement;
+  document.querySelector('.clinic-next').before(channelPanel);
+  channelColumns.classList.remove('clinic-columns');
   let canEditAlertEmail = false;
   let staffEmailAvailable = false;
   let soundContext;
@@ -22,6 +48,7 @@
   let inboxSnapshot;
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
+  const followupKinds = ['call.followup_needed', 'booking.requested'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
     byId('clinic-status').textContent = message;
@@ -116,18 +143,19 @@
     }
   }
 
-  function renderEvents(id, events, fallback) {
+  function renderEvents(id, events, fallback, dailyAction) {
     const container = byId(id);
     if (!events.length) return empty(container, fallback);
     container.replaceChildren();
     for (const event of events) {
       const row = document.createElement('article'); row.className = 'clinic-event';
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
-      const needsFollowup = ['call.followup_needed', 'booking.requested'].includes(event.kind) && event.event_key;
+      const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
       const meta = document.createElement('small');
-      meta.textContent = [event.channel === 'website_chat' ? labels.website_chat : event.channel,
+      meta.textContent = [labels[event.channel] || event.channel,
         needsFollowup ? null : event.status,
-        event.occurred_at ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
+        dailyAction && dailyAction !== 'today' ? waitingTime(event.occurred_at) :
+          event.occurred_at && !dailyAction ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
       if (needsFollowup) {
         if (event.details?.requestedTime) {
@@ -146,7 +174,7 @@
         };
         alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
-        row.append(alert);
+        if (!dailyAction || event.details?.demo === true) row.append(alert);
         const latest = state.followups.get(event.event_key);
         const ownClaim = latest?.actor_user_id === state.session?.user?.id;
         const followup = document.createElement('small');
@@ -158,14 +186,16 @@
         row.append(followup);
         if (latest?.appointment_at) {
           const appointment = document.createElement('small');
-          const timeZone = state.locations.find(location => location.id === event.location_id)?.timezone;
+          const timeZone = clinicTimeZone(event.location_id);
           appointment.textContent = 'Appointment · ' + new Date(latest.appointment_at).toLocaleString(undefined, {
             year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
             timeZone, timeZoneName: 'short'
           });
           row.append(appointment);
         }
-        const actions = latest?.action === 'booked' ? [] :
+        const actions = dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
+          dailyAction === 'book' ? [['booked', 'Mark booked']] :
+          latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ['booked', 'Mark booked'], ['reopened', 'Release claim'], ['handled', 'Mark handled']
           ] : []) :
@@ -175,7 +205,8 @@
           const controls = document.createElement('div');
           for (const [action, label] of actions) {
             const button = document.createElement('button');
-            button.type = 'button'; button.className = 'clinic-secondary clinic-followup-button';
+            button.type = 'button';
+            button.className = dailyAction ? 'clinic-followup-button' : 'clinic-secondary clinic-followup-button';
             button.textContent = label;
             button.addEventListener('click', () => {
               if (action === 'booked') showAppointmentEditor(event, controls, button);
@@ -188,6 +219,57 @@
       }
       container.append(row);
     }
+  }
+
+  function clinicTimeZone(locationId) {
+    const timezone = state.locations.find(location => location.id === locationId)?.timezone;
+    try {
+      return new Intl.DateTimeFormat(undefined, { timeZone: timezone }).resolvedOptions().timeZone;
+    } catch {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+  }
+
+  function waitingTime(value) {
+    const time = Date.parse(value);
+    if (!Number.isFinite(time)) return '';
+    const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+    if (minutes < 1) return 'Just arrived';
+    if (minutes < 60) return 'Waiting ' + minutes + 'm';
+    if (minutes < 1440) return 'Waiting ' + Math.floor(minutes / 60) + 'h';
+    return 'Waiting ' + Math.floor(minutes / 1440) + 'd';
+  }
+
+  function renderDailyWork(inbox, locationId) {
+    const timezone = clinicTimeZone(locationId);
+    const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone: timezone, dateStyle: 'full' });
+    const today = dateLabel.format(new Date());
+    const attention = [], assigned = [], appointments = [];
+    for (const event of inbox) {
+      if (!event.event_key || !followupKinds.includes(event.kind)) continue;
+      const latest = state.followups.get(event.event_key);
+      if (!latest || latest.action === 'reopened') attention.push(event);
+      if (latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id) assigned.push(event);
+      const appointment = Date.parse(latest?.appointment_at);
+      if (latest?.action === 'booked' && Number.isFinite(appointment) &&
+          dateLabel.format(appointment) === today) appointments.push(event);
+    }
+    const oldestFirst = (a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at);
+    appointments.sort((a, b) =>
+      Date.parse(state.followups.get(a.event_key).appointment_at) -
+      Date.parse(state.followups.get(b.event_key).appointment_at));
+    for (const [id, events, message, action] of [
+      ['clinic-attention', attention.sort(oldestFirst), 'No unclaimed inquiries in the recent inbox.', 'claim'],
+      ['clinic-assigned', assigned.sort(oldestFirst), 'No recent inquiries assigned to you.', 'book'],
+      ['clinic-today', appointments, 'No confirmed appointments for today in the recent inbox.', 'today']
+    ]) {
+      const samples = events.filter(event => event.details?.demo === true).length;
+      byId(id + '-count').textContent = samples ? (events.length - samples) + ' · ' + samples +
+        (samples === 1 ? ' sample' : ' samples') : String(events.length);
+      renderEvents(id, events, message, action);
+    }
+    byId('clinic-today-date').textContent = today + ' · ' + timezone + ' · Recent inbox';
+    daily.hidden = false;
   }
 
   function showAppointmentEditor(event, controls, opener) {
@@ -264,7 +346,7 @@
     const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
     const [connections, bookings, inbox, followups] = await Promise.all([
       request('/clinic/connections' + query), request('/clinic/bookings' + query),
-      request('/clinic/inbox' + query), request('/clinic/followups' + query)
+      request('/clinic/inbox' + query + '&limit=100'), request('/clinic/followups' + query)
     ]);
     if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
     state.connections = connections;
@@ -275,6 +357,7 @@
       'No booking requests yet. Requests will appear when a verified channel delivers them.');
     renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
     renderBookingOutcomes(inbox);
+    renderDailyWork(inbox, locationId);
     const keys = inboxAlertKeys(inbox);
     if (soundContext?.state === 'running' && !document.hidden && inboxSnapshot?.locationId === locationId &&
         [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();
@@ -387,7 +470,7 @@
           const generation = state.generation;
           const accountId = byId('clinic-account').value;
           const locationId = byId('clinic-location').value;
-          const query = new URLSearchParams({ accountId, locationId });
+          const query = new URLSearchParams({ accountId, locationId, limit: '100' });
           const inbox = await request('/clinic/inbox?' + query);
           if (soundContext !== context || document.hidden || generation !== state.generation) return;
           if ([...inboxAlertKeys(inbox)].some(key => !inboxSnapshot.keys.has(key))) await refreshActivity(true);
@@ -497,8 +580,12 @@
     try { await state.client.auth.signOut(); await authenticated(null); }
     catch (error) { status(error.message, 'error'); }
   });
-  byId('clinic-account').addEventListener('change', () => refreshLocations().catch(error => status(error.message, 'error')));
+  byId('clinic-account').addEventListener('change', () => {
+    daily.hidden = true;
+    refreshLocations().catch(error => status(error.message, 'error'));
+  });
   byId('clinic-location').addEventListener('change', () => {
+    daily.hidden = true;
     loadAlertEmail();
     refreshActivity().catch(error => status(error.message, 'error'));
   });
