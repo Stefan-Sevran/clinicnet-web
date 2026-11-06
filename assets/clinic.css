@@ -44,3 +44,12 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-inbox-alerts { display: grid; gap: 8px; margin-bottom: 18px; justify-items: start; }
 .clinic-inbox-alerts .clinic-form { width: 100%; margin-bottom: 8px; }
 .clinic-inbox-alerts button[aria-pressed="true"] { background: #eee8fb; }
+
+.clinic-appointment-editor {
+  margin-top: 12px;
+}
+
+.clinic-appointment-editor input {
+  display: block;
+  margin-top: 4px;
+}
