@@ -48,7 +48,7 @@
   let inboxSnapshot;
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
-  const followupKinds = ['call.followup_needed', 'booking.requested'];
+  const followupKinds = ['call.followup_needed', 'booking.requested', 'inquiry.followup_needed'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
     byId('clinic-status').textContent = message;
@@ -158,6 +158,11 @@
           event.occurred_at && !dailyAction ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
       if (needsFollowup) {
+        if (event.channel === 'facebook_messenger' && event.details?.service) {
+          const service = document.createElement('small');
+          service.textContent = 'Service · ' + event.details.service;
+          row.append(service);
+        }
         if (event.details?.requestedTime) {
           const timing = document.createElement('small');
           timing.textContent = event.details.requestedTime;
@@ -182,8 +187,23 @@
           booked: 'Booked',
           claimed: ownClaim ? 'Claimed by you · Follow up with the patient' : 'Claimed by another staff member',
           handled: 'Staff follow-up: handled'
-        }[latest?.action] || (event.kind === 'call.followup_needed' ? 'Needs callback' : 'Needs confirmation');
+        }[latest?.action] || {
+          'call.followup_needed': 'Needs callback',
+          'booking.requested': 'Needs confirmation',
+          'inquiry.followup_needed': 'Needs staff reply'
+        }[event.kind];
         row.append(followup);
+        if (event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
+            !['booked', 'handled'].includes(latest?.action)) {
+          const inboxLink = document.createElement('a');
+          inboxLink.href = 'https://business.facebook.com/latest/inbox/all/?asset_id=' + event.details.pageId;
+          inboxLink.target = '_blank';
+          inboxLink.rel = 'noopener noreferrer';
+          inboxLink.textContent = 'Open Page inbox';
+          const inboxLinkRow = document.createElement('small');
+          inboxLinkRow.append(inboxLink);
+          row.append(inboxLinkRow);
+        }
         if (latest?.appointment_at) {
           const appointment = document.createElement('small');
           const timeZone = clinicTimeZone(event.location_id);
@@ -418,7 +438,7 @@
   });
 
   function inboxAlertKeys(inbox) {
-    return new Set(inbox.filter(event => ['call.followup_needed', 'booking.requested'].includes(event.kind))
+    return new Set(inbox.filter(event => followupKinds.includes(event.kind))
       .map(event => event.event_key).filter(Boolean));
   }
 
