@@ -3,6 +3,13 @@
   const API = 'https://eden-webhook-ixdd.onrender.com';
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
+  const messengerStorageKey = 'eden-messenger-oauth';
+  const query = new URLSearchParams(location.search);
+  let messengerReturn = query.get('state')?.startsWith('eden-messenger.') ? {
+    state: query.get('state'), code: query.get('code')
+  } : null;
+  if (messengerReturn) history.replaceState(null, '', location.pathname);
+  let messengerConnect = null;
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
@@ -77,6 +84,9 @@
     if (!response.ok) {
       if (response.status === 401) throw Error('Your session has expired. Please sign in again.');
       if (response.status === 403) throw Error('This account does not permit that action.');
+      if (path === '/clinic/messenger/finish' && response.status === 422) {
+        throw Error('Facebook did not grant the access Eden needs. Choose Glow Aesthetics Manila and approve the requested permissions.');
+      }
       if (response.status === 409) {
         const error = Error(path === '/clinic/followups' ?
           'This inquiry changed. Review its current state before trying again.' :
@@ -133,7 +143,19 @@
         (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') : 'Not requested';
       info.append(title, detail);
       row.append(info);
-      if (!connection) {
+      const canConnectMessenger = channel === 'facebook_messenger' && canEditAlertEmail &&
+        messengerConnect?.accountId === byId('clinic-account').value &&
+        messengerConnect.locationId === byId('clinic-location').value;
+      if (canConnectMessenger) {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'clinic-secondary';
+        button.textContent = connection?.status === 'connected' ? 'Reconnect Messenger' : 'Connect Messenger';
+        button.addEventListener('click', () => startMessenger(button));
+        row.append(button);
+        if (connection?.status === 'verifying') {
+          detail.textContent = 'Authorized. Send a private Messenger test to Glow Aesthetics Manila.';
+        }
+      } else if (!connection) {
         const button = document.createElement('button');
         button.type = 'button'; button.textContent = 'Request'; button.className = 'clinic-secondary';
         button.addEventListener('click', () => requestConnection(channel, button));
@@ -514,6 +536,45 @@
     } catch (error) { status(error.message, 'error'); button.disabled = false; }
   }
 
+  async function startMessenger(button) {
+    button.disabled = true;
+    try {
+      const { accountId, locationId } = messengerConnect;
+      const result = await request('/clinic/messenger/start', {
+        method: 'POST', body: JSON.stringify({ accountId, locationId })
+      });
+      const url = new URL(result.url);
+      if (url.origin !== 'https://www.facebook.com') throw Error('Facebook sign-in link is unavailable.');
+      sessionStorage.setItem(messengerStorageKey, result.state);
+      location.assign(url.href);
+    } catch (error) {
+      status(error.message, 'error');
+      button.disabled = false;
+    }
+  }
+
+  async function finishMessenger() {
+    if (!messengerReturn) return;
+    const { state: returnedState, code } = messengerReturn;
+    messengerReturn = null;
+    const expected = sessionStorage.getItem(messengerStorageKey);
+    sessionStorage.removeItem(messengerStorageKey);
+    if (!messengerConnect || !expected || expected !== returnedState) {
+      throw Error('Messenger sign-in expired. Click Connect Messenger to try again.');
+    }
+    if (!code) throw Error('Messenger authorization was cancelled. You can connect again when ready.');
+    const { accountId, locationId } = messengerConnect;
+    const result = await request('/clinic/messenger/finish', {
+      method: 'POST', body: JSON.stringify({ accountId, locationId, code, state: returnedState })
+    });
+    await refreshAccounts(accountId);
+    byId('clinic-location').value = locationId;
+    loadAlertEmail();
+    await refreshActivity();
+    status(result.status === 'connected' ? 'Glow Messenger reconnected.' :
+      'Glow authorized. Send a private Messenger test to confirm delivery.', 'success');
+  }
+
   const signInForm = byId('clinic-signin-form');
   const codeForm = byId('clinic-code-form');
   const codeInput = byId('clinic-code');
@@ -543,7 +604,13 @@
       return;
     }
     byId('clinic-identity').textContent = 'Signed in as ' + (session.user?.email || 'clinic member');
-    try { await refreshAccounts(); } catch (error) { status(error.message, 'error'); }
+    try {
+      if (messengerReturn) await finishMessenger();
+      else await refreshAccounts();
+    } catch (error) {
+      if (!state.accounts.length) await refreshAccounts().catch(() => {});
+      status(error.message, 'error');
+    }
   }
 
   signInForm.addEventListener('submit', async event => {
@@ -619,6 +686,7 @@
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
       staffEmailAvailable = config.staffEmailAvailable === true;
+      messengerConnect = config.messengerConnect;
       state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
       const { data, error } = await state.client.auth.getSession();
       if (error) throw error;
