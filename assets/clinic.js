@@ -9,7 +9,9 @@
     state: query.get('state'), code: query.get('code')
   } : null;
   if (messengerReturn) history.replaceState(null, '', location.pathname);
-  let messengerConnect = null;
+  let messengerSetupAvailable = false;
+  let legacyMessengerConnect = null;
+  let messengerSetups = [];
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
@@ -85,7 +87,10 @@
       if (response.status === 401) throw Error('Your session has expired. Please sign in again.');
       if (response.status === 403) throw Error('This account does not permit that action.');
       if (path === '/clinic/messenger/finish' && response.status === 422) {
-        throw Error('Facebook did not grant the access Eden needs. Choose Glow Aesthetics Manila and approve the requested permissions.');
+        throw Error('Facebook did not grant access to the Page for this location. Sign in with a profile that manages the Page, then select it under Edit settings.');
+      }
+      if (path === '/clinic/messenger/finish' && response.status === 409) {
+        throw Error('That Facebook Page or clinic location already has a Messenger connection. Open the workspace that manages it.');
       }
       if (response.status === 409) {
         const error = Error(path === '/clinic/followups' ?
@@ -116,15 +121,21 @@
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
     if (alertEmailForm) alertEmailForm.hidden = true;
-    const [locations, membership] = await Promise.all([
+    const [locations, membership, setups] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
-      (alertEmailForm || messengerConnect?.accountId === accountId) &&
+      (alertEmailForm || (!messengerSetupAvailable && legacyMessengerConnect?.accountId === accountId)) &&
         state.client.from('clinic_memberships').select('role')
-        .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle()
+        .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle(),
+      messengerSetupAvailable ? request('/clinic/messenger/setups?accountId=' + encodeURIComponent(accountId))
+        .catch(() => []) : []
     ]);
     if (generation !== state.generation) return;
     state.locations = locations;
     canEditAlertEmail = ['owner', 'admin'].includes(membership?.data?.role);
+    messengerSetups = setups.map(setup => ({ ...setup, accountId }));
+    if (!messengerSetupAvailable && canEditAlertEmail && legacyMessengerConnect?.accountId === accountId) {
+      messengerSetups = [legacyMessengerConnect];
+    }
     selectOptions(byId('clinic-location'), locations, byId('clinic-location').value, 'name');
     loadAlertEmail();
     await refreshActivity();
@@ -144,17 +155,30 @@
         (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') : 'Not requested';
       info.append(title, detail);
       row.append(info);
-      const canConnectMessenger = channel === 'facebook_messenger' && canEditAlertEmail &&
-        messengerConnect?.accountId === byId('clinic-account').value &&
-        messengerConnect.locationId === byId('clinic-location').value;
-      if (canConnectMessenger) {
+      const messengerSetup = channel === 'facebook_messenger' && messengerSetups.find(setup =>
+        setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
+      if (messengerSetup) {
+        const page = messengerSetup.clinicName || 'your Facebook Page';
+        const verifying = connection?.status === 'verifying';
+        const connected = connection?.status === 'connected';
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'clinic-secondary';
-        button.textContent = connection?.status === 'connected' ? 'Reconnect Messenger' : 'Connect Messenger';
-        button.addEventListener('click', () => startMessenger(button));
+        button.textContent = verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
+        button.addEventListener('click', () => verifying ? checkMessenger(button) : startMessenger(button, messengerSetup));
         row.append(button);
-        if (connection?.status === 'verifying') {
-          detail.textContent = 'Authorized. Send a private Messenger test to Glow Aesthetics Manila.';
+        detail.textContent = verifying ? 'Facebook approved. Send ' + page +
+          ' a private test booking request, then check the connection.' :
+          connected ? 'Connected · ' + page :
+            'Choose ' + page + ' in Facebook and approve access.';
+        if (verifying && messengerSetup.pageUrl) {
+          const testLink = document.createElement('a');
+          testLink.href = messengerSetup.pageUrl;
+          testLink.target = '_blank';
+          testLink.rel = 'noopener noreferrer';
+          testLink.textContent = 'Open Facebook Page';
+          const linkRow = document.createElement('small');
+          linkRow.append(testLink);
+          info.append(linkRow);
         }
       } else if (!connection) {
         const button = document.createElement('button');
@@ -208,7 +232,9 @@
         const followup = document.createElement('small');
         followup.textContent = {
           booked: 'Booked',
-          claimed: ownClaim ? 'Claimed by you · Follow up with the patient' : 'Claimed by another staff member',
+          claimed: ownClaim ? (event.channel === 'facebook_messenger' ?
+            'Claimed by you · Reply in Messenger to confirm a time' : 'Claimed by you · Follow up with the patient') :
+            'Claimed by another staff member',
           handled: 'Staff follow-up: handled'
         }[latest?.action] || {
           'call.followup_needed': 'Needs callback',
@@ -222,7 +248,7 @@
           inboxLink.href = 'https://business.facebook.com/latest/inbox/all/?asset_id=' + event.details.pageId;
           inboxLink.target = '_blank';
           inboxLink.rel = 'noopener noreferrer';
-          inboxLink.textContent = 'Open Page inbox';
+          inboxLink.textContent = ownClaim ? 'Reply in Messenger' : 'Open Page inbox';
           const inboxLinkRow = document.createElement('small');
           inboxLinkRow.append(inboxLink);
           row.append(inboxLinkRow);
@@ -361,7 +387,7 @@
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
-        claimed: 'Inquiry claimed. Mark it booked after the patient confirms.',
+        claimed: 'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
         booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
         reopened: 'Inquiry available for follow-up.'
@@ -537,16 +563,27 @@
     } catch (error) { status(error.message, 'error'); button.disabled = false; }
   }
 
-  async function startMessenger(button) {
+  async function checkMessenger(button) {
     button.disabled = true;
     try {
-      const { accountId, locationId } = messengerConnect;
+      await refreshActivity();
+      const connected = state.connections.some(row => row.channel === 'facebook_messenger' && row.status === 'connected');
+      status(connected ? 'Messenger connected. Check Needs attention for the test inquiry.' :
+        'Waiting for a test inquiry and a reply. Try sending “I’d like to book a consultation next Tuesday afternoon.”',
+        connected ? 'success' : 'info');
+    } catch (error) { status(error.message, 'error'); }
+    finally { button.disabled = false; }
+  }
+
+  async function startMessenger(button, { accountId, locationId }) {
+    button.disabled = true;
+    try {
       const result = await request('/clinic/messenger/start', {
         method: 'POST', body: JSON.stringify({ accountId, locationId })
       });
       const url = new URL(result.url);
       if (url.origin !== 'https://www.facebook.com') throw Error('Facebook sign-in link is unavailable.');
-      sessionStorage.setItem(messengerStorageKey, result.state);
+      sessionStorage.setItem(messengerStorageKey, JSON.stringify({ state: result.state, accountId, locationId }));
       location.assign(url.href);
     } catch (error) {
       status(error.message, 'error');
@@ -558,13 +595,14 @@
     if (!messengerReturn) return;
     const { state: returnedState, code } = messengerReturn;
     messengerReturn = null;
-    const expected = sessionStorage.getItem(messengerStorageKey);
+    const saved = sessionStorage.getItem(messengerStorageKey);
     sessionStorage.removeItem(messengerStorageKey);
-    if (!messengerConnect || !expected || expected !== returnedState) {
+    const expected = saved?.startsWith('{') ? JSON.parse(saved) : { ...legacyMessengerConnect, state: saved };
+    if (!expected.accountId || !expected.locationId || expected.state !== returnedState) {
       throw Error('Messenger sign-in expired. Click Connect Messenger to try again.');
     }
     if (!code) throw Error('Messenger authorization was cancelled. You can connect again when ready.');
-    const { accountId, locationId } = messengerConnect;
+    const { accountId, locationId } = expected;
     const result = await request('/clinic/messenger/finish', {
       method: 'POST', body: JSON.stringify({ accountId, locationId, code, state: returnedState })
     });
@@ -572,8 +610,8 @@
     byId('clinic-location').value = locationId;
     loadAlertEmail();
     await refreshActivity();
-    status(result.status === 'connected' ? 'Glow Messenger reconnected.' :
-      'Glow authorized. Send a private Messenger test to confirm delivery.', 'success');
+    status(result.status === 'connected' ? 'Messenger reconnected.' :
+      'Facebook approved. Send a private test message to confirm delivery.', 'success');
   }
 
   const signInForm = byId('clinic-signin-form');
@@ -687,7 +725,8 @@
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
       staffEmailAvailable = config.staffEmailAvailable === true;
-      messengerConnect = config.messengerConnect;
+      messengerSetupAvailable = config.messengerSetupAvailable === true;
+      legacyMessengerConnect = config.messengerConnect;
       state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
       const { data, error } = await state.client.auth.getSession();
       if (error) throw error;
