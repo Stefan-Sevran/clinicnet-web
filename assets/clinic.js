@@ -118,7 +118,8 @@
     if (alertEmailForm) alertEmailForm.hidden = true;
     const [locations, membership] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
-      alertEmailForm && state.client.from('clinic_memberships').select('role')
+      (alertEmailForm || messengerConnect?.accountId === accountId) &&
+        state.client.from('clinic_memberships').select('role')
         .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle()
     ]);
     if (generation !== state.generation) return;
