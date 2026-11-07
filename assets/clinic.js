@@ -10,6 +10,7 @@
   } : null;
   if (messengerReturn) history.replaceState(null, '', location.pathname);
   let messengerSetupAvailable = false;
+  let commentPilotPublishAvailable = false;
   let legacyMessengerConnect = null;
   let messengerSetups = [];
   const alertEmailForm = byId('clinic-alert-email-form');
@@ -22,6 +23,10 @@
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
   pearlPilotLink.hidden = true;
   byId('clinic-inbox').before(pearlPilotLink);
+  const commentPilotPanel = document.createElement('section');
+  commentPilotPanel.className = 'clinic-events';
+  commentPilotPanel.hidden = true;
+  byId('clinic-inbox').before(commentPilotPanel);
   const daily = document.createElement('div');
   daily.className = 'clinic-daily';
   daily.hidden = true;
@@ -48,7 +53,7 @@
   const channelColumns = channelPanel.parentElement;
   document.querySelector('.clinic-next').before(channelPanel);
   channelColumns.classList.remove('clinic-columns');
-  let canEditAlertEmail = false;
+  let canManageClinic = false;
   let staffEmailAvailable = false;
   let soundContext;
   let soundTimer;
@@ -92,6 +97,11 @@
       if (path === '/clinic/messenger/finish' && response.status === 409) {
         throw Error('That Facebook Page or clinic location already has a Messenger connection. Open the workspace that manages it.');
       }
+      if (path.startsWith('/clinic/comment-replies')) {
+        if (response.status === 409) throw Error('The comment or draft changed. Refresh and review it again.');
+        if (response.status === 404) throw Error('This comment draft is no longer available.');
+        throw Error('The request could not be confirmed. Check the draft status and Facebook before posting again.');
+      }
       if (response.status === 409) {
         const error = Error(path === '/clinic/followups' ?
           'This inquiry changed. Review its current state before trying again.' :
@@ -123,7 +133,7 @@
     if (alertEmailForm) alertEmailForm.hidden = true;
     const [locations, membership, setups] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
-      (alertEmailForm || (!messengerSetupAvailable && legacyMessengerConnect?.accountId === accountId)) &&
+      (alertEmailForm || commentPilotPublishAvailable || (!messengerSetupAvailable && legacyMessengerConnect?.accountId === accountId)) &&
         state.client.from('clinic_memberships').select('role')
         .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle(),
       messengerSetupAvailable ? request('/clinic/messenger/setups?accountId=' + encodeURIComponent(accountId))
@@ -131,9 +141,9 @@
     ]);
     if (generation !== state.generation) return;
     state.locations = locations;
-    canEditAlertEmail = ['owner', 'admin'].includes(membership?.data?.role);
+    canManageClinic = ['owner', 'admin'].includes(membership?.data?.role);
     messengerSetups = setups.map(setup => ({ ...setup, accountId }));
-    if (!messengerSetupAvailable && canEditAlertEmail && legacyMessengerConnect?.accountId === accountId) {
+    if (!messengerSetupAvailable && canManageClinic && legacyMessengerConnect?.accountId === accountId) {
       messengerSetups = [legacyMessengerConnect];
     }
     selectOptions(byId('clinic-location'), locations, byId('clinic-location').value, 'name');
@@ -407,7 +417,160 @@
     renderEvents('clinic-booked-outcomes', outcomes, 'No confirmed booking outcomes in the recent inbox.');
   }
 
+  async function reviewCommentReply(event, opener) {
+    const generation = state.generation;
+    const path = '/clinic/comment-replies';
+    const target = { accountId: event.account_id, locationId: event.location_id, eventKey: event.event_key };
+    opener.disabled = true;
+    try {
+      const review = await request(path + '?' + new URLSearchParams(target));
+      if (generation !== state.generation || byId('clinic-comment-review')) return;
+      const dialog = document.createElement('dialog');
+      dialog.id = 'clinic-comment-review';
+      dialog.className = 'clinic-panel';
+      dialog.setAttribute('aria-labelledby', 'clinic-comment-review-title');
+      dialog.style.width = 'min(36rem, 90vw)';
+      dialog.style.overflowWrap = 'anywhere';
+      const title = document.createElement('h2');
+      title.id = 'clinic-comment-review-title';
+      title.textContent = 'Review public Facebook reply';
+      const original = document.createElement('blockquote');
+      original.textContent = review.message;
+      const form = document.createElement('form');
+      form.className = 'clinic-form';
+      const label = document.createElement('label');
+      label.textContent = 'Public reply';
+      const reply = document.createElement('textarea');
+      reply.value = event.details.publicDraft;
+      reply.rows = 4;
+      reply.maxLength = 500;
+      reply.required = true;
+      label.append(reply);
+      const help = document.createElement('p');
+      help.textContent = 'This will post as the clinic’s Facebook Page. Keep personal details private and leave the tracking code in the reply to track bookings.';
+      const actions = document.createElement('div');
+      actions.className = 'clinic-toolbar';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'clinic-secondary';
+      cancel.textContent = 'Cancel';
+      const publish = document.createElement('button');
+      publish.type = 'submit';
+      publish.textContent = 'Publish on Facebook';
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('cancel', e => { if (publish.disabled) e.preventDefault(); });
+      dialog.addEventListener('close', () => dialog.remove(), { once: true });
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (publish.disabled || !reply.value.trim()) return;
+        publish.disabled = cancel.disabled = reply.disabled = true;
+        let message, kind;
+        try {
+          const result = await request(path, { method: 'POST', body: JSON.stringify({
+            ...target, version: review.version, message: reply.value.trim()
+          }) });
+          kind = result.status === 'published' ? 'success' : 'error';
+          message = kind === 'success' ? 'Reply published on Facebook.' :
+            'Facebook did not confirm publication. Open the comment to check before replying again.';
+        } catch (error) {
+          message = error.message;
+          kind = 'error';
+        }
+        dialog.close();
+        if (generation === state.generation) {
+          await refreshActivity().catch(() => {});
+          status(message, kind);
+        }
+      });
+      actions.append(cancel, publish);
+      form.append(label, help, actions);
+      dialog.append(title, original, form);
+      document.body.append(dialog);
+      dialog.showModal();
+      reply.focus();
+    } catch (error) {
+      if (generation === state.generation) status(error.message, 'error');
+    } finally {
+      opener.disabled = false;
+    }
+  }
+
+  function renderCommentPilot(inbox) {
+    const postId = inbox.find(event => /^\d{5,30}_\d{5,30}$/.test(event.details?.commentPilotPostId || ''))
+      ?.details.commentPilotPostId;
+    commentPilotPanel.hidden = !postId;
+    commentPilotPanel.replaceChildren();
+    if (!postId) return;
+
+    const [pageId, storyId] = postId.split('_');
+    const events = inbox.filter(event => event.details?.commentPilotPostId === postId);
+    const drafts = events.filter(event => event.kind === 'comment.draft');
+    const published = drafts.filter(event => event.status === 'published');
+    const canPublish = commentPilotPublishAvailable && canManageClinic;
+    const messages = events.filter(event => event.kind === 'comment.messenger_started');
+    const bookings = events.filter(event => event.kind === 'booking.requested');
+    const confirmed = bookings.filter(event => state.followups.get(event.event_key)?.action === 'booked');
+    const title = document.createElement('h3');
+    title.textContent = 'Facebook comment pilot';
+    const totals = document.createElement('p');
+    totals.textContent = `Drafts ${drafts.length} · Published ${published.length} · Tagged Messenger conversations ${messages.length} · Booking requests ${bookings.length} · Confirmed ${confirmed.length}`;
+    const help = document.createElement('p');
+    help.textContent = 'Counts cover the latest 100 inbox items for this location. ' + (canPublish ?
+      'Review and edit each draft before publishing as the clinic’s Page.' :
+      'Review the original comment, then copy and post any reply you approve in Facebook.');
+    commentPilotPanel.append(title, totals, help);
+
+    for (const event of drafts) {
+      const { commentId, publicDraft } = event.details;
+      if (!/^\d{5,30}(?:_\d{5,30})?$/.test(commentId || '') || typeof publicDraft !== 'string') continue;
+      const url = new URL('https://www.facebook.com/permalink.php');
+      url.search = new URLSearchParams({ id: pageId, story_fbid: storyId, comment_id: commentId.split('_').at(-1) });
+      const card = document.createElement('article');
+      card.className = 'clinic-event';
+      const draft = document.createElement('p');
+      draft.textContent = event.details.approvedReply || publicDraft;
+      const link = document.createElement('a');
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open comment in Facebook';
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'clinic-secondary';
+      copy.textContent = 'Copy draft';
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(publicDraft);
+          copy.textContent = 'Draft copied';
+        } catch {
+          copy.textContent = 'Select and copy the draft text';
+        }
+      });
+      const actions = document.createElement('div');
+      actions.className = 'clinic-toolbar';
+      actions.append(link);
+      if (event.status === 'staff_review' && canPublish) {
+        const review = document.createElement('button');
+        review.type = 'button';
+        review.className = 'clinic-secondary';
+        review.textContent = 'Review and publish';
+        review.addEventListener('click', () => reviewCommentReply(event, review));
+        actions.append(review);
+      } else if (event.status === 'staff_review') {
+        actions.append(copy);
+      } else {
+        const result = document.createElement('small');
+        result.textContent = event.status === 'published' ? 'Published on Facebook' :
+          'Publication unconfirmed. Check the comment on Facebook before replying again.';
+        actions.append(result);
+      }
+      card.append(draft, actions);
+      commentPilotPanel.append(card);
+    }
+  }
+
   async function refreshActivity(quiet = false) {
+    if (!quiet) commentPilotPanel.hidden = true;
     const generation = quiet ? state.generation : ++state.generation;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
@@ -424,7 +587,9 @@
     renderChannels();
     renderEvents('clinic-bookings', bookings.filter(event => event.details?.demo !== true),
       'No booking requests yet. Requests will appear when a verified channel delivers them.');
-    renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
+    renderEvents('clinic-inbox', inbox.filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind)),
+      'No activity yet for this location.');
+    renderCommentPilot(inbox);
     renderBookingOutcomes(inbox);
     renderDailyWork(inbox, locationId);
     const keys = inboxAlertKeys(inbox);
@@ -448,7 +613,7 @@
   function loadAlertEmail() {
     if (!alertEmailForm) return;
     const location = state.locations.find(row => row.id === byId('clinic-location').value);
-    alertEmailForm.hidden = !staffEmailAvailable || !canEditAlertEmail || !location;
+    alertEmailForm.hidden = !staffEmailAvailable || !canManageClinic || !location;
     alertEmailInput.value = location?.alert_email || '';
     showAlertEmailStatus();
   }
@@ -708,6 +873,7 @@
   });
   byId('clinic-account').addEventListener('change', () => {
     daily.hidden = true;
+    commentPilotPanel.hidden = true;
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
@@ -726,6 +892,7 @@
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
       staffEmailAvailable = config.staffEmailAvailable === true;
       messengerSetupAvailable = config.messengerSetupAvailable === true;
+      commentPilotPublishAvailable = config.commentPilotPublishAvailable === true;
       legacyMessengerConnect = config.messengerConnect;
       state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
       const { data, error } = await state.client.auth.getSession();

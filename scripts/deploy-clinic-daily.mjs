@@ -17,7 +17,7 @@ const candidates = readdirSync(root, { withFileTypes: true })
   .filter(folder => {
     const clinic = readFileSync(join(folder, clinicPage), 'utf8');
     return clinic.includes('class="ecn-footer-main"') && clinic.includes('id="clinic-booked-outcomes"') &&
-      /\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123])"/.test(clinic) &&
+      /\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12])"/.test(clinic) &&
       readFileSync(join(folder, '_worker.js'), 'utf8').includes('Serve the Clinic Workspace from Pages assets.');
   })
   .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
@@ -32,8 +32,8 @@ execFileSync('curl', ['-fsSL', '--max-time', '45', url, '-o', join(stage, 'asset
 execFileSync(process.execPath, ['--check', join(stage, 'assets/clinic.js')], { stdio: 'inherit' });
 const clinic = readFileSync(join(stage, clinicPage), 'utf8');
 let updated = clinic.replace(
-  /(\/assets\/clinic\.js\?v=)(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123])"/,
-  '$1clinic-messenger-connect-3"'
+  /(\/assets\/clinic\.js\?v=)(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12])"/,
+  '$1clinic-comment-pilot-2"'
 );
 if (!updated.includes('<meta name="referrer" content="no-referrer">')) {
   updated = updated.replace('<script defer src="/assets/clinic.js?', '<meta name="referrer" content="no-referrer">\n<script defer src="/assets/clinic.js?');
