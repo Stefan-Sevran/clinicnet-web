@@ -22,6 +22,10 @@
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
   pearlPilotLink.hidden = true;
   byId('clinic-inbox').before(pearlPilotLink);
+  const commentPilotPanel = document.createElement('section');
+  commentPilotPanel.className = 'clinic-events';
+  commentPilotPanel.hidden = true;
+  byId('clinic-inbox').before(commentPilotPanel);
   const daily = document.createElement('div');
   daily.className = 'clinic-daily';
   daily.hidden = true;
@@ -407,7 +411,63 @@
     renderEvents('clinic-booked-outcomes', outcomes, 'No confirmed booking outcomes in the recent inbox.');
   }
 
+  function renderCommentPilot(inbox) {
+    const postId = inbox.find(event => /^\d{5,30}_\d{5,30}$/.test(event.details?.commentPilotPostId || ''))
+      ?.details.commentPilotPostId;
+    commentPilotPanel.hidden = !postId;
+    commentPilotPanel.replaceChildren();
+    if (!postId) return;
+
+    const [pageId, storyId] = postId.split('_');
+    const events = inbox.filter(event => event.details?.commentPilotPostId === postId);
+    const drafts = events.filter(event => event.kind === 'comment.draft');
+    const messages = events.filter(event => event.kind === 'comment.messenger_started');
+    const bookings = events.filter(event => event.kind === 'booking.requested');
+    const confirmed = bookings.filter(event => state.followups.get(event.event_key)?.action === 'booked');
+    const title = document.createElement('h3');
+    title.textContent = 'Facebook comment pilot';
+    const totals = document.createElement('p');
+    totals.textContent = `Drafts ${drafts.length} · Tagged Messenger conversations ${messages.length} · Booking requests ${bookings.length} · Confirmed ${confirmed.length}`;
+    const help = document.createElement('p');
+    help.textContent = 'Counts cover the latest 100 inbox items for this location. Review the original comment, then copy and post any reply you approve in Facebook.';
+    commentPilotPanel.append(title, totals, help);
+
+    for (const event of drafts) {
+      const { commentId, publicDraft } = event.details;
+      if (!/^\d{5,30}(?:_\d{5,30})?$/.test(commentId || '') || typeof publicDraft !== 'string') continue;
+      const url = new URL('https://www.facebook.com/permalink.php');
+      url.search = new URLSearchParams({ id: pageId, story_fbid: storyId, comment_id: commentId.split('_').at(-1) });
+      const card = document.createElement('article');
+      card.className = 'clinic-event';
+      const draft = document.createElement('p');
+      draft.textContent = publicDraft;
+      const link = document.createElement('a');
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open comment in Facebook';
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'clinic-secondary';
+      copy.textContent = 'Copy draft';
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(publicDraft);
+          copy.textContent = 'Draft copied';
+        } catch {
+          copy.textContent = 'Select and copy the draft text';
+        }
+      });
+      const actions = document.createElement('div');
+      actions.className = 'clinic-toolbar';
+      actions.append(link, copy);
+      card.append(draft, actions);
+      commentPilotPanel.append(card);
+    }
+  }
+
   async function refreshActivity(quiet = false) {
+    if (!quiet) commentPilotPanel.hidden = true;
     const generation = quiet ? state.generation : ++state.generation;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
@@ -424,7 +484,9 @@
     renderChannels();
     renderEvents('clinic-bookings', bookings.filter(event => event.details?.demo !== true),
       'No booking requests yet. Requests will appear when a verified channel delivers them.');
-    renderEvents('clinic-inbox', inbox, 'No activity yet for this location.');
+    renderEvents('clinic-inbox', inbox.filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind)),
+      'No activity yet for this location.');
+    renderCommentPilot(inbox);
     renderBookingOutcomes(inbox);
     renderDailyWork(inbox, locationId);
     const keys = inboxAlertKeys(inbox);
@@ -708,6 +770,7 @@
   });
   byId('clinic-account').addEventListener('change', () => {
     daily.hidden = true;
+    commentPilotPanel.hidden = true;
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
