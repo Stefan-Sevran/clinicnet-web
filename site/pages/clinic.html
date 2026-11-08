@@ -31,6 +31,59 @@
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
+      <section id="clinic-messenger-guide" class="clinic-panel clinic-messenger-guide" aria-labelledby="clinic-messenger-title" hidden>
+        <h2 id="clinic-messenger-title" tabindex="-1">Set up Messenger</h2>
+        <p id="clinic-messenger-page"></p>
+        <div id="clinic-messenger-import" class="clinic-event" hidden>
+          <p id="clinic-messenger-import-help"></p>
+          <div class="clinic-messenger-actions">
+            <button id="clinic-messenger-use-import" type="button">Review saved clinic details</button>
+            <button id="clinic-messenger-dismiss-import" type="button" class="clinic-secondary">Dismiss</button>
+          </div>
+        </div>
+        <ol id="clinic-messenger-steps" class="clinic-messenger-steps">
+          <li>
+            <h3>Confirm clinic facts</h3>
+            <p>Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
+            <button id="clinic-messenger-edit-facts" type="button" class="clinic-secondary" hidden>Edit clinic facts</button>
+            <form id="clinic-messenger-facts" class="clinic-form clinic-messenger-facts" hidden>
+              <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
+              <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>
+              <label>Address or directions <textarea name="address" maxlength="900" required placeholder="Street address or directions patients need"></textarea></label>
+              <label>Booking rules <textarea name="bookingRules" maxlength="900" required placeholder="e.g. Staff confirm appointment times. Call the clinic for same-day availability."></textarea></label>
+              <label>Preferred language <input name="language" maxlength="120" placeholder="e.g. English and Tagalog"></label>
+              <label>Appointment handling <select name="bookingMode"><option value="request">Take booking requests and let staff confirm</option><option value="information">Answer questions and direct bookings to staff</option></select></label>
+              <div class="clinic-messenger-actions">
+                <button type="submit">Confirm clinic facts</button>
+                <button id="clinic-messenger-cancel-facts" type="button" class="clinic-secondary" hidden>Cancel</button>
+              </div>
+            </form>
+          </li>
+          <li>
+            <h3>Connect your Facebook Page</h3>
+            <p id="clinic-messenger-connect-help"></p>
+            <button id="clinic-messenger-connect" type="button" hidden>Connect Messenger</button>
+          </li>
+          <li>
+            <h3>Send and claim a test inquiry</h3>
+            <p id="clinic-messenger-test-help"></p>
+            <div id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions" hidden>
+              <label for="clinic-messenger-test-message">Private test message</label>
+              <input id="clinic-messenger-test-message" readonly>
+              <div class="clinic-messenger-actions">
+                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary">Copy message</button>
+                <a id="clinic-messenger-test-page" target="_blank" rel="noopener noreferrer">Open Facebook Page</a>
+                <button id="clinic-messenger-check-test" type="button" class="clinic-secondary">Check for test inquiry</button>
+              </div>
+            </div>
+            <div class="clinic-messenger-actions">
+              <button id="clinic-messenger-start-test" type="button" hidden>Create test message</button>
+              <a id="clinic-messenger-find-test" hidden>Find the test inquiry</a>
+            </div>
+          </li>
+        </ol>
+        <p id="clinic-messenger-guide-status" class="clinic-status" role="status" hidden></p>
+      </section>
       <div class="clinic-columns">
         <section class="clinic-panel">
           <div class="clinic-panel-head"><span class="clinic-step">03</span><div><h2>Connect your channels</h2><p>Request a channel here. Our team verifies it before it can receive live inquiries.</p></div></div>

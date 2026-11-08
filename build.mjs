@@ -13,7 +13,7 @@ export async function renderPage(page) {
   return '<!doctype html>\n<html lang="en"><head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>'+escape(page.title)+'</title>\n<meta name="description" content="'+escape(page.description)+'">\n'+
   (noindex?'<meta name="robots" content="noindex,nofollow">\n':'')+
   ['/assets/site.css',...(page.header?['/assets/desktop-navigation.css']:[]),...page.styles].map(p=>'<link rel="stylesheet" href="'+escape(p)+'">').join('\n')+
-  '\n<script src="/assets/navigation.js?v=2"></script>\n'+page.scripts.map(p=>'<script defer src="'+escape(p)+'"></script>').join('\n')+
+  '\n<script src="/assets/navigation.js?v=2"></script>\n'+(page.id==='clinic'?'<meta name="referrer" content="no-referrer">\n':'')+page.scripts.map(p=>'<script defer src="'+escape(p)+'"></script>').join('\n')+
   '\n</head><body data-page="'+page.id+'" data-header="'+(page.header?'visible':'hidden')+'" data-footer="'+(page.footer?'visible':'hidden')+'">\n<a class="skip-link" href="#main-content">Skip to content</a>\n'+
   (page.header?await component('header'):'')+'\n'+await read('site/pages/'+page.id+'.html')+'\n'+(page.footer?await component('footer'):'')+'\n</body></html>\n';
 }

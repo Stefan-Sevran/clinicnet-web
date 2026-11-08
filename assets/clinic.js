@@ -4,15 +4,24 @@
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
   const messengerStorageKey = 'eden-messenger-oauth';
+  const ownerSetupKey = 'eden-messenger-details';
+  const ownerSetupLifetime = 30 * 60 * 1000;
   const query = new URLSearchParams(location.search);
   let messengerReturn = query.get('state')?.startsWith('eden-messenger.') ? {
     state: query.get('state'), code: query.get('code')
   } : null;
   if (messengerReturn) history.replaceState(null, '', location.pathname);
+  let ownerSetup = receiveOwnerSetup();
+  let importedLocation;
   let messengerSetupAvailable = false;
   let commentPilotPublishAvailable = false;
   let legacyMessengerConnect = null;
   let messengerSetups = [];
+  let guideLocation;
+  let guideInbox = [];
+  let setupTest;
+  const guide = byId('clinic-messenger-guide');
+  const factsForm = byId('clinic-messenger-facts');
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
@@ -48,7 +57,8 @@
         <div id="clinic-today" class="clinic-events"></div>
       </section>
     </div>`;
-  document.querySelector('.clinic-selectors').after(daily);
+  guide.after(daily);
+  byId('clinic-messenger-find-test').href = '#clinic-attention';
   const channelPanel = byId('clinic-channels').closest('.clinic-panel');
   const channelColumns = channelPanel.parentElement;
   document.querySelector('.clinic-next').before(channelPanel);
@@ -130,6 +140,7 @@
     const generation = ++state.generation;
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
+    guide.hidden = true;
     if (alertEmailForm) alertEmailForm.hidden = true;
     const [locations, membership, setups] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
@@ -150,6 +161,225 @@
     loadAlertEmail();
     await refreshActivity();
   }
+
+  function selectedMessengerGuide() {
+    return state.session && messengerSetups.find(setup => Object.hasOwn(setup, 'facts') &&
+      setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
+  }
+
+  function receiveOwnerSetup() {
+    const fromOwnerPage = location.hash.startsWith('#' + ownerSetupKey + '=');
+    const parameter = fromOwnerPage && new URLSearchParams(location.hash.slice(1)).get(ownerSetupKey);
+    if (fromOwnerPage) history.replaceState(null, '', location.pathname + location.search);
+    try {
+      const raw = fromOwnerPage ? parameter : sessionStorage.getItem(ownerSetupKey);
+      if (!raw || raw.length > 8000) return null;
+      const { clinic, at, facts } = JSON.parse(raw);
+      if (typeof clinic !== 'string' || !clinic.trim() || clinic.length > 120 || !Number.isFinite(at) ||
+          Date.now() - at > ownerSetupLifetime || at - Date.now() > 60000 || !facts) return null;
+      const allowed = {};
+      for (const name of ['services', 'hours', 'address', 'bookingRules', 'language']) {
+        const value = facts[name];
+        if (typeof value !== 'string' || value.length > (name === 'language' ? 120 : 900)) return null;
+        allowed[name] = value;
+      }
+      if (!['request', 'information'].includes(facts.bookingMode)) return null;
+      allowed.bookingMode = facts.bookingMode;
+      const details = { clinic, at, facts: allowed };
+      if (fromOwnerPage) sessionStorage.setItem(ownerSetupKey, JSON.stringify(details));
+      return details;
+    } catch { return null; }
+  }
+
+  function clearOwnerSetup() {
+    ownerSetup = null;
+    importedLocation = null;
+    try { sessionStorage.removeItem(ownerSetupKey); } catch { /* Continue without storage. */ }
+  }
+
+  function fillMessengerFacts(facts) {
+    for (const field of factsForm.querySelectorAll('[name]')) {
+      field.value = facts?.[field.name] || (field.name === 'bookingMode' ? 'request' : '');
+    }
+  }
+
+  function messengerGuideStatus(message = '', kind = 'info') {
+    const note = byId('clinic-messenger-guide-status');
+    note.textContent = message;
+    note.dataset.kind = kind;
+    note.hidden = !message;
+  }
+
+  function renderMessengerGuide({ resetFacts = false } = {}) {
+    const setup = selectedMessengerGuide();
+    guide.hidden = !setup && !ownerSetup;
+    show('clinic-messenger-steps', setup);
+    if (!setup) {
+      show('clinic-messenger-import', false);
+      if (ownerSetup) byId('clinic-messenger-page').textContent =
+        'Choose a location with Messenger setup available and sign in as its owner or admin.';
+      return;
+    }
+    if (guideLocation !== setup.locationId || resetFacts) {
+      if (guideLocation !== setup.locationId) {
+        setupTest = null;
+        importedLocation = null;
+      }
+      guideLocation = setup.locationId;
+      fillMessengerFacts(setup.facts);
+      factsForm.hidden = Boolean(setup.facts);
+      messengerGuideStatus();
+    }
+    const connection = state.connections.find(row => row.channel === 'facebook_messenger');
+    const authorized = ['verifying', 'connected'].includes(connection?.status);
+    const test = guideInbox.find(event => event.details?.demo === true && event.details?.messengerSetupTestId &&
+      (!setupTest || event.details.messengerSetupTestId === setupTest.testId));
+    const claimed = test && ['claimed', 'handled', 'booked'].includes(state.followups.get(test.event_key)?.action);
+    const waiting = setupTest && !test && setupTest.expiresAt > Date.now();
+    byId('clinic-messenger-page').textContent = 'Facebook Page · ' + setup.clinicName;
+    if (ownerSetup && Date.now() - ownerSetup.at > ownerSetupLifetime) clearOwnerSetup();
+    show('clinic-messenger-import', ownerSetup && !importedLocation);
+    if (ownerSetup) {
+      const locationName = state.locations.find(row => row.id === setup.locationId)?.name || setup.clinicName;
+      byId('clinic-messenger-import-help').textContent = 'Saved details from ' + ownerSetup.clinic +
+        ' are ready to review. Confirm that they belong to ' + locationName + ' before saving for Messenger.';
+    }
+    show('clinic-messenger-edit-facts', setup.facts && factsForm.hidden);
+    show('clinic-messenger-cancel-facts', setup.facts || importedLocation);
+    byId('clinic-messenger-connect-help').textContent = authorized ?
+      (connection.status === 'connected' ? 'Messenger is connected.' : 'Facebook approved access. Verify delivery in step 3.') :
+      (setup.facts ? 'Sign in with the Facebook profile that manages this Page and select it when asked.' : 'Confirm your clinic facts first.');
+    const connect = byId('clinic-messenger-connect');
+    connect.textContent = authorized ? 'Reconnect Messenger' : 'Connect Messenger';
+    connect.classList.toggle('clinic-secondary', authorized);
+    connect.hidden = !setup.facts;
+    byId('clinic-messenger-test-help').textContent = test && claimed ?
+      'Setup complete. The test reply was sent and staff claimed the sample.' : test ?
+        'Test reply sent. Open Needs attention and click Claim inquiry on Messenger setup test.' : waiting ?
+          'Open the Facebook Page, click Message, and send the text below from your personal profile. Then return here and check for the test inquiry.' :
+          authorized && setup.facts ? 'Send a private test to verify the reply and practice claiming a sample booking request.' :
+            'Confirm your facts and connect Facebook to start the test.';
+    show('clinic-messenger-test-instructions', waiting);
+    show('clinic-messenger-start-test', setup.facts && authorized);
+    byId('clinic-messenger-start-test').textContent = test ? 'Run another test' :
+      waiting ? 'Create a new test message' : 'Create test message';
+    show('clinic-messenger-find-test', test && !claimed);
+    if (waiting) {
+      byId('clinic-messenger-test-message').value = setupTest.message;
+      byId('clinic-messenger-test-page').href = setup.pageUrl;
+    }
+  }
+
+  factsForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const setup = selectedMessengerGuide();
+    if (!setup) return;
+    const facts = Object.fromEntries(new FormData(factsForm));
+    const imported = importedLocation === setup.locationId;
+    const fields = [...factsForm.elements];
+    fields.forEach(field => { field.disabled = true; });
+    try {
+      const { accountId, locationId } = setup;
+      const saved = await request('/clinic/messenger/facts', {
+        method: 'POST', body: JSON.stringify({ accountId, locationId, facts })
+      });
+      if (imported) clearOwnerSetup();
+      const current = selectedMessengerGuide();
+      if (current?.locationId !== locationId) return;
+      current.facts = saved.facts;
+      renderMessengerGuide({ resetFacts: true });
+      messengerGuideStatus('Clinic facts saved for Messenger.', 'success');
+      byId('clinic-messenger-connect').focus();
+    } catch (error) {
+      if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
+    } finally { fields.forEach(field => { field.disabled = false; }); }
+  });
+
+  byId('clinic-messenger-use-import').addEventListener('click', () => {
+    const setup = selectedMessengerGuide();
+    if (!setup || !ownerSetup) return;
+    if (Date.now() - ownerSetup.at > ownerSetupLifetime) {
+      clearOwnerSetup();
+      renderMessengerGuide();
+      messengerGuideStatus('The saved details link expired. Reopen Messenger from your assistant setup page.');
+      return;
+    }
+    importedLocation = setup.locationId;
+    fillMessengerFacts(ownerSetup.facts);
+    factsForm.hidden = false;
+    renderMessengerGuide();
+    factsForm.querySelector('textarea').focus();
+  });
+  byId('clinic-messenger-dismiss-import').addEventListener('click', () => {
+    clearOwnerSetup();
+    renderMessengerGuide();
+  });
+
+  byId('clinic-messenger-edit-facts').addEventListener('click', () => {
+    factsForm.hidden = false;
+    renderMessengerGuide();
+    factsForm.querySelector('textarea').focus();
+  });
+  byId('clinic-messenger-cancel-facts').addEventListener('click', () => {
+    importedLocation = null;
+    renderMessengerGuide({ resetFacts: true });
+    const edit = byId('clinic-messenger-edit-facts');
+    (edit.hidden ? byId('clinic-messenger-use-import') : edit).focus();
+  });
+  byId('clinic-messenger-connect').addEventListener('click', event => {
+    const setup = selectedMessengerGuide();
+    if (setup?.facts) startMessenger(event.currentTarget, setup);
+  });
+  byId('clinic-messenger-start-test').addEventListener('click', async event => {
+    const setup = selectedMessengerGuide();
+    if (!setup) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    messengerGuideStatus();
+    try {
+      const { accountId, locationId } = setup;
+      const test = await request('/clinic/messenger/test', {
+        method: 'POST', body: JSON.stringify({ accountId, locationId })
+      });
+      if (selectedMessengerGuide()?.locationId !== locationId) return;
+      setupTest = test;
+      renderMessengerGuide();
+      byId('clinic-messenger-copy-test').focus();
+    } catch (error) {
+      if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
+    } finally { button.disabled = false; }
+  });
+  byId('clinic-messenger-copy-test').addEventListener('click', async () => {
+    if (!setupTest) return;
+    const field = byId('clinic-messenger-test-message');
+    try {
+      await navigator.clipboard.writeText(field.value);
+      messengerGuideStatus('Test message copied.', 'success');
+    } catch {
+      field.focus();
+      field.select();
+      messengerGuideStatus('Copy the selected test message.');
+    }
+  });
+  byId('clinic-messenger-check-test').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const attempt = setupTest;
+    button.disabled = true;
+    try {
+      await refreshActivity();
+      if (!attempt || attempt !== setupTest || guide.hidden) return;
+      if (guideInbox.some(row => row.details?.messengerSetupTestId === attempt?.testId)) {
+        messengerGuideStatus('Test inquiry received.', 'success');
+        byId('clinic-messenger-find-test').focus();
+      } else {
+        messengerGuideStatus(attempt.expiresAt > Date.now() ?
+          'Waiting for your test. Send the copied message in a private chat with the Facebook Page, then check again.' :
+          'This test message expired. Create a new one and send it to the Page.');
+      }
+    } catch (error) {
+      if (attempt === setupTest && !guide.hidden) messengerGuideStatus(error.message, 'error');
+    } finally { button.disabled = false; }
+  });
 
   function renderChannels() {
     const container = byId('clinic-channels');
@@ -173,14 +403,19 @@
         const connected = connection?.status === 'connected';
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'clinic-secondary';
-        button.textContent = verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
-        button.addEventListener('click', () => verifying ? checkMessenger(button) : startMessenger(button, messengerSetup));
+        const guided = Object.hasOwn(messengerSetup, 'facts');
+        button.textContent = guided ? 'Messenger setup' : verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
+        button.addEventListener('click', () => {
+          if (guided) byId('clinic-messenger-title').focus();
+          else if (verifying) checkMessenger(button);
+          else startMessenger(button, messengerSetup);
+        });
         row.append(button);
         detail.textContent = verifying ? 'Facebook approved. Send ' + page +
           ' a private test booking request, then check the connection.' :
           connected ? 'Connected · ' + page :
             'Choose ' + page + ' in Facebook and approve access.';
-        if (verifying && messengerSetup.pageUrl) {
+        if (verifying && messengerSetup.pageUrl && !guided) {
           const testLink = document.createElement('a');
           testLink.href = messengerSetup.pageUrl;
           testLink.target = '_blank';
@@ -208,6 +443,7 @@
       const row = document.createElement('article'); row.className = 'clinic-event';
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
+      const setupSample = Boolean(event.details?.demo && event.details?.messengerSetupTestId);
       const meta = document.createElement('small');
       meta.textContent = [labels[event.channel] || event.channel,
         needsFollowup ? null : event.status,
@@ -242,7 +478,7 @@
         const followup = document.createElement('small');
         followup.textContent = {
           booked: 'Booked',
-          claimed: ownClaim ? (event.channel === 'facebook_messenger' ?
+          claimed: ownClaim ? (setupSample ? 'Claimed by you · Finish the sample when ready' : event.channel === 'facebook_messenger' ?
             'Claimed by you · Reply in Messenger to confirm a time' : 'Claimed by you · Follow up with the patient') :
             'Claimed by another staff member',
           handled: 'Staff follow-up: handled'
@@ -252,7 +488,7 @@
           'inquiry.followup_needed': 'Needs staff reply'
         }[event.kind];
         row.append(followup);
-        if (event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
+        if (!setupSample && event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
             !['booked', 'handled'].includes(latest?.action)) {
           const inboxLink = document.createElement('a');
           inboxLink.href = 'https://business.facebook.com/latest/inbox/all/?asset_id=' + event.details.pageId;
@@ -272,7 +508,9 @@
           });
           row.append(appointment);
         }
-        const actions = dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
+        const actions = setupSample ? (latest?.action === 'claimed' && ownClaim ? [['handled', 'Finish test']] :
+          !latest || latest.action === 'reopened' ? [['claimed', 'Claim inquiry']] : []) :
+          dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
           dailyAction === 'book' ? [['booked', 'Mark booked']] :
           latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
@@ -397,7 +635,8 @@
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
-        claimed: 'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
+        claimed: event.details?.messengerSetupTestId ? 'Test inquiry claimed. Open Assigned to me to finish the sample.' :
+          'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
         booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
         reopened: 'Inquiry available for follow-up.'
@@ -592,6 +831,8 @@
     renderCommentPilot(inbox);
     renderBookingOutcomes(inbox);
     renderDailyWork(inbox, locationId);
+    guideInbox = inbox;
+    renderMessengerGuide();
     const keys = inboxAlertKeys(inbox);
     if (soundContext?.state === 'running' && !document.hidden && inboxSnapshot?.locationId === locationId &&
         [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();
@@ -746,12 +987,17 @@
       const result = await request('/clinic/messenger/start', {
         method: 'POST', body: JSON.stringify({ accountId, locationId })
       });
+      if (!state.session || byId('clinic-account').value !== accountId || byId('clinic-location').value !== locationId) {
+        button.disabled = false;
+        return;
+      }
       const url = new URL(result.url);
       if (url.origin !== 'https://www.facebook.com') throw Error('Facebook sign-in link is unavailable.');
       sessionStorage.setItem(messengerStorageKey, JSON.stringify({ state: result.state, accountId, locationId }));
       location.assign(url.href);
     } catch (error) {
-      status(error.message, 'error');
+      if (selectedMessengerGuide()?.locationId === locationId) messengerGuideStatus(error.message, 'error');
+      else status(error.message, 'error');
       button.disabled = false;
     }
   }
@@ -777,6 +1023,7 @@
     await refreshActivity();
     status(result.status === 'connected' ? 'Messenger reconnected.' :
       'Facebook approved. Send a private test message to confirm delivery.', 'success');
+    if (!guide.hidden) byId('clinic-messenger-title').focus();
   }
 
   const signInForm = byId('clinic-signin-form');
@@ -803,6 +1050,9 @@
     if (!session) {
       ++state.generation;
       inboxSnapshot = undefined;
+      guide.hidden = true;
+      guideLocation = null;
+      setupTest = null;
       stopInboxSound();
       status('Sign in to create or open your workspace.');
       return;
@@ -878,6 +1128,7 @@
   });
   byId('clinic-location').addEventListener('change', () => {
     daily.hidden = true;
+    guide.hidden = true;
     loadAlertEmail();
     refreshActivity().catch(error => status(error.message, 'error'));
   });
