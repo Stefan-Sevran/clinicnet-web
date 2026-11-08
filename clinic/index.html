@@ -7,11 +7,11 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-3">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-4">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-3"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-4"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -97,6 +97,13 @@ fetchpriority="high"
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
+      <section id="clinic-channel-setup" class="clinic-panel" aria-labelledby="clinic-channel-setup-title" hidden>
+        <h2 id="clinic-channel-setup-title">Connect your channels</h2>
+        <p>Choose a channel to set it up or check its status.</p>
+        <nav aria-label="Channel setup">
+          <ol id="clinic-channels" class="clinic-channel-progress"></ol>
+        </nav>
+      </section>
       <section id="clinic-messenger-guide" class="clinic-panel clinic-messenger-guide" aria-labelledby="clinic-messenger-title" hidden>
         <h2 id="clinic-messenger-title" tabindex="-1">Set up Messenger</h2>
         <p id="clinic-messenger-page"></p>
@@ -161,16 +168,10 @@ fetchpriority="high"
         </ol>
         <p id="clinic-messenger-guide-status" class="clinic-status" role="status" hidden></p>
       </section>
-      <div class="clinic-columns">
-        <section class="clinic-panel">
-          <div class="clinic-panel-head"><span class="clinic-step">03</span><div><h2>Connect your channels</h2><p>Request a channel here. Our team verifies it before it can receive live inquiries.</p></div></div>
-          <div id="clinic-channels" class="clinic-channel-list"></div>
-        </section>
-        <section class="clinic-panel">
-          <div class="clinic-panel-head"><span class="clinic-step">04</span><div><h2>Booking queue</h2><p>Requests are pending until a staff member or connected calendar confirms them.</p></div></div>
-          <div id="clinic-bookings" class="clinic-events" aria-live="polite"></div>
-        </section>
-      </div>
+      <section class="clinic-panel">
+        <div class="clinic-panel-head"><span class="clinic-step">04</span><div><h2>Booking queue</h2><p>Requests are pending until a staff member or connected calendar confirms them.</p></div></div>
+        <div id="clinic-bookings" class="clinic-events" aria-live="polite"></div>
+      </section>
       <section class="clinic-panel">
         <div class="clinic-panel-head"><span class="clinic-step">05</span><div><h2>Activity inbox</h2><p>Recent account activity from connected sources appears here.</p></div></div>
         <div id="clinic-inbox" class="clinic-events" aria-live="polite"></div>
@@ -180,7 +181,6 @@ fetchpriority="high"
         <p id="clinic-booked-count" aria-live="polite"></p>
         <div id="clinic-booked-outcomes" class="clinic-events"></div>
       </section>
-      <section class="clinic-panel clinic-next"><h2>What comes next</h2><p>Clinic facts, team access, and live Facebook and phone authorization are being built. A requested connection does not turn on automation. We’ll show a verified status here when a channel is ready.</p></section>
     </div>
   </div>
 </main>

@@ -62,11 +62,7 @@
         <div id="clinic-today" class="clinic-events"></div>
       </section>
     </div>`;
-  guide.after(daily);
-  const channelPanel = byId('clinic-channels').closest('.clinic-panel');
-  const channelColumns = channelPanel.parentElement;
-  document.querySelector('.clinic-next').before(channelPanel);
-  channelColumns.classList.remove('clinic-columns');
+  byId('clinic-bookings').closest('.clinic-columns')?.classList.remove('clinic-columns');
   let canManageClinic = false;
   let staffEmailAvailable = false;
   let soundContext;
@@ -76,6 +72,8 @@
   let inboxSnapshot;
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
+  const channelSetup = byId('clinic-channel-setup');
+  const channelSteps = createChannelSteps();
   const followupKinds = ['call.followup_needed', 'booking.requested', 'inquiry.followup_needed'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
@@ -145,6 +143,7 @@
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
     guide.hidden = true;
+    hideChannelSetup();
     if (alertEmailForm) alertEmailForm.hidden = true;
     const [locations, membership, setups] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
@@ -455,33 +454,96 @@
     if (!guide.hidden && byId('clinic-messenger-claim-test').hidden) byId('clinic-messenger-test-help').focus();
   });
 
+  function createChannelSteps() {
+    const list = byId('clinic-channels');
+    const steps = Object.entries(labels).map(([channel, name], index) => {
+      const panel = document.createElement('details');
+      panel.id = 'clinic-channel-' + channel;
+      panel.className = 'clinic-panel clinic-channel-detail';
+      panel.hidden = true;
+      const heading = document.createElement('summary');
+      heading.textContent = name;
+      const body = document.createElement('div');
+      panel.append(heading, body);
+
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = '#' + panel.id;
+      const marker = document.createElement('span');
+      marker.className = 'clinic-channel-marker';
+      marker.setAttribute('aria-hidden', 'true');
+      const copy = document.createElement('span');
+      const title = document.createElement('strong');
+      title.textContent = name;
+      const badge = document.createElement('small');
+      copy.append(title, badge);
+      link.append(marker, copy);
+      item.append(link);
+      list.append(item);
+      link.addEventListener('click', event => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        const guided = link.hash === '#' + guide.id;
+        if (!guided) panel.open = true;
+        const target = guided ? byId('clinic-messenger-title') : heading;
+        target.focus({ preventScroll: true });
+        (guided ? guide : panel).scrollIntoView({
+          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: 'start'
+        });
+      });
+      return { channel, index, panel, heading, body, link, marker, badge };
+    });
+    channelSetup.after(steps[0].panel, steps[1].panel, guide, steps[2].panel, daily);
+    return steps;
+  }
+
+  function hideChannelSetup() {
+    channelSetup.hidden = true;
+    for (const { panel } of channelSteps) panel.hidden = true;
+  }
+
   function renderChannels() {
-    const container = byId('clinic-channels');
-    container.replaceChildren();
-    for (const [channel, name] of Object.entries(labels)) {
+    const statuses = {
+      requested: 'Requested', verifying: 'Awaiting test', connected: 'Connected',
+      action_required: 'Action required', disconnected: 'Disconnected'
+    };
+    const guidance = {
+      website_chat: 'Add Eden chat to your website.',
+      facebook_messenger: 'Connect a Facebook Page so Eden can answer Messenger inquiries.',
+      ai_phone: 'Set up AI phone support for incoming or missed calls.'
+    };
+    channelSetup.hidden = false;
+    for (const { channel, index, panel, heading, body, link, marker, badge } of channelSteps) {
       const connection = state.connections.find(item => item.channel === channel);
+      const messengerSetup = channel === 'facebook_messenger' && messengerSetups.find(setup =>
+        setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
+      const guided = messengerSetup && Object.hasOwn(messengerSetup, 'facts');
+      const connected = connection?.status === 'connected';
+      const verifying = connection?.status === 'verifying';
+      const channelStatus = connection ? statuses[connection.status] || connection.status.replaceAll('_', ' ') : 'Not set up';
+      badge.textContent = channelStatus;
+      link.dataset.connected = String(connected);
+      marker.textContent = connected ? '✓' : String(index + 1);
+      link.href = '#' + (guided ? guide.id : panel.id);
+      panel.hidden = Boolean(guided);
+      if (guided) continue;
       const row = document.createElement('div');
       row.className = 'clinic-channel';
       const info = document.createElement('div');
-      const title = document.createElement('strong'); title.textContent = name;
       const detail = document.createElement('small');
-      detail.textContent = connection ? 'Status: ' + connection.status.replace(/_/g, ' ') +
-        (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') : 'Not requested';
-      info.append(title, detail);
+      detail.textContent = guidance[channel] + ' ' + (connection ? 'Status: ' + channelStatus +
+        (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') :
+        'Request setup and we’ll verify the connection before it receives live inquiries.');
+      info.append(detail);
       row.append(info);
-      const messengerSetup = channel === 'facebook_messenger' && messengerSetups.find(setup =>
-        setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
       if (messengerSetup) {
         const page = messengerSetup.clinicName || 'your Facebook Page';
-        const verifying = connection?.status === 'verifying';
-        const connected = connection?.status === 'connected';
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'clinic-secondary';
-        const guided = Object.hasOwn(messengerSetup, 'facts');
-        button.textContent = guided ? 'Messenger setup' : verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
+        button.textContent = verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
         button.addEventListener('click', () => {
-          if (guided) byId('clinic-messenger-title').focus();
-          else if (verifying) checkMessenger(button);
+          if (verifying) checkMessenger(button);
           else startMessenger(button, messengerSetup);
         });
         row.append(button);
@@ -489,7 +551,7 @@
           ' a private test booking request, then check the connection.' :
           connected ? 'Connected · ' + page :
             'Choose ' + page + ' in Facebook and approve access.';
-        if (verifying && messengerSetup.pageUrl && !guided) {
+        if (verifying && messengerSetup.pageUrl) {
           const testLink = document.createElement('a');
           testLink.href = messengerSetup.pageUrl;
           testLink.target = '_blank';
@@ -501,11 +563,13 @@
         }
       } else if (!connection) {
         const button = document.createElement('button');
-        button.type = 'button'; button.textContent = 'Request'; button.className = 'clinic-secondary';
+        button.type = 'button'; button.textContent = 'Request setup'; button.className = 'clinic-secondary';
         button.addEventListener('click', () => requestConnection(channel, button));
         row.append(button);
       }
-      container.append(row);
+      const hadFocus = body.contains(document.activeElement);
+      body.replaceChildren(row);
+      if (hadFocus) heading.focus({ preventScroll: true });
     }
   }
 
@@ -1033,14 +1097,22 @@
   });
 
   async function requestConnection(channel, button) {
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const isCurrentLocation = () => state.session && accountId === byId('clinic-account').value &&
+      locationId === byId('clinic-location').value;
     button.disabled = true;
     try {
       await request('/clinic/connections', { method: 'POST', body: JSON.stringify({
-        accountId: byId('clinic-account').value, locationId: byId('clinic-location').value, channel
+        accountId, locationId, channel
       }) });
+      if (!isCurrentLocation()) return;
       await refreshActivity();
-      status(labels[channel] + ' requested. The channel is not connected yet.', 'success');
-    } catch (error) { status(error.message, 'error'); button.disabled = false; }
+      if (isCurrentLocation()) status(labels[channel] + ' requested. We’ll verify it before it goes live.', 'success');
+    } catch (error) {
+      if (isCurrentLocation()) status(error.message, 'error');
+      button.disabled = false;
+    }
   }
 
   async function checkMessenger(button) {
@@ -1121,6 +1193,7 @@
       ++state.generation;
       inboxSnapshot = undefined;
       guide.hidden = true;
+      hideChannelSetup();
       guideLocation = null;
       setupTest = null;
       stopInboxSound();
@@ -1199,6 +1272,7 @@
   byId('clinic-location').addEventListener('change', () => {
     daily.hidden = true;
     guide.hidden = true;
+    hideChannelSetup();
     loadAlertEmail();
     refreshActivity().catch(error => status(error.message, 'error'));
   });
