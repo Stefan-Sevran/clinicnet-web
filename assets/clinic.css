@@ -61,6 +61,11 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-daily-count { padding: 3px 10px; border-radius: 999px; background: #eee8ff; color: #5130ab; font-size: .8rem; }
 .clinic-daily .clinic-events { margin-top: 14px; }
 
+@media (max-width: 760px) {
+  .clinic-daily-columns { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* Eden Messenger setup guide */
 .clinic-messenger-guide { border-top: 4px solid #6341bc; }
 .clinic-messenger-guide > .clinic-event { margin-top: 12px; }
 .clinic-messenger-steps { display: grid; gap: 16px; padding-inline-start: 24px; }
@@ -82,6 +87,5 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-messenger-guide .clinic-status { margin-top: 12px; }
 
 @media (max-width: 760px) {
-  .clinic-daily-columns { grid-template-columns: 1fr; gap: 0; }
   .clinic-messenger-facts { grid-template-columns: 1fr; }
 }
