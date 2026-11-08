@@ -7,11 +7,11 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-2">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-3">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-2"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-3"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -131,21 +131,32 @@ fetchpriority="high"
             <button id="clinic-messenger-connect" type="button" hidden>Connect Messenger</button>
           </li>
           <li>
-            <h3>Send and claim a test inquiry</h3>
-            <p id="clinic-messenger-test-help"></p>
+            <h3>Test your Messenger reply</h3>
+            <p id="clinic-messenger-test-help" role="status" tabindex="-1"></p>
+            <div id="clinic-messenger-test-send"></div>
             <div id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions" hidden>
               <label for="clinic-messenger-test-message">Private test message</label>
-              <input id="clinic-messenger-test-message" readonly>
-              <div class="clinic-messenger-actions">
-                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary">Copy message</button>
-                <a id="clinic-messenger-test-page" target="_blank" rel="noopener noreferrer">Open Facebook Page</a>
-                <button id="clinic-messenger-check-test" type="button" class="clinic-secondary">Check for test inquiry</button>
+              <div class="clinic-messenger-copy-field">
+                <input id="clinic-messenger-test-message" readonly>
+                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary" aria-label="Copy test message" title="Copy test message">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                </button>
               </div>
             </div>
-            <div class="clinic-messenger-actions">
+            <div id="clinic-messenger-test-actions" class="clinic-messenger-actions">
               <button id="clinic-messenger-start-test" type="button" hidden>Create test message</button>
-              <a id="clinic-messenger-find-test" hidden>Find the test inquiry</a>
+              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy and open Facebook</a>
+              <button id="clinic-messenger-check-test" type="button" hidden>Check for reply</button>
+              <button id="clinic-messenger-claim-test" type="button" hidden>Claim test inquiry</button>
             </div>
+            <details id="clinic-messenger-test-recovery" class="clinic-messenger-recovery" hidden>
+              <summary>Having trouble?</summary>
+              <div id="clinic-messenger-test-retry-send" hidden>
+                <p>Sign in to Facebook if asked, then use your personal profile to send the test message.</p>
+                <a id="clinic-messenger-reopen-page" target="_blank" rel="noopener noreferrer">Reopen Facebook Page</a>
+              </div>
+              <button id="clinic-messenger-restart-test" class="clinic-secondary" type="button">Start a new test</button>
+            </details>
           </li>
         </ol>
         <p id="clinic-messenger-guide-status" class="clinic-status" role="status" hidden></p>

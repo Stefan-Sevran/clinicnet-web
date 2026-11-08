@@ -84,7 +84,14 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
   border-radius: 10px; background: #fff; color: #242039; font: inherit;
 }
 .clinic-messenger-facts textarea { min-height: 74px; resize: vertical; }
-.clinic-messenger-test-instructions input { margin-top: 6px; }
+.clinic-messenger-copy-field { display: flex; align-items: stretch; margin-top: 6px; }
+.clinic-messenger-copy-field input { min-width: 0; border-radius: 10px 0 0 10px; }
+.clinic-messenger-copy-field button.clinic-secondary { flex: none; display: grid; place-items: center; padding: 0 12px; border-left: 0; border-radius: 0 10px 10px 0; }
+.clinic-messenger-primary-link { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 17px; border-radius: 10px; background: #5130ab; color: #fff; font-weight: 750; text-decoration: none; }
+.clinic-messenger-primary-link:hover { background: #382078; color: #fff; }
+.clinic-messenger-recovery { margin-top: 10px; color: #5c5872; }
+.clinic-messenger-recovery summary { cursor: pointer; }
+.clinic-messenger-recovery > button { margin-top: 8px; }
 .clinic-messenger-guide :is(textarea, input, a):focus-visible { outline: 3px solid #a790f0; outline-offset: 2px; }
 .clinic-messenger-guide .clinic-status { margin-top: 12px; }
 

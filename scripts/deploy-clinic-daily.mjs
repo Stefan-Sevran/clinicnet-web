@@ -12,7 +12,7 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[12])"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[123])"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const guideSection = /<section id="clinic-messenger-guide"[^>]*>[\s\S]*?<\/section>/;
 const signInSection = /<section id="clinic-signin"[^>]*>[\s\S]*?<\/section>/;
@@ -43,7 +43,7 @@ const guide = reviewedPage.match(guideSection)?.[0];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
 if (!guide || !signIn?.includes('id="clinic-code-form"') || cssStart < 0 ||
-    !reviewedPage.includes('/assets/clinic.js?v=messenger-guide-2')) {
+    !reviewedPage.includes('/assets/clinic.js?v=messenger-guide-3')) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
@@ -51,8 +51,8 @@ clinic = guideSection.test(clinic)
   ? clinic.replace(guideSection, () => guide)
   : clinic.replace(locationSection, section => section + '\n      ' + guide);
 clinic = clinic.replace(signInSection, () => signIn)
-  .replace(scriptTag, 'src="/assets/clinic.js?v=messenger-guide-2"')
-  .replace(styleTag, 'href="/assets/clinic.css?v=messenger-guide-2"');
+  .replace(scriptTag, 'src="/assets/clinic.js?v=messenger-guide-3"')
+  .replace(styleTag, 'href="/assets/clinic.css?v=messenger-guide-3"');
 if (!clinic.includes('<meta name="referrer" content="no-referrer">')) {
   clinic = clinic.replace('</head>', '<meta name="referrer" content="no-referrer">\n</head>');
 }

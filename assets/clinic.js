@@ -7,6 +7,10 @@
   const ownerSetupKey = 'eden-messenger-details';
   const ownerSetupLifetime = 30 * 60 * 1000;
   const query = new URLSearchParams(location.search);
+  const testReturnId = query.get('messengerTest');
+  const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
+    testId: testReturnId, accountId: query.get('account'), locationId: query.get('location')
+  } : null;
   let messengerReturn = query.get('state')?.startsWith('eden-messenger.') ? {
     state: query.get('state'), code: query.get('code')
   } : null;
@@ -20,6 +24,7 @@
   let guideLocation;
   let guideInbox = [];
   let setupTest;
+  let checkingTest = false;
   const guide = byId('clinic-messenger-guide');
   const factsForm = byId('clinic-messenger-facts');
   const alertEmailForm = byId('clinic-alert-email-form');
@@ -58,7 +63,6 @@
       </section>
     </div>`;
   guide.after(daily);
-  byId('clinic-messenger-find-test').href = '#clinic-attention';
   const channelPanel = byId('clinic-channels').closest('.clinic-panel');
   const channelColumns = channelPanel.parentElement;
   document.querySelector('.clinic-next').before(channelPanel);
@@ -124,7 +128,7 @@
     return response.json();
   }
 
-  async function refreshAccounts(preferred) {
+  async function refreshAccounts(preferred, preferredLocation) {
     const generation = ++state.generation;
     const accounts = await request('/clinic/accounts');
     if (generation !== state.generation) return;
@@ -133,10 +137,10 @@
     show('clinic-dashboard', accounts.length > 0);
     if (!accounts.length) return status('You are signed in. Create your first workspace.');
     selectOptions(byId('clinic-account'), accounts, preferred || byId('clinic-account').value, 'name');
-    await refreshLocations();
+    await refreshLocations(preferredLocation);
   }
 
-  async function refreshLocations() {
+  async function refreshLocations(preferredLocation) {
     const generation = ++state.generation;
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
@@ -157,7 +161,7 @@
     if (!messengerSetupAvailable && canManageClinic && legacyMessengerConnect?.accountId === accountId) {
       messengerSetups = [legacyMessengerConnect];
     }
-    selectOptions(byId('clinic-location'), locations, byId('clinic-location').value, 'name');
+    selectOptions(byId('clinic-location'), locations, preferredLocation || byId('clinic-location').value, 'name');
     loadAlertEmail();
     await refreshActivity();
   }
@@ -210,6 +214,11 @@
     note.hidden = !message;
   }
 
+  function receivedSetupTest() {
+    return guideInbox.find(event => event.details?.demo === true && event.details?.messengerSetupTestId &&
+      (!setupTest || event.details.messengerSetupTestId === setupTest.testId));
+  }
+
   function renderMessengerGuide({ resetFacts = false } = {}) {
     const setup = selectedMessengerGuide();
     guide.hidden = !setup && !ownerSetup;
@@ -222,7 +231,8 @@
     }
     if (guideLocation !== setup.locationId || resetFacts) {
       if (guideLocation !== setup.locationId) {
-        setupTest = null;
+        setupTest = testReturn?.accountId === setup.accountId && testReturn.locationId === setup.locationId
+          ? { testId: testReturn.testId, opened: true } : null;
         importedLocation = null;
       }
       guideLocation = setup.locationId;
@@ -232,10 +242,13 @@
     }
     const connection = state.connections.find(row => row.channel === 'facebook_messenger');
     const authorized = ['verifying', 'connected'].includes(connection?.status);
-    const test = guideInbox.find(event => event.details?.demo === true && event.details?.messengerSetupTestId &&
-      (!setupTest || event.details.messengerSetupTestId === setupTest.testId));
+    const test = receivedSetupTest();
     const claimed = test && ['claimed', 'handled', 'booked'].includes(state.followups.get(test.event_key)?.action);
-    const waiting = setupTest && !test && setupTest.expiresAt > Date.now();
+    const ready = setup.facts && authorized;
+    const expired = setupTest?.expiresAt && setupTest.expiresAt <= Date.now();
+    const waiting = ready && setupTest && !test && !expired;
+    const canSend = waiting && setupTest.message;
+    const opened = waiting && setupTest.opened;
     byId('clinic-messenger-page').textContent = 'Facebook Page · ' + setup.clinicName;
     if (ownerSetup && Date.now() - ownerSetup.at > ownerSetupLifetime) clearOwnerSetup();
     show('clinic-messenger-import', ownerSetup && !importedLocation);
@@ -253,20 +266,34 @@
     connect.textContent = authorized ? 'Reconnect Messenger' : 'Connect Messenger';
     connect.classList.toggle('clinic-secondary', authorized);
     connect.hidden = !setup.facts;
-    byId('clinic-messenger-test-help').textContent = test && claimed ?
-      'Setup complete. The test reply was sent and staff claimed the sample.' : test ?
-        'Test reply sent. Open Needs attention and click Claim inquiry on Messenger setup test.' : waiting ?
-          'Open the Facebook Page, click Message, and send the text below from your personal profile. Then return here and check for the test inquiry.' :
-          authorized && setup.facts ? 'Send a private test to verify the reply and practice claiming a sample booking request.' :
-            'Confirm your facts and connect Facebook to start the test.';
-    show('clinic-messenger-test-instructions', waiting);
-    show('clinic-messenger-start-test', setup.facts && authorized);
-    byId('clinic-messenger-start-test').textContent = test ? 'Run another test' :
-      waiting ? 'Create a new test message' : 'Create test message';
-    show('clinic-messenger-find-test', test && !claimed);
-    if (waiting) {
+    const help = byId('clinic-messenger-test-help');
+    let instruction = 'Confirm your facts and connect Facebook to start the test.';
+    if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created.';
+    else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
+    else if (opened) instruction = 'Sent the test message? We’ll look for Eden’s reply here.';
+    else if (canSend) instruction = 'On Facebook, click Message. Paste and send the test message from your personal profile, then return here.';
+    else if (ready) instruction = expired ? 'This test message expired. Create a new one to continue.' :
+      'Send a private message to check that Eden replies and brings the inquiry here.';
+    if (help.textContent !== instruction) help.textContent = instruction;
+    const instructions = byId('clinic-messenger-test-instructions');
+    const recovery = byId('clinic-messenger-test-recovery');
+    const retrySend = byId('clinic-messenger-test-retry-send');
+    const instructionsParent = opened ? retrySend : byId('clinic-messenger-test-send');
+    if (instructions.parentElement !== instructionsParent) instructionsParent.append(instructions);
+    instructions.hidden = !canSend;
+    recovery.hidden = !opened;
+    retrySend.hidden = !canSend;
+    const start = byId('clinic-messenger-start-test');
+    show(start.id, ready && (!test ? !waiting : claimed));
+    start.textContent = claimed ? 'Run another test' : 'Create test message';
+    start.classList.toggle('clinic-secondary', Boolean(claimed));
+    show('clinic-messenger-test-page', canSend && !opened);
+    show('clinic-messenger-check-test', opened);
+    show('clinic-messenger-claim-test', test && !claimed);
+    if (canSend) {
       byId('clinic-messenger-test-message').value = setupTest.message;
       byId('clinic-messenger-test-page').href = setup.pageUrl;
+      byId('clinic-messenger-reopen-page').href = setup.pageUrl;
     }
   }
 
@@ -330,7 +357,7 @@
     const setup = selectedMessengerGuide();
     if (setup?.facts) startMessenger(event.currentTarget, setup);
   });
-  byId('clinic-messenger-start-test').addEventListener('click', async event => {
+  async function startSetupTest(event) {
     const setup = selectedMessengerGuide();
     if (!setup) return;
     const button = event.currentTarget;
@@ -343,42 +370,89 @@
       });
       if (selectedMessengerGuide()?.locationId !== locationId) return;
       setupTest = test;
+      byId('clinic-messenger-test-recovery').open = false;
       renderMessengerGuide();
-      byId('clinic-messenger-copy-test').focus();
+      byId('clinic-messenger-test-page').focus();
     } catch (error) {
       if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
     } finally { button.disabled = false; }
-  });
-  byId('clinic-messenger-copy-test').addEventListener('click', async () => {
-    if (!setupTest) return;
+  }
+  byId('clinic-messenger-start-test').addEventListener('click', startSetupTest);
+  byId('clinic-messenger-restart-test').addEventListener('click', startSetupTest);
+  async function copySetupMessage() {
+    const attempt = setupTest;
+    if (!attempt?.message || attempt.expiresAt <= Date.now()) {
+      renderMessengerGuide();
+      return false;
+    }
     const field = byId('clinic-messenger-test-message');
     try {
-      await navigator.clipboard.writeText(field.value);
-      messengerGuideStatus('Test message copied.', 'success');
+      await navigator.clipboard.writeText(attempt.message);
+      if (attempt !== setupTest || guide.hidden) return false;
+      return true;
     } catch {
-      field.focus();
-      field.select();
-      messengerGuideStatus('Copy the selected test message.');
+      if (attempt === setupTest && !guide.hidden) {
+        if (attempt.opened) byId('clinic-messenger-test-recovery').open = true;
+        field.focus();
+        field.select();
+        messengerGuideStatus('Copy the selected test message, then open Facebook.');
+      }
+      return false;
     }
+  }
+  byId('clinic-messenger-copy-test').addEventListener('click', async () => {
+    if (await copySetupMessage()) messengerGuideStatus('Test message copied.', 'success');
   });
-  byId('clinic-messenger-check-test').addEventListener('click', async event => {
-    const button = event.currentTarget;
+  byId('clinic-messenger-test-page').addEventListener('click', event => {
+    if (setupTest?.expiresAt <= Date.now()) {
+      event.preventDefault();
+      renderMessengerGuide();
+      return;
+    }
+    setupTest.opened = true;
+    messengerGuideStatus();
+    renderMessengerGuide();
+    byId('clinic-messenger-check-test').focus();
+    void copySetupMessage();
+  });
+  async function checkSetupReply() {
     const attempt = setupTest;
+    if (!attempt?.opened || guide.hidden || checkingTest || receivedSetupTest()) return;
+    const button = byId('clinic-messenger-check-test');
+    checkingTest = true;
     button.disabled = true;
+    button.textContent = 'Checking…';
     try {
-      await refreshActivity();
-      if (!attempt || attempt !== setupTest || guide.hidden) return;
-      if (guideInbox.some(row => row.details?.messengerSetupTestId === attempt?.testId)) {
-        messengerGuideStatus('Test inquiry received.', 'success');
-        byId('clinic-messenger-find-test').focus();
+      await refreshActivity(true);
+      if (attempt !== setupTest || guide.hidden) return;
+      if (receivedSetupTest()) {
+        messengerGuideStatus();
+        const claim = byId('clinic-messenger-claim-test');
+        if (document.activeElement === document.body || document.activeElement === button) {
+          (claim.hidden ? byId('clinic-messenger-test-help') : claim).focus();
+        }
       } else {
-        messengerGuideStatus(attempt.expiresAt > Date.now() ?
-          'Waiting for your test. Send the copied message in a private chat with the Facebook Page, then check again.' :
-          'This test message expired. Create a new one and send it to the Page.');
+        messengerGuideStatus(attempt.expiresAt && attempt.expiresAt <= Date.now() ? '' :
+          'Still waiting for the test reply. If you’ve sent the message, give it a few seconds and check again.');
       }
     } catch (error) {
       if (attempt === setupTest && !guide.hidden) messengerGuideStatus(error.message, 'error');
-    } finally { button.disabled = false; }
+    } finally {
+      checkingTest = false;
+      button.disabled = false;
+      button.textContent = 'Check for reply';
+    }
+  }
+  byId('clinic-messenger-check-test').addEventListener('click', checkSetupReply);
+  window.addEventListener('focus', checkSetupReply);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkSetupReply();
+  });
+  byId('clinic-messenger-claim-test').addEventListener('click', async () => {
+    const test = receivedSetupTest();
+    if (!test) return;
+    await updateFollowup(test, 'claimed', byId('clinic-messenger-test-actions'));
+    if (!guide.hidden && byId('clinic-messenger-claim-test').hidden) byId('clinic-messenger-test-help').focus();
   });
 
   function renderChannels() {
@@ -635,7 +709,7 @@
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
-        claimed: event.details?.messengerSetupTestId ? 'Test inquiry claimed. Open Assigned to me to finish the sample.' :
+        claimed: event.details?.messengerSetupTestId ? 'Messenger setup complete. You claimed the test inquiry.' :
           'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
         booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
@@ -1056,7 +1130,13 @@
     byId('clinic-identity').textContent = 'Signed in as ' + (session.user?.email || 'clinic member');
     try {
       if (messengerReturn) await finishMessenger();
-      else await refreshAccounts();
+      else {
+        await refreshAccounts(testReturn?.accountId, testReturn?.locationId);
+        if (testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
+          byId('clinic-messenger-test-help').focus();
+          await checkSetupReply();
+        }
+      }
     } catch (error) {
       if (!state.accounts.length) await refreshAccounts().catch(() => {});
       status(error.message, 'error');
@@ -1070,7 +1150,7 @@
     setSignInBusy(true);
     try {
       const { error } = await state.client.auth.signInWithOtp({ email,
-        options: { emailRedirectTo: location.origin + '/clinic/' } });
+        options: { emailRedirectTo: location.origin + '/clinic/' + (testReturn ? location.search : '') } });
       if (error) throw error;
       codeForm.reset();
       status('Sign-in email sent to ' + email + '. Enter the code below.', 'success');
