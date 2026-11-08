@@ -106,13 +106,14 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-channel-detail summary { cursor: pointer; font-weight: 750; }
 .clinic-channel-detail[open] summary { margin-bottom: 12px; }
 
-@media (max-width: 760px) {
-  .clinic-messenger-facts { grid-template-columns: 1fr; }
+@media (width > 760px) {
   .clinic-channel-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .clinic-channel-progress li:not(:last-child)::after { top: 18px; bottom: auto; left: 50%; width: 100%; height: 2px; }
   .clinic-channel-progress a { height: 100%; flex-direction: column; justify-content: flex-start; gap: 5px; padding: 4px; text-align: center; line-height: 1.25; }
   .clinic-channel-progress a > span:last-child { display: grid; justify-items: center; gap: 4px; }
-  .clinic-channel-progress strong { font-size: .86rem; overflow-wrap: anywhere; }
-  .clinic-channel-progress small { font-size: .75rem; }
+}
+
+@media (max-width: 760px) {
+  .clinic-messenger-facts { grid-template-columns: 1fr; }
   .clinic-channel-detail .clinic-channel { flex-wrap: wrap; }
 }
