@@ -66,6 +66,7 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 }
 
 /* Eden Messenger setup guide */
+#clinic-code-form { margin-top: 20px; }
 .clinic-messenger-guide { border-top: 4px solid #6341bc; }
 .clinic-messenger-guide > .clinic-event { margin-top: 12px; }
 .clinic-messenger-steps { display: grid; gap: 16px; padding-inline-start: 24px; }
@@ -74,7 +75,8 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-messenger-steps > li::marker { color: #5130ab; font-weight: 800; }
 .clinic-messenger-steps h3 { margin: 0 0 6px; font-size: 1rem; }
 .clinic-messenger-steps p + button, .clinic-messenger-actions, .clinic-messenger-test-instructions { margin-top: 10px; }
-.clinic-messenger-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.clinic-messenger-facts { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px; margin-top: 12px; }
+.clinic-messenger-facts small { color: #5c5872; font-weight: 400; }
 .clinic-messenger-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .clinic-messenger-facts .clinic-messenger-actions { grid-column: 1 / -1; }
 .clinic-messenger-facts textarea, .clinic-messenger-facts select, .clinic-messenger-test-instructions input {

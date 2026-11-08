@@ -7,10 +7,14 @@
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
 
   <section id="clinic-signin" class="clinic-panel" hidden>
-    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>We’ll email you a secure sign-in link. Use the same email each time.</p></div></div>
+    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>Request a sign-in email, then enter your code below. If the email includes a sign-in link, you can use that too.</p></div></div>
     <form id="clinic-signin-form" class="clinic-form">
       <label for="clinic-email">Work email</label>
-      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in link</button></div>
+      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in email</button></div>
+    </form>
+    <form id="clinic-code-form" class="clinic-form">
+      <label for="clinic-code">Six-digit email code</label>
+      <div class="clinic-form-row"><input id="clinic-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required><button type="submit">Sign in with code</button></div>
     </form>
   </section>
 
@@ -50,9 +54,9 @@
               <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
               <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>
               <label>Address or directions <textarea name="address" maxlength="900" required placeholder="Street address or directions patients need"></textarea></label>
-              <label>Booking rules <textarea name="bookingRules" maxlength="900" required placeholder="e.g. Staff confirm appointment times. Call the clinic for same-day availability."></textarea></label>
+              <label>Booking notes for patients <textarea name="bookingRules" maxlength="900" required aria-describedby="clinic-messenger-booking-notes-help" placeholder="e.g. Call us for same-day appointments or to reschedule."></textarea><small id="clinic-messenger-booking-notes-help">Add practical details like deposits, preparation, or rescheduling. Staff confirm all appointment times.</small></label>
               <label>Preferred language <input name="language" maxlength="120" placeholder="e.g. English and Tagalog"></label>
-              <label>Appointment handling <select name="bookingMode"><option value="request">Take booking requests and let staff confirm</option><option value="information">Answer questions and direct bookings to staff</option></select></label>
+              <label>Appointment handling <select name="bookingMode" aria-describedby="clinic-messenger-booking-mode-help"><option value="request">Collect booking requests in Messenger</option><option value="information">Direct patients to the clinic team</option></select><small id="clinic-messenger-booking-mode-help">Collect requests saves the service and preferred time for staff. Direct patients tells them how to contact the clinic to book.</small></label>
               <div class="clinic-messenger-actions">
                 <button type="submit">Confirm clinic facts</button>
                 <button id="clinic-messenger-cancel-facts" type="button" class="clinic-secondary" hidden>Cancel</button>

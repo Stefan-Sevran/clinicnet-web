@@ -1028,23 +1028,19 @@
 
   const signInForm = byId('clinic-signin-form');
   const codeForm = byId('clinic-code-form');
+  const emailInput = byId('clinic-email');
   const codeInput = byId('clinic-code');
   const sendButton = signInForm.querySelector('button');
-  const verifyButton = codeForm?.querySelector('button');
-  let codeEmail = '';
+  const verifyButton = codeForm.querySelector('button');
 
   const setSignInBusy = busy => {
     sendButton.disabled = busy;
-    if (verifyButton) verifyButton.disabled = busy;
+    verifyButton.disabled = busy;
   };
 
   async function authenticated(session) {
     state.session = session;
-    if (session && codeForm) {
-      codeEmail = '';
-      codeInput.value = '';
-      show('clinic-code-form', false);
-    }
+    if (session) codeForm.reset();
     show('clinic-signin', !session);
     show('clinic-authenticated', Boolean(session));
     if (!session) {
@@ -1070,32 +1066,26 @@
   signInForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (sendButton.disabled) return;
-    const email = byId('clinic-email').value.trim();
+    const email = emailInput.value.trim();
     setSignInBusy(true);
     try {
       const { error } = await state.client.auth.signInWithOtp({ email,
         options: { emailRedirectTo: location.origin + '/clinic/' } });
       if (error) throw error;
-      if (!codeForm) {
-        status('Check your email for the sign-in link.', 'success');
-        return;
-      }
-      codeEmail = email;
-      codeInput.value = '';
-      byId('clinic-code-help').textContent = 'Enter the code from the email to ' + email + ', or follow its sign-in link if it has one.';
-      show('clinic-code-form', true);
-      status('Check your email for sign-in instructions.', 'success');
+      codeForm.reset();
+      status('Sign-in email sent to ' + email + '. Enter the code below.', 'success');
+      codeInput.focus();
     } catch (error) { status(error.message, 'error'); }
     finally { setSignInBusy(false); }
   });
 
-  codeForm?.addEventListener('submit', async event => {
+  codeForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (verifyButton.disabled || !codeEmail) return;
+    if (verifyButton.disabled || !emailInput.reportValidity()) return;
     setSignInBusy(true);
     try {
       const { data, error } = await state.client.auth.verifyOtp({
-        email: codeEmail, token: codeInput.value, type: 'email'
+        email: emailInput.value.trim(), token: codeInput.value, type: 'email'
       });
       if (error) throw error;
       if (!data.session) throw Error('Sign-in could not be completed. Request a new email and try again.');

@@ -12,9 +12,10 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-1)"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[12])"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const guideSection = /<section id="clinic-messenger-guide"[^>]*>[\s\S]*?<\/section>/;
+const signInSection = /<section id="clinic-signin"[^>]*>[\s\S]*?<\/section>/;
 const locationSection = /<section class="clinic-panel clinic-selectors"[^>]*>[\s\S]*?<\/section>/;
 const cssMarker = '/* Eden Messenger setup guide */';
 const candidates = readdirSync(root, { withFileTypes: true })
@@ -24,7 +25,7 @@ const candidates = readdirSync(root, { withFileTypes: true })
   .filter(folder => {
     const clinic = readFileSync(join(folder, clinicPage), 'utf8');
     return clinic.includes('class="ecn-footer-main"') && clinic.includes('id="clinic-booked-outcomes"') &&
-      scriptTag.test(clinic) && styleTag.test(clinic) && locationSection.test(clinic) &&
+      scriptTag.test(clinic) && styleTag.test(clinic) && signInSection.test(clinic) && locationSection.test(clinic) &&
       readFileSync(join(folder, '_worker.js'), 'utf8').includes('Serve the Clinic Workspace from Pages assets.');
   })
   .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
@@ -39,16 +40,19 @@ const fetchText = path => execFileSync('curl', ['-fsSL', '--max-time', '45', sou
 const reviewedPage = fetchText(clinicPage);
 const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
+const signIn = reviewedPage.match(signInSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
-if (!guide || cssStart < 0 || !reviewedPage.includes('/assets/clinic.js?v=messenger-guide-1')) {
+if (!guide || !signIn?.includes('id="clinic-code-form"') || cssStart < 0 ||
+    !reviewedPage.includes('/assets/clinic.js?v=messenger-guide-2')) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
 clinic = guideSection.test(clinic)
   ? clinic.replace(guideSection, () => guide)
   : clinic.replace(locationSection, section => section + '\n      ' + guide);
-clinic = clinic.replace(scriptTag, 'src="/assets/clinic.js?v=messenger-guide-1"')
-  .replace(styleTag, 'href="/assets/clinic.css?v=messenger-guide-1"');
+clinic = clinic.replace(signInSection, () => signIn)
+  .replace(scriptTag, 'src="/assets/clinic.js?v=messenger-guide-2"')
+  .replace(styleTag, 'href="/assets/clinic.css?v=messenger-guide-2"');
 if (!clinic.includes('<meta name="referrer" content="no-referrer">')) {
   clinic = clinic.replace('</head>', '<meta name="referrer" content="no-referrer">\n</head>');
 }
