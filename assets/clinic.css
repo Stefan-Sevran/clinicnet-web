@@ -117,3 +117,45 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
   .clinic-messenger-facts { grid-template-columns: 1fr; }
   .clinic-channel-detail .clinic-channel { flex-wrap: wrap; }
 }
+
+/* Eden Workspace visual alignment */
+body[data-page="clinic"] { background: #f5f1e9; color: #1b302b; }
+.clinic-shell {
+  --clinic-gutter: clamp(16px, 4vw, 76px);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0 auto 80px;
+  padding-inline: var(--clinic-gutter);
+}
+.clinic-hero {
+  position: relative;
+  isolation: isolate;
+  margin-inline: calc(-1 * var(--clinic-gutter));
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: #18281d;
+}
+.clinic-hero-image { display: block; width: 100%; height: clamp(224px, 57vw, 420px); object-fit: cover; object-position: 73% center; }
+.clinic-hero-copy { position: relative; padding: 28px var(--clinic-gutter) 44px; }
+.clinic-hero .clinic-kicker { color: #e6c994; }
+.clinic-hero h1 { max-width: 17ch; margin: .3em 0; font: normal clamp(2.3rem, 5.5vw, 4rem)/1.04 Georgia, serif; }
+.clinic-hero p { max-width: 39ch; color: #f5f2e8; }
+.clinic-panel { border-color: #e2e4d8; box-shadow: none; }
+.clinic-panel h2, .clinic-panel p { color: #294138; }
+.clinic-panel button, .clinic-toolbar button, .clinic-messenger-primary-link { background: #173a33; }
+.clinic-panel button:hover, .clinic-toolbar button:hover, .clinic-messenger-primary-link:hover { background: #265448; }
+.clinic-panel button.clinic-secondary, .clinic-toolbar button.clinic-secondary { border-color: #a9b9ac; color: #173a33; }
+.clinic-messenger-guide, .clinic-daily-primary { border-top-color: #426c59; }
+.clinic-channel-progress a:hover { background: #eef2e9; }
+.clinic-channel-progress li:not(:last-child)::after { background: #c6d5c8; }
+.clinic-channel-marker { border-color: #baccc0; background: #eaf0e8; color: #254b3e; }
+@media (min-width: 920px) {
+  .clinic-hero { display: grid; align-items: center; min-height: clamp(430px, 41vw, 740px); }
+  .clinic-hero::before { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, #111e13a6, #111e1355 34%, transparent 57%); pointer-events: none; }
+  .clinic-hero-image { position: absolute; inset: 0; height: 100%; object-position: 60% center; }
+  .clinic-hero-copy { z-index: 2; padding-block: 56px; }
+  .clinic-hero h1 { font-size: clamp(2.75rem, 4.1vw, 4.9rem); }
+  .clinic-hero p { max-width: min(39ch, 24.5vw); }
+}

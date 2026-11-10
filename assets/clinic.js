@@ -509,9 +509,14 @@
       action_required: 'Action required', disconnected: 'Disconnected'
     };
     const guidance = {
-      website_chat: 'Add Eden chat to your website.',
+      website_chat: 'Create your clinic’s AI receptionist and connect it to your website.',
       facebook_messenger: 'Connect a Facebook Page so Eden can answer Messenger inquiries.',
-      ai_phone: 'Set up AI phone support for incoming or missed calls.'
+      ai_phone: 'Have Eve answer missed calls and collect booking requests.'
+    };
+    const nextSteps = {
+      website_chat: 'Request a private setup link for this location. Use it to create and test your receptionist.',
+      facebook_messenger: 'Request setup to get started with your Facebook Page.',
+      ai_phone: 'Request a forwarding number. You’ll test a missed call before going live.'
     };
     channelSetup.hidden = false;
     for (const { channel, index, panel, heading, body, link, marker, badge } of channelSteps) {
@@ -534,7 +539,7 @@
       const detail = document.createElement('small');
       detail.textContent = guidance[channel] + ' ' + (connection ? 'Status: ' + channelStatus +
         (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') :
-        'Request setup and we’ll verify the connection before it receives live inquiries.');
+        nextSteps[channel]);
       info.append(detail);
       row.append(info);
       if (messengerSetup) {
@@ -563,7 +568,8 @@
         }
       } else if (!connection) {
         const button = document.createElement('button');
-        button.type = 'button'; button.textContent = 'Request setup'; button.className = 'clinic-secondary';
+        button.type = 'button'; button.className = 'clinic-secondary';
+        button.textContent = { website_chat: 'Request setup link', ai_phone: 'Request phone setup' }[channel] || 'Request setup';
         button.addEventListener('click', () => requestConnection(channel, button));
         row.append(button);
       }

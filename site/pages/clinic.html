@@ -1,9 +1,12 @@
 <main id="main-content" class="clinic-shell">
-  <div class="clinic-hero">
-    <span class="clinic-kicker">EDEN CLINIC WORKSPACE · EARLY ACCESS</span>
-    <h1>Your clinics, conversations, and booking requests together.</h1>
-    <p>Start with one location. Add more branches later, without moving patient records into a spreadsheet.</p>
-  </div>
+  <section class="clinic-hero" aria-labelledby="clinic-workspace-title">
+    <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
+    <div class="clinic-hero-copy">
+      <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
+      <h1 id="clinic-workspace-title">Every patient inquiry starts with a hello.</h1>
+      <p>Connect Website chat, Messenger, and AI phone for your clinic. See booking requests and follow-ups together.</p>
+    </div>
+  </section>
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
 
   <section id="clinic-signin" class="clinic-panel" hidden>
@@ -37,7 +40,7 @@
       </section>
       <section id="clinic-channel-setup" class="clinic-panel" aria-labelledby="clinic-channel-setup-title" hidden>
         <h2 id="clinic-channel-setup-title">Connect your channels</h2>
-        <p>Choose a channel to set it up or check its status.</p>
+        <p>Choose a channel for this location. Test it before it starts receiving live inquiries.</p>
         <nav aria-label="Channel setup">
           <ol id="clinic-channels" class="clinic-channel-progress"></ol>
         </nav>
