@@ -697,18 +697,20 @@
       const detail = document.createElement('p');
       row.append(detail);
       if (channel==='website_chat') {
-        detail.textContent = canManageClinic?'Create or resume your AI receptionist for this location.':'A clinic owner or admin can open receptionist setup.';
-        if (canManageClinic) row.append(channelButton('Open setup',openWebsiteSetup));
+        detail.textContent = canManageClinic?'Start here to set up or resume your AI receptionist for this location.':'A clinic owner or admin can open receptionist setup.';
+        if (canManageClinic) row.append(channelButton('Set up AI receptionist',openWebsiteSetup));
         if (connection?.status==='requested') {
           const note = document.createElement('small');
-          note.textContent = 'Your website connection request is pending. You can still open your receptionist setup.';
+          note.textContent = 'Your request to connect the receptionist to your website is pending.';
           detail.append(note);
         } else if (!connection && canManageClinic) {
           const extra = document.createElement('details');
           extra.className = 'clinic-website-connection';
           const title = document.createElement('summary');
-          title.textContent = 'Connect a published receptionist to your website';
-          extra.append(title,channelButton('Request website connection',button=>requestConnection(channel,button),true));
+          title.textContent = 'Already published? Connect it to your website';
+          const description = document.createElement('p');
+          description.textContent = 'Use this option when your receptionist is already published and you want to add it to your existing website.';
+          extra.append(title,description,channelButton('Request website connection',button=>requestConnection(channel,button),true));
           row.append(extra);
         }
       } else if (channel==='ai_phone') {
@@ -1299,8 +1301,8 @@
       }
     } catch (error) {
       if (current()) channelFeedback('website_chat',
-        error.name==='TimeoutError'?'Setup took too long to open. Select Open setup to retry.':
-          error instanceof TypeError?'Could not reach private setup. Select Open setup to retry.':error.message,'error');
+        error.name==='TimeoutError'?'Setup took too long to open. Select Set up AI receptionist to retry.':
+          error instanceof TypeError?'Could not reach private setup. Select Set up AI receptionist to retry.':error.message,'error');
     } finally { button.disabled = false; }
   }
 
