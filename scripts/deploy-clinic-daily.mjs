@@ -12,10 +12,12 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|10))"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|1[01]))"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
+const workspaceFaviconAsset = 'assets/clinicnet-favicon.svg';
+const iconTag = /<link rel="icon"[^>]*>/;
 const workspaceHeroAsset = 'assets/eden-owner-eve-welcome-sign.webp';
 const inviteSection = /<section id="clinic-team-invite"[^>]*>[\s\S]*?<\/section>/;
 const guideSection = /<section id="clinic-messenger-guide"[^>]*>[\s\S]*?<\/section>/;
@@ -49,12 +51,12 @@ const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
 const team = reviewedPage.match(inviteSection)?.[0];
 const hero = reviewedPage.match(heroSection)?.[0];
-const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|10))"/)?.[1];
+const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|1[01]))"/)?.[1];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const channels = reviewedPage.match(channelsSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
 if (!guide || !signIn?.includes('id="clinic-code-form"') || !channels || cssStart < 0 ||
-    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9','messenger-guide-10'].includes(version) && !team))) {
+    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9','messenger-guide-10','messenger-guide-11'].includes(version) && !team))) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
@@ -81,6 +83,14 @@ if ((clinic.match(/id="clinic-channels"/g) || []).length !== 1) {
 clinic = clinic.replace(signInSection, () => signIn)
   .replace(scriptTag, 'src="/assets/clinic.js?v=' + version + '"')
   .replace(styleTag, 'href="/assets/clinic.css?v=' + version + '"');
+const icon = reviewedPage.match(iconTag)?.[0];
+if (icon) {
+  if (!icon.includes('href="/' + workspaceFaviconAsset + '"')) throw Error('Unexpected Workspace favicon path.');
+  writeFileSync(join(stage, workspaceFaviconAsset), fetchText(workspaceFaviconAsset));
+  clinic = iconTag.test(clinic)
+    ? clinic.replace(iconTag, () => icon)
+    : clinic.replace('</head>', icon + '\n</head>');
+}
 if (!clinic.includes('<meta name="referrer" content="no-referrer">')) {
   clinic = clinic.replace('</head>', '<meta name="referrer" content="no-referrer">\n</head>');
 }

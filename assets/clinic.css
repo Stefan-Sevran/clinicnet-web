@@ -224,3 +224,17 @@ body[data-page="clinic"] { overflow-x: clip; }
   .clinic-sticky-channel-nav .clinic-channel-progress a { gap: 4px; }
   .clinic-sticky-channel-nav .clinic-channel-marker { flex-basis: 20px; width: 20px; height: 20px; font-size: .67rem; }
 }
+
+body[data-page="clinic"] .ecn-site-header {
+  isolation: isolate;
+}
+
+body[data-page="clinic"] .ecn-site-header::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  box-shadow: 0 0 0 100vmax #fff;
+  clip-path: inset(0 -100vmax);
+  pointer-events: none;
+}
