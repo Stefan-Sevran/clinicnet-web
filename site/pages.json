@@ -33,11 +33,11 @@
     "header": true,
     "footer": true,
     "styles": [
-      "/assets/clinic.css?v=messenger-guide-7"
+      "/assets/clinic.css?v=messenger-guide-8"
     ],
     "scripts": [
       "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
-      "/assets/clinic.js?v=messenger-guide-7"
+      "/assets/clinic.js?v=messenger-guide-8"
     ]
   },
   {

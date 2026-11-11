@@ -12,11 +12,12 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[1234567])"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[12345678])"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
 const workspaceHeroAsset = 'assets/eden-owner-eve-welcome-sign.webp';
+const inviteSection = /<section id="clinic-team-invite"[^>]*>[\s\S]*?<\/section>/;
 const guideSection = /<section id="clinic-messenger-guide"[^>]*>[\s\S]*?<\/section>/;
 const signInSection = /<section id="clinic-signin"[^>]*>[\s\S]*?<\/section>/;
 const locationSection = /<section class="clinic-panel clinic-selectors"[^>]*>[\s\S]*?<\/section>/;
@@ -46,13 +47,14 @@ const fetchText = path => execFileSync('curl', ['-fsSL', '--max-time', '45', sou
 const reviewedPage = fetchText(clinicPage);
 const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
+const team = reviewedPage.match(inviteSection)?.[0];
 const hero = reviewedPage.match(heroSection)?.[0];
-const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-[567])"/)?.[1];
+const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-[5678])"/)?.[1];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const channels = reviewedPage.match(channelsSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
 if (!guide || !signIn?.includes('id="clinic-code-form"') || !channels || cssStart < 0 ||
-    (!version || (version !== 'messenger-guide-5' && !hero))) {
+    (!version || (version !== 'messenger-guide-5' && !hero) || (version === 'messenger-guide-8' && !team))) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
@@ -63,6 +65,9 @@ if (hero) {
   const image = execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + workspaceHeroAsset]);
   writeFileSync(join(stage, workspaceHeroAsset), image);
 }
+if (team) clinic = inviteSection.test(clinic)
+  ? clinic.replace(inviteSection, () => team)
+  : clinic.replace(locationSection, section => section + '\n      ' + team);
 clinic = guideSection.test(clinic)
   ? clinic.replace(guideSection, () => guide)
   : clinic.replace(locationSection, section => section + '\n      ' + guide);

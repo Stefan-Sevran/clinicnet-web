@@ -45,6 +45,23 @@
           <ol id="clinic-channels" class="clinic-channel-progress"></ol>
         </nav>
       </section>
+      <section id="clinic-team-invite" class="clinic-panel" hidden>
+        <details>
+          <summary>Invite a teammate</summary>
+          <p>Send the private link to their work email. It expires in two hours and opens at the location and service you choose. The role applies across this clinic account.</p>
+          <form id="clinic-invite-form" class="clinic-form clinic-grid">
+            <label>Work email<input name="email" type="email" maxlength="160" required></label>
+            <label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label>
+            <label>Start at<select name="channel"><option value="website_chat">Website chat</option><option value="facebook_messenger">Messenger</option><option value="ai_phone">Missed calls</option></select></label>
+            <button type="submit">Create invite link</button>
+          </form>
+          <div id="clinic-invite-link" hidden>
+            <label class="clinic-form">Private invitation link<input id="clinic-invite-url" readonly></label>
+            <button type="button" class="clinic-secondary" id="clinic-invite-copy">Copy link</button>
+          </div>
+          <p id="clinic-invite-status" role="status"></p>
+        </details>
+      </section>
       <section id="clinic-messenger-guide" class="clinic-panel clinic-messenger-guide" aria-labelledby="clinic-messenger-title" hidden>
         <h2 id="clinic-messenger-title" tabindex="-1">Set up Messenger</h2>
         <p id="clinic-messenger-page"></p>

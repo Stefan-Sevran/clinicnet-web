@@ -8,6 +8,17 @@
   const ownerSetupKey = 'eden-messenger-details';
   const ownerSetupLifetime = 30 * 60 * 1000;
   const query = new URLSearchParams(location.search);
+  const channels = new Set(['website_chat', 'facebook_messenger', 'ai_phone']);
+  const invitationKey = 'eden-workspace-invite';
+  const invitationMatch = /^#clinic-invite=([a-f0-9]{64})$/.exec(location.hash);
+  let pendingInvite = invitationMatch?.[1] || sessionStorage.getItem(invitationKey);
+  if (invitationMatch) {
+    sessionStorage.setItem(invitationKey, pendingInvite);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  let initialSelection = {
+    accountId: query.get('account'), locationId: query.get('location'), channel: query.get('setup')
+  };
   const testReturnId = query.get('messengerTest');
   const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
     testId: testReturnId, accountId: query.get('account'), locationId: query.get('location')
@@ -65,6 +76,8 @@
     </div>`;
   byId('clinic-bookings').closest('.clinic-columns')?.classList.remove('clinic-columns');
   let canManageClinic = false;
+  let isClinicOwner = false;
+  let acceptingInvite;
   let staffEmailAvailable = false;
   let soundContext;
   let soundTimer;
@@ -156,6 +169,10 @@
     if (generation !== state.generation) return;
     state.locations = locations;
     canManageClinic = ['owner', 'admin'].includes(membership?.data?.role);
+    isClinicOwner = membership?.data?.role === 'owner';
+    show('clinic-team-invite', isClinicOwner && locations.length > 0);
+    show('clinic-invite-link', false);
+    byId('clinic-invite-url').value = '';
     messengerSetups = setups.map(setup => ({ ...setup, accountId }));
     if (!messengerSetupAvailable && canManageClinic && legacyMessengerConnect?.accountId === accountId) {
       messengerSetups = [legacyMessengerConnect];
@@ -1128,8 +1145,8 @@
       if (!response.ok) throw Error(data.error || 'Private setup is unavailable.');
       const destination = new URL(data.url);
       if (destination.origin !== setupOrigin || destination.pathname !== '/assistant-setup/' ||
-          destination.username || destination.password || destination.search ||
-          !/^#(?:invite=[a-f0-9]{48}|[a-f0-9-]{36}\.[a-f0-9]{48})$/.test(destination.hash)) {
+          destination.username || destination.password || destination.search !== '?workspace=1' ||
+          !/^#workspace=[a-f0-9]{48}$/.test(destination.hash)) {
         throw Error('The private setup link could not be verified.');
       }
       if (isCurrentLocation()) window.location.assign(destination.href);
@@ -1217,6 +1234,73 @@
     if (!guide.hidden) byId('clinic-messenger-title').focus();
   }
 
+  function focusSetupChannel(selection) {
+    if (!channels.has(selection?.channel) ||
+        (selection.accountId && byId('clinic-account').value !== selection.accountId) ||
+        (selection.locationId && byId('clinic-location').value !== selection.locationId)) return;
+    if (byId('clinic-location').value) channelSteps.find(step => step.channel === selection.channel)?.link.click();
+  }
+
+  async function acceptWorkspaceInvite() {
+    if (!/^[a-f0-9]{64}$/.test(pendingInvite || '')) return null;
+    if (!acceptingInvite) {
+      const token = pendingInvite;
+      const userId = state.session.user.id;
+      acceptingInvite = (async () => {
+        const {data, error} = await state.client.rpc('accept_clinic_workspace_invite', {p_token:token});
+        if (state.session?.user?.id !== userId) return null;
+        if (error) throw Error(error.message || 'Could not open the clinic invitation.');
+        pendingInvite = null;
+        sessionStorage.removeItem(invitationKey);
+        return data;
+      })().finally(() => { acceptingInvite = null; });
+    }
+    return acceptingInvite;
+  }
+
+  byId('clinic-invite-form').onsubmit = async event => {
+    event.preventDefault();
+    if (!isClinicOwner) return;
+    const form = event.target, button = form.querySelector('button'), note = byId('clinic-invite-status');
+    if (button.disabled) return;
+    const accountId = byId('clinic-account').value, locationId = byId('clinic-location').value;
+    const userId = state.session?.user?.id;
+    const current = () => state.session?.user?.id === userId &&
+      byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+    const fields = new FormData(form);
+    button.disabled = true;
+    show('clinic-invite-link', false);
+    byId('clinic-invite-url').value = '';
+    note.textContent = 'Creating invitation…';
+    try {
+      const {data, error} = await state.client.rpc('create_clinic_workspace_invite', {
+        p_account_id: accountId, p_location_id: locationId, p_email: fields.get('email'),
+        p_role: fields.get('role'), p_channel: fields.get('channel')
+      });
+      if (error) throw Error(error.message || 'Could not create the invitation.');
+      if (!/^[a-f0-9]{64}$/.test(data || '')) throw Error('The invitation could not be verified.');
+      if (current()) {
+        byId('clinic-invite-url').value = location.origin + '/clinic/#clinic-invite=' + data;
+        show('clinic-invite-link', true);
+        note.textContent = 'Copy the link and send it to this teammate.';
+      }
+    } catch (error) {
+      if (current()) note.textContent = error.message;
+    } finally { button.disabled = false; }
+  };
+
+  byId('clinic-invite-copy').onclick = async () => {
+    const input = byId('clinic-invite-url');
+    if (!input.value) return;
+    try {
+      await navigator.clipboard.writeText(input.value);
+      byId('clinic-invite-status').textContent = 'Invitation link copied.';
+    } catch {
+      input.focus();
+      input.select();
+    }
+  };
+
   const signInForm = byId('clinic-signin-form');
   const codeForm = byId('clinic-code-form');
   const emailInput = byId('clinic-email');
@@ -1242,14 +1326,20 @@
       guideLocation = null;
       setupTest = null;
       stopInboxSound();
-      status('Sign in to create or open your workspace.');
+      show('clinic-team-invite', false);
+      status(pendingInvite ? 'Sign in with the work email that received the invitation.' : 'Sign in to create or open your workspace.');
       return;
     }
     byId('clinic-identity').textContent = 'Signed in as ' + (session.user?.email || 'clinic member');
     try {
       if (messengerReturn) await finishMessenger();
       else {
-        await refreshAccounts(testReturn?.accountId, testReturn?.locationId);
+        const invitation = await acceptWorkspaceInvite();
+        if (state.session?.user?.id !== session.user?.id) return;
+        const selection = invitation || initialSelection;
+        await refreshAccounts(testReturn?.accountId || selection?.accountId, testReturn?.locationId || selection?.locationId);
+        focusSetupChannel(selection);
+        if (state.locations.length) initialSelection = null;
         if (testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
           byId('clinic-messenger-test-help').focus();
           await checkSetupReply();
@@ -1301,6 +1391,8 @@
         accountName: data.get('accountName'), locationName: data.get('locationName')
       }) });
       await refreshAccounts(accountId);
+      focusSetupChannel(initialSelection);
+      initialSelection = null;
       status('Your workspace was created. Channel requests need verification before going live.', 'success');
     } catch (error) { status(error.message, 'error'); }
     finally { button.disabled = false; }
@@ -1318,6 +1410,9 @@
     daily.hidden = true;
     guide.hidden = true;
     hideChannelSetup();
+    show('clinic-invite-link', false);
+    byId('clinic-invite-url').value = '';
+    byId('clinic-invite-status').textContent = '';
     loadAlertEmail();
     refreshActivity().catch(error => status(error.message, 'error'));
   });
