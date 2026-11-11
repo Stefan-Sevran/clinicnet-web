@@ -697,11 +697,12 @@
       const detail = document.createElement('p');
       row.append(detail);
       if (channel==='website_chat') {
-        detail.textContent = canManageClinic?'Start here to set up or resume your AI receptionist for this location.':'A clinic owner or admin can open receptionist setup.';
+        detail.textContent = canManageClinic?'Start here to set up or resume your AI receptionist.':'A clinic owner or admin can open receptionist setup.';
         if (canManageClinic) row.append(channelButton('Set up AI receptionist',openWebsiteSetup));
         if (connection?.status==='requested') {
           const note = document.createElement('small');
-          note.textContent = 'Your request to connect the receptionist to your website is pending.';
+          note.className = 'clinic-connection-pending';
+          note.textContent = 'Pending.';
           detail.append(note);
         } else if (!connection && canManageClinic) {
           const extra = document.createElement('details');

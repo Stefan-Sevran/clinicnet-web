@@ -216,6 +216,7 @@ body[data-page="clinic"] { overflow-x: clip; }
 .clinic-channel-feedback[data-kind="error"] { color: #8b3025; }
 .clinic-website-connection, .clinic-phone-steps { flex: 1 0 100%; }
 .clinic-website-connection button { margin-top: 8px; }
+.clinic-channel .clinic-connection-pending { color: #62644f; font-style: italic; }
 .clinic-phone-steps > p { margin-bottom: 8px; }
 .clinic-phone-steps ol { padding-left: 22px; color: #294138; }
 .clinic-phone-steps li + li { margin-top: 8px; }
