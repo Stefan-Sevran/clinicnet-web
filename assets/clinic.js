@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const API = 'https://eden-webhook-ixdd.onrender.com';
+  const setupOrigin = 'https://voice-demo.clinicnet-web.pages.dev';
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
   const messengerStorageKey = 'eden-messenger-oauth';
@@ -514,7 +515,7 @@
       ai_phone: 'Have Eve answer missed calls and collect booking requests.'
     };
     const nextSteps = {
-      website_chat: 'Request a private setup link for this location. Use it to create and test your receptionist.',
+      website_chat: 'Create and test your receptionist in the private setup for this location.',
       facebook_messenger: 'Request setup to get started with your Facebook Page.',
       ai_phone: 'Request a forwarding number. You’ll test a missed call before going live.'
     };
@@ -542,6 +543,13 @@
         nextSteps[channel]);
       info.append(detail);
       row.append(info);
+      if (channel === 'website_chat' && canManageClinic) {
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.textContent = 'Open setup';
+        open.addEventListener('click', () => openWebsiteSetup(open));
+        row.append(open);
+      }
       if (messengerSetup) {
         const page = messengerSetup.clinicName || 'your Facebook Page';
         const button = document.createElement('button');
@@ -566,10 +574,10 @@
           linkRow.append(testLink);
           info.append(linkRow);
         }
-      } else if (!connection) {
+      } else if (!connection && (channel !== 'website_chat' || canManageClinic)) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'clinic-secondary';
-        button.textContent = { website_chat: 'Request setup link', ai_phone: 'Request phone setup' }[channel] || 'Request setup';
+        button.textContent = { website_chat: 'Request connection', ai_phone: 'Request phone setup' }[channel] || 'Request setup';
         button.addEventListener('click', () => requestConnection(channel, button));
         row.append(button);
       }
@@ -1101,6 +1109,38 @@
       if (soundHelp) soundHelp.textContent = error.message;
     } finally { soundButton.disabled = false; }
   });
+
+  async function openWebsiteSetup(button) {
+    const session = state.session;
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const isCurrentLocation = () => state.session?.user?.id === session?.user?.id &&
+      byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+    if (!session?.access_token || !canManageClinic || !accountId || !locationId) return;
+    button.disabled = true;
+    button.textContent = 'Opening setup…';
+    try {
+      const response = await fetch(setupOrigin + '/api/assistants/workspace-link', {
+        method: 'POST', cache: 'no-store', redirect: 'error',
+        headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId, locationId })
+      });
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error || 'Private setup is unavailable.');
+      const destination = new URL(data.url);
+      if (destination.origin !== setupOrigin || destination.pathname !== '/assistant-setup/' ||
+          destination.username || destination.password || destination.search ||
+          !/^#(?:invite=[a-f0-9]{48}|[a-f0-9-]{36}\.[a-f0-9]{48})$/.test(destination.hash)) {
+        throw Error('The private setup link could not be verified.');
+      }
+      if (isCurrentLocation()) window.location.assign(destination.href);
+    } catch (error) {
+      if (isCurrentLocation()) status(error.message || 'Could not open private setup.', 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Open setup';
+    }
+  }
 
   async function requestConnection(channel, button) {
     const accountId = byId('clinic-account').value;
