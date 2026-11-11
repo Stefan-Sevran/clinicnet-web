@@ -16,9 +16,12 @@
     sessionStorage.setItem(invitationKey, pendingInvite);
     history.replaceState(null, '', location.pathname + location.search);
   }
+  const hashChannel = location.hash === '#clinic-messenger-guide' ? 'facebook_messenger' :
+    /^#clinic-channel-([a-z_]+)$/.exec(location.hash)?.[1];
   let initialSelection = {
-    accountId: query.get('account'), locationId: query.get('location'), channel: query.get('setup')
+    accountId: query.get('account'), locationId: query.get('location'), channel: query.get('setup') || hashChannel
   };
+  let workspaceView = query.get('view') === 'daily' ? 'daily' : 'setup';
   const testReturnId = query.get('messengerTest');
   const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
     testId: testReturnId, accountId: query.get('account'), locationId: query.get('location')
@@ -87,7 +90,13 @@
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const channelSetup = byId('clinic-channel-setup');
+  const channelNav = channelSetup.querySelector('nav');
+  channelNav.className = 'clinic-sticky-channel-nav';
+  channelNav.hidden = true;
+  document.querySelector('.clinic-hero').after(channelNav);
   const channelSteps = createChannelSteps();
+  const workspaceViews = createWorkspaceViews();
+  switchWorkspaceView(workspaceView);
   const followupKinds = ['call.followup_needed', 'booking.requested', 'inquiry.followup_needed'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
   const status = (message, kind = 'info') => {
@@ -481,7 +490,11 @@
       const heading = document.createElement('summary');
       heading.textContent = name;
       const body = document.createElement('div');
-      panel.append(heading, body);
+      const feedback = document.createElement('p');
+      feedback.className = 'clinic-channel-feedback';
+      feedback.setAttribute('role', 'status');
+      panel.append(heading, body, feedback);
+      if (channel === 'facebook_messenger') panel.append(guide);
 
       const item = document.createElement('li');
       const link = document.createElement('a');
@@ -500,106 +513,215 @@
       link.addEventListener('click', event => {
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
-        const guided = link.hash === '#' + guide.id;
-        if (!guided) panel.open = true;
-        const target = guided ? byId('clinic-messenger-title') : heading;
-        target.focus({ preventScroll: true });
-        (guided ? guide : panel).scrollIntoView({
-          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-          block: 'start'
-        });
+        panel.open = true;
+        heading.focus({ preventScroll: true });
+        panel.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
       });
-      return { channel, index, panel, heading, body, link, marker, badge };
+      panel.addEventListener('toggle', () => {
+        if (panel.open) link.setAttribute('aria-current','true');
+        else link.removeAttribute('aria-current');
+      });
+      return { channel, index, panel, heading, body, link, marker, badge, feedback };
     });
-    channelSetup.after(steps[0].panel, steps[1].panel, guide, steps[2].panel, daily);
+    channelSetup.after(...steps.map(step=>step.panel));
     return steps;
   }
 
+  function createWorkspaceViews() {
+    const dashboard = byId('clinic-dashboard');
+    const setup = document.createElement('div');
+    setup.id = 'clinic-setup-view';
+    const work = document.createElement('div');
+    work.id = 'clinic-daily-view';
+    dashboard.append(setup,work);
+    setup.append(channelSetup,...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
+    work.append(daily,...['clinic-bookings','clinic-inbox','clinic-booked-outcomes'].map(id=>byId(id).closest('.clinic-panel')));
+
+    const views = document.createElement('nav');
+    views.className = 'clinic-view-switch';
+    views.setAttribute('aria-label','Clinic Workspace');
+    const links = {};
+    for (const [key,label] of [['setup','Channel setup'],['daily','Daily work']]) {
+      const link = document.createElement('a');
+      link.href = '/clinic/?view=' + key;
+      link.textContent = label;
+      link.addEventListener('click',event=>{
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        switchWorkspaceView(key,true);
+      });
+      links[key] = link;
+      views.append(link);
+    }
+    dashboard.querySelector('.clinic-selectors').after(views);
+    return {setup,work,links};
+  }
+
+  function switchWorkspaceView(view, updateUrl = false) {
+    const setup = view === 'setup';
+    workspaceView = setup?'setup':'daily';
+    workspaceViews.setup.hidden = !setup;
+    workspaceViews.work.hidden = setup;
+    channelNav.hidden = !setup || channelSetup.hidden;
+    for (const [key, link] of Object.entries(workspaceViews.links)) {
+      if (key===workspaceView) link.setAttribute('aria-current','page');
+      else link.removeAttribute('aria-current');
+    }
+    if (updateUrl) {
+      const url = new URL(location.href);
+      url.searchParams.set('view',workspaceView);
+      url.searchParams.delete('setup');
+      if (url.hash.startsWith('#clinic-')) url.hash='';
+      history.replaceState(null,'',url);
+    }
+  }
+
   function hideChannelSetup() {
-    channelSetup.hidden = true;
-    for (const { panel } of channelSteps) panel.hidden = true;
+    channelSetup.hidden = channelNav.hidden = true;
+    for (const { panel, feedback } of channelSteps) {
+      panel.hidden = true;
+      panel.open = false;
+      feedback.textContent = '';
+    }
+  }
+
+  function channelFeedback(channel, message, kind = 'info') {
+    const step = channelSteps.find(item=>item.channel===channel);
+    step.feedback.textContent = message;
+    step.feedback.dataset.kind = kind;
+  }
+
+  function channelButton(label, action, secondary = false) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (secondary) button.className = 'clinic-secondary';
+    button.addEventListener('click',()=>action(button));
+    return button;
+  }
+
+  function channelStatus(channel, connection) {
+    if (!connection) return 'Not set up';
+    if (connection.status==='requested') return {
+      website_chat:'Connection pending',facebook_messenger:'Access pending',ai_phone:'Number pending'
+    }[channel];
+    return {
+      verifying:'Ready to test',connected:'Connected',action_required:'Action needed',disconnected:'Disconnected'
+    }[connection.status] || 'Check setup';
+  }
+
+  function phoneSetup(row, detail, connection) {
+    const number = /^\+[1-9]\d{7,14}$/.test(connection?.forwarding_number||'')?connection.forwarding_number:null;
+    if (number && ['verifying','connected'].includes(connection.status)) {
+      detail.textContent = connection.status==='connected'?'Your missed-call forwarding is connected.':'Your forwarding number is ready. Complete the steps below.';
+      const guide = document.createElement('div');
+      guide.className = 'clinic-phone-steps';
+      const destination = document.createElement('p');
+      destination.textContent = 'Forwarding number ';
+      const display = document.createElement('strong');
+      display.textContent = number;
+      destination.append(display);
+      guide.append(destination, channelButton('Copy number', async () => {
+        try {
+          await navigator.clipboard.writeText(number);
+          channelFeedback('ai_phone','Forwarding number copied.');
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(display);
+          window.getSelection()?.removeAllRanges();
+          window.getSelection()?.addRange(range);
+          channelFeedback('ai_phone','Select and copy the forwarding number shown.');
+        }
+      },true));
+      if (connection.status==='verifying') {
+        const steps = document.createElement('ol');
+        for (const text of [
+          'Use your phone provider’s settings to forward unanswered calls to the number above. If your provider supports forwarding on busy, you can enable that too.',
+          'From another phone, call your usual clinic number and let it ring without answering. Speak to Eve, then hang up.',
+          'Select Check test call. The completed call should appear in Daily work once it is verified.'
+        ]) {
+          const step = document.createElement('li');
+          step.textContent = text;
+          steps.append(step);
+        }
+        guide.append(steps,channelButton('Check test call',checkPhoneSetup,true));
+      }
+      row.append(guide);
+      return;
+    }
+    if (connection) {
+      detail.textContent = connection.status==='requested' || connection.status==='verifying'
+        ? 'Eden is preparing this location’s forwarding number. Check here for the number and test steps when it is ready.'
+        : 'This line needs attention. Check its setup status before changing your clinic’s forwarding settings.';
+      row.append(channelButton('Check phone setup',checkPhoneSetup,true));
+    } else {
+      detail.textContent = 'Request a forwarding number for this clinic. Once it is assigned, you can forward unanswered calls and test the line here.';
+      if (canManageClinic) row.append(channelButton('Start phone setup',button=>requestConnection('ai_phone',button)));
+    }
   }
 
   function renderChannels() {
-    const statuses = {
-      requested: 'Requested', verifying: 'Awaiting test', connected: 'Connected',
-      action_required: 'Action required', disconnected: 'Disconnected'
-    };
-    const guidance = {
-      website_chat: 'Create your clinic’s AI receptionist and connect it to your website.',
-      facebook_messenger: 'Connect a Facebook Page so Eden can answer Messenger inquiries.',
-      ai_phone: 'Have Eve answer missed calls and collect booking requests.'
-    };
-    const nextSteps = {
-      website_chat: 'Create and test your receptionist in the private setup for this location.',
-      facebook_messenger: 'Request setup to get started with your Facebook Page.',
-      ai_phone: 'Request a forwarding number. You’ll test a missed call before going live.'
-    };
     channelSetup.hidden = false;
+    switchWorkspaceView(workspaceView);
     for (const { channel, index, panel, heading, body, link, marker, badge } of channelSteps) {
-      const connection = state.connections.find(item => item.channel === channel);
-      const messengerSetup = channel === 'facebook_messenger' && messengerSetups.find(setup =>
-        setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
-      const guided = messengerSetup && Object.hasOwn(messengerSetup, 'facts');
-      const connected = connection?.status === 'connected';
-      const verifying = connection?.status === 'verifying';
-      const channelStatus = connection ? statuses[connection.status] || connection.status.replaceAll('_', ' ') : 'Not set up';
-      badge.textContent = channelStatus;
+      const connection = state.connections.find(item=>item.channel===channel);
+      const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
+        setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
+      const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
+      const connected = connection?.status==='connected';
+      const statusLabel = channelStatus(channel,connection);
+      badge.textContent = statusLabel;
       link.dataset.connected = String(connected);
-      marker.textContent = connected ? '✓' : String(index + 1);
-      link.href = '#' + (guided ? guide.id : panel.id);
-      panel.hidden = Boolean(guided);
-      if (guided) continue;
+      marker.textContent = connected?'✓':String(index+1);
+      panel.hidden = false;
+      if (guided) {
+        body.replaceChildren();
+        continue;
+      }
       const row = document.createElement('div');
       row.className = 'clinic-channel';
-      const info = document.createElement('div');
-      const detail = document.createElement('small');
-      detail.textContent = guidance[channel] + ' ' + (connection ? 'Status: ' + channelStatus +
-        (channel === 'ai_phone' && connection.forwarding_number ? ' · Destination: ' + connection.forwarding_number : '') :
-        nextSteps[channel]);
-      info.append(detail);
-      row.append(info);
-      if (channel === 'website_chat' && canManageClinic) {
-        const open = document.createElement('button');
-        open.type = 'button';
-        open.textContent = 'Open setup';
-        open.addEventListener('click', () => openWebsiteSetup(open));
-        row.append(open);
-      }
-      if (messengerSetup) {
+      const detail = document.createElement('p');
+      row.append(detail);
+      if (channel==='website_chat') {
+        detail.textContent = canManageClinic?'Create or resume your AI receptionist for this location.':'A clinic owner or admin can open receptionist setup.';
+        if (canManageClinic) row.append(channelButton('Open setup',openWebsiteSetup));
+        if (connection?.status==='requested') {
+          const note = document.createElement('small');
+          note.textContent = 'Your website connection request is pending. You can still open your receptionist setup.';
+          detail.append(note);
+        } else if (!connection && canManageClinic) {
+          const extra = document.createElement('details');
+          extra.className = 'clinic-website-connection';
+          const title = document.createElement('summary');
+          title.textContent = 'Connect a published receptionist to your website';
+          extra.append(title,channelButton('Request website connection',button=>requestConnection(channel,button),true));
+          row.append(extra);
+        }
+      } else if (channel==='ai_phone') {
+        phoneSetup(row,detail,connection);
+      } else if (messengerSetup) {
         const page = messengerSetup.clinicName || 'your Facebook Page';
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'clinic-secondary';
-        button.textContent = verifying ? 'Check connection' : connected ? 'Reconnect Messenger' : 'Connect Messenger';
-        button.addEventListener('click', () => {
-          if (verifying) checkMessenger(button);
-          else startMessenger(button, messengerSetup);
-        });
-        row.append(button);
-        detail.textContent = verifying ? 'Facebook approved. Send ' + page +
-          ' a private test booking request, then check the connection.' :
-          connected ? 'Connected · ' + page :
-            'Choose ' + page + ' in Facebook and approve access.';
+        const verifying = connection?.status==='verifying';
+        detail.textContent = verifying?'Facebook approved. Send '+page+' a private test booking request, then check the connection.':
+          connected?'Connected to '+page+'.':'Choose '+page+' in Facebook and approve access.';
+        row.append(channelButton(verifying?'Check connection':connected?'Reconnect Messenger':'Connect Messenger',
+          button=>verifying?checkMessenger(button):startMessenger(button,messengerSetup),true));
         if (verifying && messengerSetup.pageUrl) {
           const testLink = document.createElement('a');
           testLink.href = messengerSetup.pageUrl;
           testLink.target = '_blank';
           testLink.rel = 'noopener noreferrer';
           testLink.textContent = 'Open Facebook Page';
-          const linkRow = document.createElement('small');
-          linkRow.append(testLink);
-          info.append(linkRow);
+          row.append(testLink);
         }
-      } else if (!connection && (channel !== 'website_chat' || canManageClinic)) {
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'clinic-secondary';
-        button.textContent = { website_chat: 'Request connection', ai_phone: 'Request phone setup' }[channel] || 'Request setup';
-        button.addEventListener('click', () => requestConnection(channel, button));
-        row.append(button);
+      } else {
+        detail.textContent = connected?'This location’s Facebook Page is connected.':
+          connection?'Eden is preparing Facebook Page access for this location.':'Request Facebook Page setup for this location.';
+        if (!connection && canManageClinic) row.append(channelButton('Request Messenger setup',button=>requestConnection(channel,button)));
       }
       const hadFocus = body.contains(document.activeElement);
       body.replaceChildren(row);
-      if (hadFocus) heading.focus({ preventScroll: true });
+      if (hadFocus) heading.focus({preventScroll:true});
     }
   }
 
@@ -1127,54 +1249,87 @@
   });
 
   async function openWebsiteSetup(button) {
-    const session = state.session;
+    const userId = state.session?.user?.id;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
-    const isCurrentLocation = () => state.session?.user?.id === session?.user?.id &&
+    const current = () => state.session?.user?.id === userId &&
       byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
-    if (!session?.access_token || !canManageClinic || !accountId || !locationId) return;
-    button.disabled = true;
-    button.textContent = 'Opening setup…';
-    try {
-      const response = await fetch(setupOrigin + '/api/assistants/workspace-link', {
-        method: 'POST', cache: 'no-store', redirect: 'error',
-        headers: { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId, locationId })
-      });
-      const data = await response.json();
-      if (!response.ok) throw Error(data.error || 'Private setup is unavailable.');
-      const destination = new URL(data.url);
-      if (destination.origin !== setupOrigin || destination.pathname !== '/assistant-setup/' ||
-          destination.username || destination.password || destination.search !== '?workspace=1' ||
-          !/^#workspace=[a-f0-9]{48}$/.test(destination.hash)) {
-        throw Error('The private setup link could not be verified.');
-      }
-      if (isCurrentLocation()) window.location.assign(destination.href);
-    } catch (error) {
-      if (isCurrentLocation()) status(error.message || 'Could not open private setup.', 'error');
-    } finally {
-      button.disabled = false;
-      button.textContent = 'Open setup';
+    if (!userId || !canManageClinic || !accountId || !locationId) {
+      channelFeedback('website_chat','Sign in as an owner or admin and choose a clinic location.','error');
+      return;
     }
+    button.disabled = true;
+    channelFeedback('website_chat','Opening the private setup for this location…');
+    try {
+      const {data:auth, error} = await state.client.auth.getSession();
+      if (error || !auth?.session?.access_token || auth.session.user?.id !== userId) {
+        throw Error('Your session has expired. Sign in to Workspace again.');
+      }
+      if (!current()) return;
+      const response = await fetch(setupOrigin + '/api/assistants/workspace-link', {
+        method:'POST', cache:'no-store', redirect:'error', signal:AbortSignal.timeout(20000),
+        headers:{Authorization:'Bearer '+auth.session.access_token,'Content-Type':'application/json'},
+        body:JSON.stringify({accountId,locationId})
+      });
+      const data = await response.json().catch(()=>null);
+      if (!response.ok) throw Error(data?.error || 'The setup service did not respond. Try again.');
+      const destination = new URL(data?.url || '',setupOrigin);
+      if (destination.origin!==setupOrigin || destination.pathname!=='/assistant-setup/' ||
+          destination.username || destination.password || destination.search!=='?workspace=1' ||
+          !/^#workspace=[a-f0-9]{48}$/.test(destination.hash)) {
+        throw Error('The private setup link could not be verified. Try again.');
+      }
+      if (current()) {
+        channelFeedback('website_chat','Taking you to your receptionist setup…');
+        window.location.assign(destination.href);
+      }
+    } catch (error) {
+      if (current()) channelFeedback('website_chat',
+        error.name==='TimeoutError'?'Setup took too long to open. Select Open setup to retry.':
+          error instanceof TypeError?'Could not reach private setup. Select Open setup to retry.':error.message,'error');
+    } finally { button.disabled = false; }
   }
 
   async function requestConnection(channel, button) {
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
-    const isCurrentLocation = () => state.session && accountId === byId('clinic-account').value &&
-      locationId === byId('clinic-location').value;
+    const isCurrentLocation = () => state.session && accountId===byId('clinic-account').value &&
+      locationId===byId('clinic-location').value;
     button.disabled = true;
+    channelFeedback(channel,'Saving your setup request…');
     try {
-      await request('/clinic/connections', { method: 'POST', body: JSON.stringify({
-        accountId, locationId, channel
-      }) });
+      await request('/clinic/connections',{method:'POST',body:JSON.stringify({accountId,locationId,channel})});
       if (!isCurrentLocation()) return;
       await refreshActivity();
-      if (isCurrentLocation()) status(labels[channel] + ' requested. We’ll verify it before it goes live.', 'success');
+      if (isCurrentLocation()) channelFeedback(channel,channel==='ai_phone'
+        ?'Phone setup started. Check here for your forwarding number.'
+        :'Request saved for this location.','success');
     } catch (error) {
-      if (isCurrentLocation()) status(error.message, 'error');
-      button.disabled = false;
-    }
+      if (isCurrentLocation()) channelFeedback(channel,error.message,'error');
+    } finally { button.disabled = false; }
+  }
+
+  async function checkPhoneSetup(button) {
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const current = () => state.session && accountId===byId('clinic-account').value &&
+      locationId===byId('clinic-location').value;
+    const checkingTest = button.textContent === 'Check test call';
+    button.disabled = true;
+    channelFeedback('ai_phone','Checking phone setup…');
+    try {
+      await refreshActivity();
+      if (!current()) return;
+      const phone = state.connections.find(row=>row.channel==='ai_phone');
+      if (phone?.status==='connected') channelFeedback('ai_phone','Call received. The line is connected.','success');
+      else if (phone?.status==='verifying' && phone.forwarding_number)
+        channelFeedback('ai_phone',checkingTest?'No completed test call yet. Give it a moment after hanging up, then check again.':'Your forwarding number is ready. Follow the test steps above.');
+      else if (phone?.status==='action_required' || phone?.status==='disconnected')
+        channelFeedback('ai_phone','This phone connection needs attention.','error');
+      else channelFeedback('ai_phone','Your forwarding number is still pending.');
+    } catch (error) {
+      if (current()) channelFeedback('ai_phone',error.message,'error');
+    } finally { button.disabled = false; }
   }
 
   async function checkMessenger(button) {
@@ -1231,14 +1386,21 @@
     await refreshActivity();
     status(result.status === 'connected' ? 'Messenger reconnected.' :
       'Facebook approved. Send a private test message to confirm delivery.', 'success');
-    if (!guide.hidden) byId('clinic-messenger-title').focus();
+    if (!guide.hidden) {
+      switchWorkspaceView('setup');
+      channelSteps.find(step=>step.channel==='facebook_messenger').panel.open = true;
+      byId('clinic-messenger-title').focus();
+    }
   }
 
   function focusSetupChannel(selection) {
     if (!channels.has(selection?.channel) ||
         (selection.accountId && byId('clinic-account').value !== selection.accountId) ||
         (selection.locationId && byId('clinic-location').value !== selection.locationId)) return;
-    if (byId('clinic-location').value) channelSteps.find(step => step.channel === selection.channel)?.link.click();
+    if (byId('clinic-location').value) {
+      switchWorkspaceView('setup');
+      channelSteps.find(step=>step.channel===selection.channel)?.link.click();
+    }
   }
 
   async function acceptWorkspaceInvite() {
@@ -1341,6 +1503,8 @@
         focusSetupChannel(selection);
         if (state.locations.length) initialSelection = null;
         if (testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
+          switchWorkspaceView('setup');
+          channelSteps.find(step=>step.channel==='facebook_messenger').panel.open = true;
           byId('clinic-messenger-test-help').focus();
           await checkSetupReply();
         }

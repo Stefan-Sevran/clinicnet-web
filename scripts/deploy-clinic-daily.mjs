@@ -12,7 +12,7 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[12345678])"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-[123456789])"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
@@ -49,12 +49,12 @@ const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
 const team = reviewedPage.match(inviteSection)?.[0];
 const hero = reviewedPage.match(heroSection)?.[0];
-const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-[5678])"/)?.[1];
+const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-[56789])"/)?.[1];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const channels = reviewedPage.match(channelsSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
 if (!guide || !signIn?.includes('id="clinic-code-form"') || !channels || cssStart < 0 ||
-    (!version || (version !== 'messenger-guide-5' && !hero) || (version === 'messenger-guide-8' && !team))) {
+    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9'].includes(version) && !team))) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
