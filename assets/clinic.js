@@ -148,8 +148,7 @@
     if (alertEmailForm) alertEmailForm.hidden = true;
     const [locations, membership, setups] = await Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
-      (alertEmailForm || commentPilotPublishAvailable || (!messengerSetupAvailable && legacyMessengerConnect?.accountId === accountId)) &&
-        state.client.from('clinic_memberships').select('role')
+      state.client.from('clinic_memberships').select('role')
         .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle(),
       messengerSetupAvailable ? request('/clinic/messenger/setups?accountId=' + encodeURIComponent(accountId))
         .catch(() => []) : []
