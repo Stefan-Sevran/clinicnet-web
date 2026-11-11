@@ -25,9 +25,10 @@ async function workspaceKey(secret,purpose,id){
   const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
   return hex(new Uint8Array(await crypto.subtle.sign('HMAC',key,enc.encode('eden-workspace-v1:'+purpose+':'+id)))).slice(0,48);
 }
+// Eden Workspace Worker redirects v1
 async function workspaceProject(){
   if(workspaceConfigCache?.expires>Date.now())return workspaceConfigCache.project;
-  const response=await fetch(workspaceConfigUrl,{redirect:'error',signal:AbortSignal.timeout(12000)});
+  const response=await fetch(workspaceConfigUrl,{redirect:'manual',signal:AbortSignal.timeout(12000)});
   if(!response.ok)throw Error('Workspace configuration unavailable');
   const config=await response.json(), url=new URL(config.supabaseUrl);
   if(url.protocol!=='https:'||!/^[a-z0-9]+\.supabase\.co$/.test(url.hostname)||
@@ -39,7 +40,7 @@ async function workspaceProject(){
 async function workspaceAccess(auth,accountId,locationId){
   if(!auth?.startsWith('Bearer ')||auth.length>4103||!workspaceId.test(accountId)||!workspaceId.test(locationId))return null;
   const project=await workspaceProject();
-  const get=path=>fetch(project.origin+path,{headers:{apikey:project.key,Authorization:auth},redirect:'error',signal:AbortSignal.timeout(8000)});
+  const get=path=>fetch(project.origin+path,{headers:{apikey:project.key,Authorization:auth},redirect:'manual',signal:AbortSignal.timeout(8000)});
   const userResponse=await get('/auth/v1/user');
   if([401,403].includes(userResponse.status))return null;
   if(!userResponse.ok)throw Error('Workspace sign-in unavailable');

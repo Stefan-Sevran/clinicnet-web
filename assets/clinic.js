@@ -244,6 +244,11 @@
       (!setupTest || event.details.messengerSetupTestId === setupTest.testId));
   }
 
+  function hasMessengerFacts(facts) {
+    return ['services','hours','address','bookingRules'].every(name=>
+      typeof facts?.[name] === 'string' && facts[name].trim());
+  }
+
   function renderMessengerGuide({ resetFacts = false } = {}) {
     const setup = selectedMessengerGuide();
     guide.hidden = !setup && !ownerSetup;
@@ -254,22 +259,26 @@
         'Choose a location with Messenger setup available and sign in as its owner or admin.';
       return;
     }
+    const factsReady = hasMessengerFacts(setup.facts);
     if (guideLocation !== setup.locationId || resetFacts) {
-      if (guideLocation !== setup.locationId) {
+      const factsReady = hasMessengerFacts(setup.facts);
+    if (guideLocation !== setup.locationId) {
         setupTest = testReturn?.accountId === setup.accountId && testReturn.locationId === setup.locationId
           ? { testId: testReturn.testId, opened: true } : null;
         importedLocation = null;
       }
       guideLocation = setup.locationId;
       fillMessengerFacts(setup.facts);
-      factsForm.hidden = Boolean(setup.facts);
+      factsForm.hidden = factsReady;
       messengerGuideStatus();
     }
     const connection = state.connections.find(row => row.channel === 'facebook_messenger');
-    const authorized = ['verifying', 'connected'].includes(connection?.status);
-    const test = receivedSetupTest();
+    const connected = connection?.status === 'connected';
+    const authorized = connected || connection?.status === 'verifying';
+    byId('clinic-messenger-title').textContent = connected ? 'Manage Messenger' : 'Set up Messenger';
+    const ready = factsReady && authorized;
+    const test = ready ? receivedSetupTest() : null;
     const claimed = test && ['claimed', 'handled', 'booked'].includes(state.followups.get(test.event_key)?.action);
-    const ready = setup.facts && authorized;
     const expired = setupTest?.expiresAt && setupTest.expiresAt <= Date.now();
     const waiting = ready && setupTest && !test && !expired;
     const canSend = waiting && setupTest.message;
@@ -282,17 +291,19 @@
       byId('clinic-messenger-import-help').textContent = 'Saved details from ' + ownerSetup.clinic +
         ' are ready to review. Confirm that they belong to ' + locationName + ' before saving for Messenger.';
     }
-    show('clinic-messenger-edit-facts', setup.facts && factsForm.hidden);
-    show('clinic-messenger-cancel-facts', setup.facts || importedLocation);
+    show('clinic-messenger-edit-facts', factsReady && factsForm.hidden);
+    show('clinic-messenger-cancel-facts', factsReady || importedLocation);
     byId('clinic-messenger-connect-help').textContent = authorized ?
-      (connection.status === 'connected' ? 'Messenger is connected.' : 'Facebook approved access. Verify delivery in step 3.') :
-      (setup.facts ? 'Sign in with the Facebook profile that manages this Page and select it when asked.' : 'Confirm your clinic facts first.');
+      (connected ? 'Your Facebook Page is connected.' : 'Facebook approved access. Verify delivery in step 3.') :
+      (factsReady ? 'Sign in with the Facebook profile that manages this Page and select it when asked.' : 'Confirm your clinic facts first.');
     const connect = byId('clinic-messenger-connect');
     connect.textContent = authorized ? 'Reconnect Messenger' : 'Connect Messenger';
     connect.classList.toggle('clinic-secondary', authorized);
-    connect.hidden = !setup.facts;
+    connect.hidden = !factsReady;
     const help = byId('clinic-messenger-test-help');
-    let instruction = 'Confirm your facts and connect Facebook to start the test.';
+    let instruction = authorized
+      ? 'Confirm your clinic facts to start the private reply test.'
+      : 'Confirm your clinic facts and connect Facebook to start the test.';
     if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created.';
     else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
     else if (opened) instruction = 'Sent the test message? We’ll look for Eden’s reply here.';
@@ -339,9 +350,11 @@
       const current = selectedMessengerGuide();
       if (current?.locationId !== locationId) return;
       current.facts = saved.facts;
+      renderChannels();
       renderMessengerGuide({ resetFacts: true });
       messengerGuideStatus('Clinic facts saved for Messenger.', 'success');
-      byId('clinic-messenger-connect').focus();
+      const connection = state.connections.find(row => row.channel === 'facebook_messenger');
+      byId(['verifying', 'connected'].includes(connection?.status) ? 'clinic-messenger-test-help' : 'clinic-messenger-connect').focus();
     } catch (error) {
       if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
     } finally { fields.forEach(field => { field.disabled = false; }); }
@@ -669,10 +682,11 @@
         setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
       const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
       const connected = connection?.status==='connected';
-      const statusLabel = channelStatus(channel,connection);
-      badge.textContent = statusLabel;
-      link.dataset.connected = String(connected);
-      marker.textContent = connected?'✓':String(index+1);
+      const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
+        !hasMessengerFacts(messengerSetup.facts);
+      badge.textContent = needsFacts ? 'Facts needed' : channelStatus(channel,connection);
+      link.dataset.connected = String(connected && !needsFacts);
+      marker.textContent = connected && !needsFacts?'✓':String(index+1);
       panel.hidden = false;
       if (guided) {
         body.replaceChildren();
