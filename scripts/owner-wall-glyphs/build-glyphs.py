@@ -1,4 +1,4 @@
-"""Build the normalized wall glyph outlines from Open Sans Bold and Liberation Serif Bold."""
+"""Build the normalized wall glyph outlines used by the reception templates."""
 import base64
 import json
 import math
@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
+from fontTools.varLib.instancer import instantiateVariableFont
 
 
 class OutlinePen(BasePen):
@@ -57,8 +58,10 @@ class OutlinePen(BasePen):
     _endPath = _closePath
 
 
-def atlas(path):
+def atlas(path, *, stretch=1, weight=None):
     font = TTFont(path)
+    if weight is not None:
+        font = instantiateVariableFont(font, {"wght": weight})
     glyphs, cmap = font.getGlyphSet(), font.getBestCmap()
     units_per_em = font["head"].unitsPerEm
     characters = list(range(32, 127)) + list(range(160, 256))
@@ -70,7 +73,9 @@ def atlas(path):
             continue
         pen = OutlinePen(glyphs, units_per_em)
         glyphs[name].draw(pen)
-        result[chr(code)] = [round(glyphs[name].width * pen.scale), pen.contours]
+        contours = [[round(value * stretch) if i % 2 == 0 else value
+                     for i, value in enumerate(contour)] for contour in pen.contours]
+        result[chr(code)] = [round(glyphs[name].width * pen.scale * stretch), contours]
     return result
 
 
@@ -98,7 +103,18 @@ def encode(glyphs):
     return base64.b64encode(data).decode()
 
 
-out = Path(sys.argv[3])
-data = {"sans": encode(atlas(sys.argv[1])), "serif": encode(atlas(sys.argv[2]))}
-out.write_text("// Generated glyph outlines. See build-glyphs.py and font-licenses.txt.\nexport default "
-               + json.dumps(data, separators=(",", ":")) + ";\n")
+if sys.argv[1] == "--template-faces":
+    _, _, pearl, wellness, hospital, output = sys.argv
+    data = {
+        "pearl": encode(atlas(pearl, stretch=1.13)),
+        "siam": encode(atlas(wellness, weight=625)),
+        "mabuhay": encode(atlas(hospital)),
+    }
+    source = "See build-glyphs.py and font-sources.txt for fonts and licenses."
+else:
+    _, sans, serif, output = sys.argv
+    data = {"sans": encode(atlas(sans)), "serif": encode(atlas(serif))}
+    source = "See build-glyphs.py and font-licenses.txt."
+
+Path(output).write_text("// Generated glyph outlines. " + source + "\nexport default "
+                        + json.dumps(data, separators=(",", ":")) + ";\n")
