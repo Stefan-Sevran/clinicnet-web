@@ -7,6 +7,7 @@
   const messengerStorageKey = 'eden-messenger-oauth';
   const ownerSetupKey = 'eden-messenger-details';
   const ownerSetupLifetime = 30 * 60 * 1000;
+  const workspaceId = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
   const query = new URLSearchParams(location.search);
   const channels = new Set(['website_chat', 'facebook_messenger', 'ai_phone']);
   const invitationKey = 'eden-workspace-invite';
@@ -199,11 +200,13 @@
   function receiveOwnerSetup() {
     const fromOwnerPage = location.hash.startsWith('#' + ownerSetupKey + '=');
     const parameter = fromOwnerPage && new URLSearchParams(location.hash.slice(1)).get(ownerSetupKey);
-    if (fromOwnerPage) history.replaceState(null, '', location.pathname + location.search);
+    if (fromOwnerPage) history.replaceState(null, '', location.pathname + location.search + '#clinic-channel-facebook_messenger');
     try {
       const raw = fromOwnerPage ? parameter : sessionStorage.getItem(ownerSetupKey);
       if (!raw || raw.length > 8000) return null;
-      const { clinic, at, facts } = JSON.parse(raw);
+      const { accountId, locationId, clinic, at, facts } = JSON.parse(raw);
+      if (typeof accountId !== 'string' || !workspaceId.test(accountId) ||
+          typeof locationId !== 'string' || !workspaceId.test(locationId)) return null;
       if (typeof clinic !== 'string' || !clinic.trim() || clinic.length > 120 || !Number.isFinite(at) ||
           Date.now() - at > ownerSetupLifetime || at - Date.now() > 60000 || !facts) return null;
       const allowed = {};
@@ -214,7 +217,7 @@
       }
       if (!['request', 'information'].includes(facts.bookingMode)) return null;
       allowed.bookingMode = facts.bookingMode;
-      const details = { clinic, at, facts: allowed };
+      const details = { accountId, locationId, clinic, at, facts: allowed };
       if (fromOwnerPage) sessionStorage.setItem(ownerSetupKey, JSON.stringify(details));
       return details;
     } catch { return null; }
@@ -224,6 +227,12 @@
     ownerSetup = null;
     importedLocation = null;
     try { sessionStorage.removeItem(ownerSetupKey); } catch { /* Continue without storage. */ }
+  }
+
+  function ownerSetupFor(setup) {
+    if (ownerSetup && Date.now() - ownerSetup.at > ownerSetupLifetime) clearOwnerSetup();
+    return ownerSetup && setup && ownerSetup.accountId === setup.accountId &&
+      ownerSetup.locationId === setup.locationId ? ownerSetup : null;
   }
 
   function fillMessengerFacts(facts) {
@@ -251,18 +260,15 @@
 
   function renderMessengerGuide({ resetFacts = false } = {}) {
     const setup = selectedMessengerGuide();
-    guide.hidden = !setup && !ownerSetup;
+    guide.hidden = !setup;
     show('clinic-messenger-steps', setup);
     if (!setup) {
       show('clinic-messenger-import', false);
-      if (ownerSetup) byId('clinic-messenger-page').textContent =
-        'Choose a location with Messenger setup available and sign in as its owner or admin.';
       return;
     }
     const factsReady = hasMessengerFacts(setup.facts);
     if (guideLocation !== setup.locationId || resetFacts) {
-      const factsReady = hasMessengerFacts(setup.facts);
-    if (guideLocation !== setup.locationId) {
+      if (guideLocation !== setup.locationId) {
         setupTest = testReturn?.accountId === setup.accountId && testReturn.locationId === setup.locationId
           ? { testId: testReturn.testId, opened: true } : null;
         importedLocation = null;
@@ -284,12 +290,11 @@
     const canSend = waiting && setupTest.message;
     const opened = waiting && setupTest.opened;
     byId('clinic-messenger-page').textContent = 'Facebook Page · ' + setup.clinicName;
-    if (ownerSetup && Date.now() - ownerSetup.at > ownerSetupLifetime) clearOwnerSetup();
-    show('clinic-messenger-import', ownerSetup && !importedLocation);
-    if (ownerSetup) {
-      const locationName = state.locations.find(row => row.id === setup.locationId)?.name || setup.clinicName;
-      byId('clinic-messenger-import-help').textContent = 'Saved details from ' + ownerSetup.clinic +
-        ' are ready to review. Confirm that they belong to ' + locationName + ' before saving for Messenger.';
+    const draft = ownerSetupFor(setup);
+    show('clinic-messenger-import', draft && !importedLocation);
+    if (draft) {
+      byId('clinic-messenger-import-help').textContent = 'Review the details from ' + draft.clinic +
+        ' before saving them for Messenger.';
     }
     show('clinic-messenger-edit-facts', factsReady && factsForm.hidden);
     show('clinic-messenger-cancel-facts', factsReady || importedLocation);
@@ -338,7 +343,11 @@
     const setup = selectedMessengerGuide();
     if (!setup) return;
     const facts = Object.fromEntries(new FormData(factsForm));
-    const imported = importedLocation === setup.locationId;
+    const imported = importedLocation === setup.locationId ? ownerSetupFor(setup) : null;
+    const userId = state.session?.user?.id;
+    const isCurrentLocation = () => state.session?.user?.id === userId &&
+      selectedMessengerGuide()?.accountId === setup.accountId &&
+      selectedMessengerGuide()?.locationId === setup.locationId;
     const fields = [...factsForm.elements];
     fields.forEach(field => { field.disabled = true; });
     try {
@@ -346,31 +355,35 @@
       const saved = await request('/clinic/messenger/facts', {
         method: 'POST', body: JSON.stringify({ accountId, locationId, facts })
       });
-      if (imported) clearOwnerSetup();
-      const current = selectedMessengerGuide();
-      if (current?.locationId !== locationId) return;
-      current.facts = saved.facts;
+      if (!isCurrentLocation()) return;
+      if (imported && ownerSetup === imported) clearOwnerSetup();
+      selectedMessengerGuide().facts = saved.facts;
       renderChannels();
       renderMessengerGuide({ resetFacts: true });
       messengerGuideStatus('Clinic facts saved for Messenger.', 'success');
       const connection = state.connections.find(row => row.channel === 'facebook_messenger');
       byId(['verifying', 'connected'].includes(connection?.status) ? 'clinic-messenger-test-help' : 'clinic-messenger-connect').focus();
     } catch (error) {
-      if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
+      if (isCurrentLocation()) messengerGuideStatus(error.message, 'error');
     } finally { fields.forEach(field => { field.disabled = false; }); }
   });
 
   byId('clinic-messenger-use-import').addEventListener('click', () => {
     const setup = selectedMessengerGuide();
-    if (!setup || !ownerSetup) return;
-    if (Date.now() - ownerSetup.at > ownerSetupLifetime) {
-      clearOwnerSetup();
+    const draft = ownerSetupFor(setup);
+    if (!draft) {
       renderMessengerGuide();
-      messengerGuideStatus('The saved details link expired. Reopen Messenger from your assistant setup page.');
+      messengerGuideStatus('Open Messenger from the website setup to review saved clinic details.');
       return;
     }
     importedLocation = setup.locationId;
-    fillMessengerFacts(ownerSetup.facts);
+    const facts = { ...draft.facts };
+    // Hours and services can be refreshed from the website. Keep channel-specific choices.
+    for (const name of ['address', 'bookingRules', 'language', 'bookingMode']) {
+      if (setup.facts?.[name]) facts[name] = setup.facts[name];
+    }
+    facts.hours ||= setup.facts?.hours || '';
+    fillMessengerFacts(facts);
     factsForm.hidden = false;
     renderMessengerGuide();
     factsForm.querySelector('textarea').focus();
@@ -389,7 +402,8 @@
     importedLocation = null;
     renderMessengerGuide({ resetFacts: true });
     const edit = byId('clinic-messenger-edit-facts');
-    (edit.hidden ? byId('clinic-messenger-use-import') : edit).focus();
+    const importButton = byId('clinic-messenger-use-import');
+    (edit.hidden ? (importButton.closest('[hidden]') ? factsForm.querySelector('textarea') : importButton) : edit).focus();
   });
   byId('clinic-messenger-connect').addEventListener('click', event => {
     const setup = selectedMessengerGuide();
@@ -1579,7 +1593,7 @@
     finally { button.disabled = false; }
   });
   byId('clinic-signout').addEventListener('click', async () => {
-    try { await state.client.auth.signOut(); await authenticated(null); }
+    try { await state.client.auth.signOut(); clearOwnerSetup(); await authenticated(null); }
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => {
