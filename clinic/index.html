@@ -5,13 +5,14 @@
 <title>Clinic Workspace | Eden Clinic Network</title>
 <meta name="description" content="Set up your clinic account and location, then see connection requests and incoming bookings in one place.">
 <meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=clinic-daily-1">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-13">
 <script src="/assets/navigation.js?v=2"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <meta name="referrer" content="no-referrer">
-<script defer src="/assets/clinic.js?v=clinic-comment-pilot-2"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-13"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -61,18 +62,25 @@ fetchpriority="high"
 </header>
 
 <main id="main-content" class="clinic-shell">
-  <div class="clinic-hero">
-    <span class="clinic-kicker">EDEN CLINIC WORKSPACE · EARLY ACCESS</span>
-    <h1>Your clinics, conversations, and booking requests together.</h1>
-    <p>Start with one location. Add more branches later, without moving patient records into a spreadsheet.</p>
-  </div>
+  <section class="clinic-hero" aria-labelledby="clinic-workspace-title">
+    <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
+    <div class="clinic-hero-copy">
+      <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
+      <h1 id="clinic-workspace-title">Every patient inquiry starts with a hello.</h1>
+      <p>Connect Website chat, Messenger, and AI phone for your clinic. See booking requests and follow-ups together.</p>
+    </div>
+  </section>
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
 
   <section id="clinic-signin" class="clinic-panel" hidden>
-    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>We’ll email you a secure sign-in link. Use the same email each time.</p></div></div>
+    <div class="clinic-panel-head"><span class="clinic-step">01</span><div><h2>Sign in to your workspace</h2><p>Request a sign-in email, then enter your code below. If the email includes a sign-in link, you can use that too.</p></div></div>
     <form id="clinic-signin-form" class="clinic-form">
       <label for="clinic-email">Work email</label>
-      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in link</button></div>
+      <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in email</button></div>
+    </form>
+    <form id="clinic-code-form" class="clinic-form">
+      <label for="clinic-code">Six-digit email code</label>
+      <div class="clinic-form-row"><input id="clinic-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required><button type="submit">Sign in with code</button></div>
     </form>
   </section>
 
@@ -93,16 +101,97 @@ fetchpriority="high"
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
-      <div class="clinic-columns">
-        <section class="clinic-panel">
-          <div class="clinic-panel-head"><span class="clinic-step">03</span><div><h2>Connect your channels</h2><p>Request a channel here. Our team verifies it before it can receive live inquiries.</p></div></div>
-          <div id="clinic-channels" class="clinic-channel-list"></div>
-        </section>
-        <section class="clinic-panel">
-          <div class="clinic-panel-head"><span class="clinic-step">04</span><div><h2>Booking queue</h2><p>Requests are pending until a staff member or connected calendar confirms them.</p></div></div>
-          <div id="clinic-bookings" class="clinic-events" aria-live="polite"></div>
-        </section>
-      </div>
+      <section id="clinic-channel-setup" class="clinic-panel" aria-labelledby="clinic-channel-setup-title" hidden>
+        <h2 id="clinic-channel-setup-title">Connect your channels</h2>
+        <nav aria-label="Channel setup">
+          <ol id="clinic-channels" class="clinic-channel-progress"></ol>
+        </nav>
+      </section>
+      <section id="clinic-team-invite" class="clinic-panel" hidden>
+        <details>
+          <summary>Invite a teammate</summary>
+          <p>Send the private link to their work email. It expires in two hours and opens at the location and service you choose. The role applies across this clinic account.</p>
+          <form id="clinic-invite-form" class="clinic-form clinic-grid">
+            <label>Work email<input name="email" type="email" maxlength="160" required></label>
+            <label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label>
+            <label>Start at<select name="channel"><option value="website_chat">Website chat</option><option value="facebook_messenger">Messenger</option><option value="ai_phone">Missed calls</option></select></label>
+            <button type="submit">Create invite link</button>
+          </form>
+          <div id="clinic-invite-link" hidden>
+            <label class="clinic-form">Private invitation link<input id="clinic-invite-url" readonly></label>
+            <button type="button" class="clinic-secondary" id="clinic-invite-copy">Copy link</button>
+          </div>
+          <p id="clinic-invite-status" role="status"></p>
+        </details>
+      </section>
+      <section id="clinic-messenger-guide" class="clinic-panel clinic-messenger-guide" aria-labelledby="clinic-messenger-title" hidden>
+        <h2 id="clinic-messenger-title" tabindex="-1">Set up Messenger</h2>
+        <p id="clinic-messenger-page"></p>
+        <div id="clinic-messenger-import" class="clinic-event" hidden>
+          <p id="clinic-messenger-import-help"></p>
+          <div class="clinic-messenger-actions">
+            <button id="clinic-messenger-use-import" type="button">Review saved clinic details</button>
+            <button id="clinic-messenger-dismiss-import" type="button" class="clinic-secondary">Dismiss</button>
+          </div>
+        </div>
+        <ol id="clinic-messenger-steps" class="clinic-messenger-steps">
+          <li>
+            <h3>Confirm clinic facts</h3>
+            <p>Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
+            <button id="clinic-messenger-edit-facts" type="button" class="clinic-secondary" hidden>Edit clinic facts</button>
+            <form id="clinic-messenger-facts" class="clinic-form clinic-messenger-facts" hidden>
+              <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
+              <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>
+              <label>Address or directions <textarea name="address" maxlength="900" required placeholder="Street address or directions patients need"></textarea></label>
+              <label>Booking notes for patients <textarea name="bookingRules" maxlength="900" required aria-describedby="clinic-messenger-booking-notes-help" placeholder="e.g. Call us for same-day appointments or to reschedule."></textarea><small id="clinic-messenger-booking-notes-help">Add practical details like deposits, preparation, or rescheduling. Staff confirm all appointment times.</small></label>
+              <label>Preferred language <input name="language" maxlength="120" placeholder="e.g. English and Tagalog"></label>
+              <label>Appointment handling <select name="bookingMode" aria-describedby="clinic-messenger-booking-mode-help"><option value="request">Collect booking requests in Messenger</option><option value="information">Direct patients to the clinic team</option></select><small id="clinic-messenger-booking-mode-help">Collect requests saves the service and preferred time for staff. Direct patients tells them how to contact the clinic to book.</small></label>
+              <div class="clinic-messenger-actions">
+                <button type="submit">Confirm clinic facts</button>
+                <button id="clinic-messenger-cancel-facts" type="button" class="clinic-secondary" hidden>Cancel</button>
+              </div>
+            </form>
+          </li>
+          <li>
+            <h3>Connect your Facebook Page</h3>
+            <p id="clinic-messenger-connect-help"></p>
+            <button id="clinic-messenger-connect" type="button" hidden>Connect Messenger</button>
+          </li>
+          <li>
+            <h3>Test your Messenger reply</h3>
+            <p id="clinic-messenger-test-help" role="status" tabindex="-1"></p>
+            <div id="clinic-messenger-test-send"></div>
+            <div id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions" hidden>
+              <label for="clinic-messenger-test-message">Private test message</label>
+              <div class="clinic-messenger-copy-field">
+                <input id="clinic-messenger-test-message" readonly>
+                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary" aria-label="Copy test message" title="Copy test message">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="clinic-messenger-test-actions" class="clinic-messenger-actions">
+              <button id="clinic-messenger-start-test" type="button" hidden>Create test message</button>
+              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy and open Facebook</a>
+              <button id="clinic-messenger-check-test" type="button" hidden>Check for reply</button>
+              <button id="clinic-messenger-claim-test" type="button" hidden>Claim test inquiry</button>
+            </div>
+            <details id="clinic-messenger-test-recovery" class="clinic-messenger-recovery" hidden>
+              <summary>Having trouble?</summary>
+              <div id="clinic-messenger-test-retry-send" hidden>
+                <p>Sign in to Facebook if asked, then use your personal profile to send the test message.</p>
+                <a id="clinic-messenger-reopen-page" target="_blank" rel="noopener noreferrer">Reopen Facebook Page</a>
+              </div>
+              <button id="clinic-messenger-restart-test" class="clinic-secondary" type="button">Start a new test</button>
+            </details>
+          </li>
+        </ol>
+        <p id="clinic-messenger-guide-status" class="clinic-status" role="status" hidden></p>
+      </section>
+      <section class="clinic-panel">
+        <div class="clinic-panel-head"><span class="clinic-step">04</span><div><h2>Booking queue</h2><p>Requests are pending until a staff member or connected calendar confirms them.</p></div></div>
+        <div id="clinic-bookings" class="clinic-events" aria-live="polite"></div>
+      </section>
       <section class="clinic-panel">
         <div class="clinic-panel-head"><span class="clinic-step">05</span><div><h2>Activity inbox</h2><p>Recent account activity from connected sources appears here.</p></div></div>
         <div id="clinic-inbox" class="clinic-events" aria-live="polite"></div>
@@ -112,7 +201,6 @@ fetchpriority="high"
         <p id="clinic-booked-count" aria-live="polite"></p>
         <div id="clinic-booked-outcomes" class="clinic-events"></div>
       </section>
-      <section class="clinic-panel clinic-next"><h2>What comes next</h2><p>Clinic facts, team access, and live Facebook and phone authorization are being built. A requested connection does not turn on automation. We’ll show a verified status here when a channel is ready.</p></section>
     </div>
   </div>
 </main>

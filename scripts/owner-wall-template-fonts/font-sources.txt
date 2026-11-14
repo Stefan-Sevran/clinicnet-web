@@ -1,0 +1,16 @@
+Template wall lettering uses outlines from the following fonts.
+
+Warm dental booking: Open Sans Condensed Bold
+Open Sans digitized data © 2010–2011 Google Corporation.
+Apache License 2.0. License text in ../owner-wall-glyphs/font-licenses.txt.
+
+Wellness welcome: Cinzel, weight 625
+Cinzel Project Authors. License in cinzel-OFL.txt.
+Source: https://github.com/google/fonts/tree/c30b221beb0c1da59d563feb91ec8656a1fa972a/ofl/cinzel
+
+Hospital front desk: Liberation Sans Bold
+Digitized data © 2010 Google Corporation. © 2012 Red Hat, Inc.
+SIL Open Font License 1.1. License text in ../owner-wall-glyphs/font-licenses.txt.
+
+Aesthetics concierge and Bilingual dental use the existing Liberation Serif Bold
+and Open Sans Bold outlines, respectively.
