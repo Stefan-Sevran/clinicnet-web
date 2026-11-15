@@ -410,3 +410,11 @@ body[data-page="clinic"] .ecn-site-header::before {
   outline: 2px solid #4b7960;
   outline-offset: 2px;
 }
+
+.clinic-assignment-editor select {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 7px 9px;
+  font: inherit;
+}

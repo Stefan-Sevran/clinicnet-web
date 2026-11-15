@@ -70,6 +70,7 @@
     });
   }
   let canManageClinic = false;
+  let clinicTeam = new Map();
   let isClinicOwner = false;
   let acceptingInvite;
   let staffEmailAvailable = false;
@@ -908,9 +909,10 @@
       const latest = state.followups.get(event.event_key);
       const cancelled = latest?.recorded_action === 'cancelled';
       const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
+      const assigneeName = clinicTeam.get(latest?.actor_user_id);
       const statusLabel = setupSample ? 'Setup test' : cancelled ? 'Cancelled' : needsFollowup ? ({
         booked: 'Confirmed',
-        claimed: ownClaim ? 'Assigned to you' : 'Assigned to teammate',
+        claimed: ownClaim ? 'Assigned to you' : 'Assigned to ' + (assigneeName || 'teammate'),
         handled: 'Handled'
       }[latest?.action] || {
         'call.followup_needed': 'Needs callback',
@@ -984,6 +986,10 @@
         if ((!latest || latest.action === 'reopened') && event.kind === 'booking.requested') {
           actions.unshift(['booked', 'Confirm booking']);
         }
+        const canAssign = !latest || ['claimed', 'reopened'].includes(latest.action);
+        if (canManageClinic && canAssign && assignmentOptions(latest).length) {
+          actions.push(['assign', latest?.action === 'claimed' ? 'Reassign' : 'Assign to teammate']);
+        }
         if (actions.length) {
           const controls = document.createElement('div');
           for (const [action, label] of actions) {
@@ -995,7 +1001,8 @@
             button.addEventListener('click', () => {
               if (['booked', 'rescheduled', 'cancelled', 'restored'].includes(action)) {
                 showAppointmentEditor(event, controls, button, action, latest);
-              } else updateFollowup(event, action, controls);
+              } else if (action === 'assign') showAssignmentEditor(event, latest, controls, button);
+              else updateFollowup(event, action, controls);
             });
             controls.append(button);
           }
@@ -1232,6 +1239,86 @@
     (input || back).focus();
   }
 
+  function assignmentOptions(latest) {
+    const currentAssignee = latest?.action === 'claimed' ? latest.actor_user_id : state.session?.user?.id;
+    return [...clinicTeam].filter(([id]) => id !== currentAssignee);
+  }
+
+  function showAssignmentEditor(event, latest, controls, opener) {
+    const form = document.createElement('form');
+    form.className = 'clinic-appointment-editor clinic-assignment-editor';
+    const label = document.createElement('label');
+    label.textContent = 'Assign this inquiry to';
+    const select = document.createElement('select');
+    select.required = true;
+    select.add(new Option('Choose a teammate', ''));
+    const options = assignmentOptions(latest);
+    for (const [id, name] of options) {
+      const duplicate = options.some(([other, label]) => other !== id && label === name);
+      select.add(new Option(duplicate ? name + ' · ' + id.slice(-6) : name, id));
+    }
+    label.append(select);
+    const errorLine = document.createElement('p');
+    errorLine.className = 'clinic-appointment-error';
+    errorLine.setAttribute('role', 'alert');
+    errorLine.hidden = true;
+    const group = document.createElement('div');
+    group.className = 'clinic-appointment-actions';
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.textContent = 'Save assignment';
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'clinic-secondary';
+    back.textContent = 'Close';
+    group.append(save, back);
+    form.append(label, errorLine, group);
+
+    const rowButtons = [...controls.querySelectorAll('button')];
+    rowButtons.forEach(button => { button.disabled = true; });
+    back.addEventListener('click', () => {
+      form.remove();
+      rowButtons.forEach(button => { button.disabled = false; });
+      opener.focus();
+    });
+    form.addEventListener('submit', async submission => {
+      submission.preventDefault();
+      const assignee = select.value;
+      if (save.disabled || !options.some(([id]) => id === assignee)) return;
+      select.disabled = save.disabled = back.disabled = true;
+      errorLine.hidden = true;
+      const generation = state.generation;
+      try {
+        const { error } = await state.client.from('clinic_followup_actions').insert({
+          account_id: event.account_id, location_id: event.location_id, event_key: event.event_key,
+          actor_user_id: state.session.user.id, action: 'claimed',
+          assigned_user_id: assignee, prior_action_at: latest?.created_at || null
+        });
+        if (generation !== state.generation) return;
+        if (error?.code === '23505') {
+          await refreshActivity();
+          status('This inquiry changed. Review the current assignment before trying again.', 'error');
+        } else if (error) {
+          errorLine.textContent = error.code === '42501' ?
+            'Assignment requires an owner or admin and an active teammate.' : 'Could not save the assignment. Try again.';
+          errorLine.hidden = false;
+          return;
+        } else {
+          await refreshActivity();
+          status('Inquiry assigned.', 'success');
+        }
+        inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
+      } catch {
+        errorLine.textContent = 'Could not refresh assignments. Refresh the workspace before trying again.';
+        errorLine.hidden = false;
+      } finally {
+        select.disabled = save.disabled = back.disabled = false;
+      }
+    });
+    controls.append(form);
+    select.focus();
+  }
+
   async function updateFollowup(event, action, controls) {
     const buttons = [...controls.querySelectorAll('button')];
     const generation = state.generation;
@@ -1424,13 +1511,15 @@
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
     const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
-    const [connections, bookings, inbox, followups] = await Promise.all([
+    const [connections, bookings, inbox, followups, team] = await Promise.all([
       request('/clinic/connections' + query), request('/clinic/bookings' + query),
-      request('/clinic/inbox' + query + '&limit=100'), getFollowups(accountId, locationId)
+      request('/clinic/inbox' + query + '&limit=100'), getFollowups(accountId, locationId),
+      state.client.rpc('list_clinic_team', { p_account_id: accountId }).then(({ data }) => data || [], () => [])
     ]);
     if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
     state.connections = connections;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
+    clinicTeam = new Map(team.map(row => [row.user_id, row.display_name]));
     pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
     renderChannels();
     renderCommentPilot(inbox);
