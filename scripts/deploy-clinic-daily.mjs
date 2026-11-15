@@ -1,11 +1,18 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 
-const [revision, ...options] = process.argv.slice(2);
-if (!/^[a-f0-9]{40}$/.test(revision ?? '') || options.some(option => option !== '--check')) {
-  throw Error('Pass the full ClinicNet Git revision and, optionally, --check.');
+const {
+  positionals: [revision, ...extra],
+  values: { source: explicitSource, check }
+} = parseArgs({
+  allowPositionals: true,
+  options: { source: { type: 'string' }, check: { type: 'boolean' } }
+});
+if (!/^[a-f0-9]{40}$/.test(revision ?? '') || extra.length || explicitSource === '') {
+  throw Error('Pass the full ClinicNet Git revision, optionally --source <production folder> and --check.');
 }
 
 const root = tmpdir();
@@ -27,21 +34,29 @@ const channelsSection = /<section id="clinic-channel-setup"[^>]*>[\s\S]*?<\/sect
 const legacyChannelsSection = /<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?<div id="clinic-channels"[^>]*><\/div>\s*<\/section>\s*/;
 const nextSection = /<section class="clinic-panel clinic-next"[^>]*>[\s\S]*?<\/section>\s*/;
 const cssMarker = '/* Eden Messenger setup guide */';
-const candidates = readdirSync(root, { withFileTypes: true })
-  .filter(entry => entry.isDirectory() && entry.name.startsWith('tmp.'))
-  .map(entry => join(root, entry.name))
-  .filter(folder => [clinicPage, clinicStyle, '_worker.js', 'assets/pearlsmile-pilot.js'].every(file => existsSync(join(folder, file))))
-  .filter(folder => {
-    const clinic = readFileSync(join(folder, clinicPage), 'utf8');
-    return clinic.includes('class="ecn-footer-main"') && clinic.includes('id="clinic-booked-outcomes"') &&
-      scriptTag.test(clinic) && styleTag.test(clinic) && signInSection.test(clinic) && locationSection.test(clinic) &&
-      readFileSync(join(folder, '_worker.js'), 'utf8').includes('Serve the Clinic Workspace from Pages assets.');
-  })
-  .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+function isWorkspaceDeployment(folder) {
+  if (![clinicPage, clinicScript, clinicStyle, '_worker.js', 'assets/pearlsmile-pilot.js'].every(file => existsSync(join(folder, file)))) return false;
+  const clinic = readFileSync(join(folder, clinicPage), 'utf8');
+  return clinic.includes('class="ecn-footer-main"') && clinic.includes('id="clinic-booked-outcomes"') &&
+    scriptTag.test(clinic) && styleTag.test(clinic) && signInSection.test(clinic) && locationSection.test(clinic) &&
+    readFileSync(join(folder, '_worker.js'), 'utf8').includes('Serve the Clinic Workspace from Pages assets.');
+}
 
-if (!candidates.length) throw Error('Could not find the restored ClinicNet deployment with the daily view.');
+let source;
+if (explicitSource) {
+  source = resolve(explicitSource);
+  if (!isWorkspaceDeployment(source)) throw Error('The folder passed to --source is missing the restored production Workspace files.');
+} else {
+  const roots = [...new Set([root, '/tmp'].filter(path => existsSync(path)))];
+  source = roots.flatMap(path => readdirSync(path, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name.startsWith('tmp.'))
+    .map(entry => join(path, entry.name)))
+    .filter(isWorkspaceDeployment)
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+  if (!source) throw Error('Could not find the restored production Workspace folder. Pass its path with --source <folder>.');
+}
 
-const source = candidates[0];
+console.log('Using production source ' + source);
 const stage = mkdtempSync(join(root, 'tmp.'));
 cpSync(source, stage, { recursive: true });
 const sourceRoot = 'https://raw.githubusercontent.com/Stefan-Sevran/clinicnet-web/' + revision + '/';
@@ -100,7 +115,7 @@ writeFileSync(join(stage, clinicStyle), css + '\n\n' + reviewedStyle.slice(cssSt
 writeFileSync(join(stage, clinicScript), fetchText(clinicScript));
 execFileSync(process.execPath, ['--check', join(stage, clinicScript)], { stdio: 'inherit' });
 
-if (options.includes('--check')) {
+if (check) {
   console.log('Staged only. Review ' + stage);
 } else {
   execFileSync('npx', ['wrangler', 'pages', 'deploy', '.', '--project-name', 'clinicnet-web', '--branch', 'main'],
