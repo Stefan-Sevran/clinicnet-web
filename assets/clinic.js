@@ -71,6 +71,7 @@
   }
   let canManageClinic = false;
   let clinicTeam = new Map();
+  let clinicTeamAvailable = true;
   let isClinicOwner = false;
   let acceptingInvite;
   let staffEmailAvailable = false;
@@ -942,10 +943,20 @@
         note.textContent = 'Fictional setup test · No appointment created';
         row.append(note);
       } else if (needsFollowup) {
-        if (event.details?.service) {
+        const topics = Array.isArray(event.details?.topics)
+          ? event.details.topics.filter(topic => typeof topic === 'string' && topic.trim()).slice(0, 3) : [];
+        if (event.details?.service && (event.kind !== 'inquiry.followup_needed' || !topics.length)) {
           const service = document.createElement('small');
           service.textContent = 'Service · ' + event.details.service;
           row.append(service);
+        }
+        const serviceLabel = typeof event.details?.service === 'string' ? event.details.service.toLowerCase() : '';
+        const additionalTopics = event.kind === 'inquiry.followup_needed' ? topics :
+          topics.filter(topic => topic.toLowerCase() !== serviceLabel);
+        if (additionalTopics.length) {
+          const line = document.createElement('small');
+          line.textContent = 'Topics · ' + additionalTopics.join(', ');
+          row.append(line);
         }
         if (event.details?.requestedTime) {
           const timing = document.createElement('small');
@@ -987,8 +998,16 @@
           actions.unshift(['booked', 'Confirm booking']);
         }
         const canAssign = !latest || ['claimed', 'reopened'].includes(latest.action);
-        if (canManageClinic && canAssign && assignmentOptions(latest).length) {
-          actions.push(['assign', latest?.action === 'claimed' ? 'Reassign' : 'Assign to teammate']);
+        if (canManageClinic && canAssign) {
+          if (assignmentOptions(latest).length) {
+            actions.push(['assign', latest?.action === 'claimed' ? 'Reassign' : 'Assign to teammate']);
+          } else if (clinicTeamAvailable && isClinicOwner && clinicTeam.size === 1) {
+            actions.push(['invite', 'Invite a teammate']);
+          } else if (!clinicTeamAvailable) {
+            const note = document.createElement('small');
+            note.textContent = 'Team list unavailable. Refresh to try again.';
+            row.append(note);
+          }
         }
         if (actions.length) {
           const controls = document.createElement('div');
@@ -1002,6 +1021,7 @@
               if (['booked', 'rescheduled', 'cancelled', 'restored'].includes(action)) {
                 showAppointmentEditor(event, controls, button, action, latest);
               } else if (action === 'assign') showAssignmentEditor(event, latest, controls, button);
+              else if (action === 'invite') openTeammateInvite();
               else updateFollowup(event, action, controls);
             });
             controls.append(button);
@@ -1237,6 +1257,15 @@
     });
     controls.append(form);
     (input || back).focus();
+  }
+
+  function openTeammateInvite() {
+    switchWorkspaceView('setup', true);
+    const invite = byId('clinic-team-invite');
+    const details = invite.querySelector('details');
+    details.open = true;
+    details.querySelector('input').focus({ preventScroll: true });
+    invite.scrollIntoView({ block: 'nearest' });
   }
 
   function assignmentOptions(latest) {
@@ -1514,12 +1543,13 @@
     const [connections, bookings, inbox, followups, team] = await Promise.all([
       request('/clinic/connections' + query), request('/clinic/bookings' + query),
       request('/clinic/inbox' + query + '&limit=100'), getFollowups(accountId, locationId),
-      state.client.rpc('list_clinic_team', { p_account_id: accountId }).then(({ data }) => data || [], () => [])
+      state.client.rpc('list_clinic_team', { p_account_id: accountId }).then(({ data, error }) => error ? null : data || [], () => null)
     ]);
     if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
     state.connections = connections;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
-    clinicTeam = new Map(team.map(row => [row.user_id, row.display_name]));
+    clinicTeamAvailable = team !== null;
+    clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
     pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
     renderChannels();
     renderCommentPilot(inbox);
