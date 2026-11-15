@@ -870,6 +870,7 @@
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
       const setupSample = isMessengerSetupSample(event);
+      if (setupSample) title.textContent = 'Latest Messenger setup test';
       const latest = state.followups.get(event.event_key);
       const cancelled = latest?.recorded_action === 'cancelled';
       const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
@@ -938,7 +939,7 @@
           });
           row.append(appointment);
         }
-        const actions = cancelled ? [] :
+        const actions = cancelled ? [['restored', 'Restore booking']] :
           latest?.action === 'booked' ? [['rescheduled', 'Change time'], ['cancelled', 'Cancel booking']] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ['booked', 'Confirm booking'], ['reopened', 'Release assignment'], ['handled', 'Mark handled']
@@ -957,7 +958,7 @@
             if (action !== 'booked') button.classList.add('clinic-secondary');
             button.textContent = label;
             button.addEventListener('click', () => {
-              if (['booked', 'rescheduled', 'cancelled'].includes(action)) {
+              if (['booked', 'rescheduled', 'cancelled', 'restored'].includes(action)) {
                 showAppointmentEditor(event, controls, button, action, latest);
               } else updateFollowup(event, action, controls);
             });
@@ -995,13 +996,13 @@
       return followup?.recorded_action !== 'cancelled' &&
         (followup?.action === 'booked' || bookingStatus(event) === 'Confirmed');
     });
-    const tests = dailyEvents.filter(isMessengerSetupSample);
+    const latestTest = dailyEvents.find(isMessengerSetupSample);
     const views = {
       all: [activity, 'No activity yet for this location.'],
       attention: [attention, 'No unclaimed inquiries need follow-up.'],
       assigned: [assigned, 'No inquiries are assigned to you.'],
       booked: [booked, 'No confirmed bookings in recent activity.'],
-      tests: [tests, 'No setup tests yet.']
+      tests: [latestTest ? [latestTest] : [], 'No setup tests yet.']
     };
     for (const button of inboxFilters) {
       button.setAttribute('aria-pressed', String(button.dataset.filter === inboxFilter));
@@ -1084,11 +1085,15 @@
       input = document.createElement('input');
       input.type = 'datetime-local';
       input.required = true;
-      input.value = clinicDateTimeValue(latest?.appointment_at, timeZone);
+      const previousTime = action === 'restored' ? latest?.previous_appointment_at : latest?.appointment_at;
+      input.value = clinicDateTimeValue(previousTime, timeZone);
       label.append(input);
       form.append(label);
       help.textContent = 'Enter the agreed time in ' + (locationName ? locationName + ' time' : 'the clinic’s time zone') +
         ' (' + timeZone + ').';
+      if (action === 'restored') {
+        help.textContent = 'Check that the appointment time is still available. ' + help.textContent;
+      }
     }
     const errorLine = document.createElement('p');
     errorLine.className = 'clinic-appointment-error';
@@ -1099,7 +1104,8 @@
     const save = document.createElement('button');
     save.type = 'submit';
     save.textContent = {
-      booked: 'Save confirmation', rescheduled: 'Save new time', cancelled: 'Yes, cancel booking'
+      booked: 'Save confirmation', rescheduled: 'Save new time',
+      cancelled: 'Yes, cancel booking', restored: 'Confirm restoration'
     }[action];
     const back = document.createElement('button');
     back.type = 'button';
@@ -1142,7 +1148,8 @@
         }
         await refreshActivity();
         status({
-          booked: 'Booking confirmed.', rescheduled: 'Appointment time updated.', cancelled: 'Booking cancelled.'
+          booked: 'Booking confirmed.', rescheduled: 'Appointment time updated.',
+          cancelled: 'Booking cancelled.', restored: 'Booking restored.'
         }[action], 'success');
         inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
       } catch {
@@ -1336,7 +1343,7 @@
 
   async function getFollowups(accountId, locationId) {
     const { data, error } = await state.client.from('clinic_followup_states')
-      .select('event_key,action,recorded_action,actor_user_id,created_at,appointment_at')
+      .select('event_key,action,recorded_action,actor_user_id,created_at,appointment_at,previous_appointment_at')
       .eq('account_id', accountId).eq('location_id', locationId);
     if (error) throw Error('Could not load booking activity. Please refresh.');
     return data;
