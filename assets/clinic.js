@@ -76,7 +76,6 @@
   let acceptingInvite;
   let staffEmailAvailable = false;
   let soundContext;
-  let soundTimer;
   let backgroundRefresh = false;
   let loadedGeneration = -1;
   let inboxSnapshot;
@@ -1321,8 +1320,13 @@
   }
 
   function assignmentOptions(latest) {
-    const currentAssignee = latest?.action === 'claimed' ? latest.actor_user_id : state.session?.user?.id;
-    return [...clinicTeam].filter(([id]) => id !== currentAssignee);
+    const userId = state.session?.user?.id;
+    const assigned = latest?.action === 'claimed';
+    const currentAssignee = assigned ? latest.actor_user_id : userId;
+    const options = [...clinicTeam].filter(([id]) => id !== currentAssignee && id !== userId);
+    if (assigned && userId && userId !== currentAssignee) options.unshift([userId, 'Me']);
+    if (assigned) options.push(['unassigned', 'Unassigned']);
+    return options;
   }
 
   function showAssignmentEditor(event, latest, controls, opener) {
@@ -1332,7 +1336,7 @@
     label.textContent = 'Assign this inquiry to';
     const select = document.createElement('select');
     select.required = true;
-    select.add(new Option('Choose a teammate', ''));
+    select.add(new Option('Choose an assignee', ''));
     const options = assignmentOptions(latest);
     for (const [id, name] of options) {
       const duplicate = options.some(([other, label]) => other !== id && label === name);
@@ -1365,6 +1369,7 @@
     form.addEventListener('submit', async submission => {
       submission.preventDefault();
       const assignee = select.value;
+      const unassign = assignee === 'unassigned';
       if (save.disabled || !options.some(([id]) => id === assignee)) return;
       select.disabled = save.disabled = back.disabled = true;
       errorLine.hidden = true;
@@ -1372,8 +1377,8 @@
       try {
         const { error } = await state.client.from('clinic_followup_actions').insert({
           account_id: event.account_id, location_id: event.location_id, event_key: event.event_key,
-          actor_user_id: state.session.user.id, action: 'claimed',
-          assigned_user_id: assignee, prior_action_at: latest?.created_at || null
+          actor_user_id: state.session.user.id, action: unassign ? 'reopened' : 'claimed',
+          assigned_user_id: unassign ? null : assignee, prior_action_at: latest?.created_at || null
         });
         if (generation !== state.generation) return;
         if (error?.code === '23505') {
@@ -1386,7 +1391,7 @@
           return;
         } else {
           await refreshActivity();
-          status('Inquiry assigned.', 'success');
+          status(unassign ? 'Inquiry returned to Needs attention.' : 'Inquiry assigned.', 'success');
         }
         inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
       } catch {
@@ -1592,26 +1597,34 @@
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
     const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
-    const [connections, bookings, inbox, followups, team] = await Promise.all([
-      request('/clinic/connections' + query), request('/clinic/bookings' + query),
-      request('/clinic/inbox' + query + '&limit=100'), getFollowups(accountId, locationId),
-      state.client.rpc('list_clinic_team', { p_account_id: accountId }).then(({ data, error }) => error ? null : data || [], () => null)
+    const [bookings, inbox, followups, connections, team] = await Promise.all([
+      request('/clinic/bookings' + query), request('/clinic/inbox' + query + '&limit=100'),
+      getFollowups(accountId, locationId),
+      quiet ? null : request('/clinic/connections' + query),
+      quiet ? null : state.client.rpc('list_clinic_team', { p_account_id: accountId })
+        .then(({ data, error }) => error ? null : data || [], () => null)
     ]);
-    if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
-    state.connections = connections;
+    if (generation !== state.generation || (quiet && !canRefreshInbox())) return;
+    const date = new Date().toLocaleDateString('en-CA', { timeZone: clinicTimeZone(locationId) });
+    const signature = JSON.stringify([accountId, locationId, date, inbox, bookings, followups]);
+    if (quiet && inboxSnapshot?.signature === signature) return;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
-    clinicTeamAvailable = team !== null;
-    clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
-    pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
-    renderChannels();
-    renderCommentPilot(inbox);
+    if (!quiet) {
+      state.connections = connections;
+      clinicTeamAvailable = team !== null;
+      clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
+      pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
+      renderChannels();
+      renderCommentPilot(inbox);
+    }
     renderDailyWork(inbox, bookings, locationId);
     guideInbox = inbox;
-    renderMessengerGuide();
+    if (!quiet) renderMessengerGuide();
     const keys = inboxAlertKeys(inbox);
-    if (soundContext?.state === 'running' && !document.hidden && inboxSnapshot?.locationId === locationId &&
+    if (soundContext?.state === 'running' && !document.hidden &&
+        inboxSnapshot?.accountId === accountId && inboxSnapshot.locationId === locationId &&
         [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();
-    inboxSnapshot = { locationId, keys };
+    inboxSnapshot = { accountId, locationId, keys, signature };
     loadedGeneration = generation;
     if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
   }
@@ -1672,27 +1685,45 @@
       .map(event => event.event_key).filter(Boolean));
   }
 
+  function canRefreshInbox() {
+    return state.session && !document.hidden && workspaceView === 'daily' && !daily.hidden &&
+      loadedGeneration === state.generation && !document.querySelector('.clinic-appointment-editor');
+  }
+
+  async function pollInbox() {
+    if (backgroundRefresh || !canRefreshInbox()) return;
+    backgroundRefresh = true;
+    try {
+      await refreshActivity(true);
+    } catch { /* The next refresh will retry without interrupting staff. */ }
+    finally { backgroundRefresh = false; }
+  }
+
+  window.setInterval(pollInbox, 12000);
+  window.addEventListener('focus', pollInbox);
+  document.addEventListener('visibilitychange', pollInbox);
+
   function playInboxSound() {
-    const tone = soundContext.createOscillator();
-    const volume = soundContext.createGain();
-    const now = soundContext.currentTime;
-    tone.frequency.value = 780;
-    volume.gain.setValueAtTime(0.001, now);
-    volume.gain.exponentialRampToValueAtTime(0.16, now + 0.025);
-    volume.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
-    tone.connect(volume);
-    volume.connect(soundContext.destination);
-    tone.start(now);
-    tone.stop(now + 0.36);
+    for (const [frequency, delay] of [[523.25, 0], [659.25, 0.12]]) {
+      const tone = soundContext.createOscillator();
+      const volume = soundContext.createGain();
+      const start = soundContext.currentTime + delay;
+      tone.frequency.value = frequency;
+      volume.gain.setValueAtTime(0.001, start);
+      volume.gain.exponentialRampToValueAtTime(0.07, start + 0.035);
+      volume.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+      tone.connect(volume);
+      volume.connect(soundContext.destination);
+      tone.start(start);
+      tone.stop(start + 0.25);
+    }
   }
 
   function stopInboxSound() {
-    clearInterval(soundTimer);
-    soundTimer = undefined;
     soundContext?.close().catch(() => {});
     soundContext = undefined;
     soundButton?.setAttribute('aria-pressed', 'false');
-    if (soundHelp) soundHelp.textContent = 'Sound off. Turn it on to hear a preview.';
+    if (soundHelp) soundHelp.textContent = '';
   }
 
   soundButton?.addEventListener('click', async () => {
@@ -1712,21 +1743,7 @@
       if (context.state !== 'running') throw Error('The browser could not enable inbox sound.');
       playInboxSound();
       soundButton.setAttribute('aria-pressed', 'true');
-      if (soundHelp) soundHelp.textContent = 'Sound on. Keep this tab visible to hear new requests.';
-      soundTimer = setInterval(async () => {
-        if (document.hidden || !state.session || backgroundRefresh || loadedGeneration !== state.generation) return;
-        backgroundRefresh = true;
-        try {
-          const generation = state.generation;
-          const accountId = byId('clinic-account').value;
-          const locationId = byId('clinic-location').value;
-          const query = new URLSearchParams({ accountId, locationId, limit: '100' });
-          const inbox = await request('/clinic/inbox?' + query);
-          if (soundContext !== context || document.hidden || generation !== state.generation) return;
-          if ([...inboxAlertKeys(inbox)].some(key => !inboxSnapshot.keys.has(key))) await refreshActivity(true);
-        } catch { /* The next refresh will retry without interrupting staff. */ }
-        finally { backgroundRefresh = false; }
-      }, 20000);
+      if (soundHelp) soundHelp.textContent = 'Chimes play while Daily work is visible.';
     } catch (error) {
       stopInboxSound();
       if (soundHelp) soundHelp.textContent = error.message;

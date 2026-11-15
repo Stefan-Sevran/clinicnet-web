@@ -144,7 +144,11 @@
       <!-- Clinic Daily work -->
       <div id="clinic-daily" class="clinic-daily" hidden>
         <section class="clinic-panel clinic-daily-primary" aria-labelledby="clinic-inbox-title">
-          <h2 id="clinic-inbox-title" tabindex="-1">Activity inbox</h2>
+          <div class="clinic-inbox-heading">
+            <h2 id="clinic-inbox-title" tabindex="-1">Activity inbox</h2>
+            <button id="clinic-inbox-sound" type="button" class="clinic-secondary" aria-pressed="false" aria-describedby="clinic-inbox-sound-help">Inbox sound</button>
+          </div>
+          <p id="clinic-inbox-sound-help" role="status"></p>
           <div class="clinic-inbox-filters" role="group" aria-label="Filter activity">
             <button type="button" data-filter="all" aria-pressed="true">All activity</button>
             <button type="button" data-filter="attention" aria-pressed="false">Needs attention</button>
