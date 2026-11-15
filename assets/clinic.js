@@ -891,7 +891,7 @@
         }
         if (event.details?.requestedTime) {
           const timing = document.createElement('small');
-          timing.textContent = event.details.requestedTime;
+          timing.textContent = 'Requested time · ' + event.details.requestedTime;
           row.append(timing);
         }
         const alert = document.createElement('small');
@@ -928,16 +928,20 @@
         }
         const actions = latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
-            ['booked', 'Mark booked'], ['reopened', 'Release claim'], ['handled', 'Mark handled']
+            ['booked', 'Confirm booking'], ['reopened', 'Release assignment'], ['handled', 'Mark handled']
           ] : []) :
           latest?.action === 'handled' ? [['reopened', 'Reopen']] :
-          [['claimed', 'Claim inquiry'], ['handled', 'Mark handled']];
+          [['claimed', 'Assign to me'], ['handled', 'Mark handled']];
+        if ((!latest || latest.action === 'reopened') && event.kind === 'booking.requested') {
+          actions.unshift(['booked', 'Confirm booking']);
+        }
         if (actions.length) {
           const controls = document.createElement('div');
           for (const [action, label] of actions) {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'clinic-secondary clinic-followup-button';
+            button.className = 'clinic-followup-button';
+            if (action !== 'booked') button.classList.add('clinic-secondary');
             button.textContent = label;
             button.addEventListener('click', () => {
               if (action === 'booked') showAppointmentEditor(event, controls, button);
@@ -1041,9 +1045,9 @@
     const form = document.createElement('form');
     form.className = 'clinic-appointment-editor';
     form.innerHTML = '<label>Confirmed appointment <input type="datetime-local" required></label>' +
-      '<small></small><button type="submit" class="clinic-secondary">Save booking</button>' +
+      '<small></small><button type="submit" class="clinic-secondary">Save confirmation</button>' +
       '<button type="button" class="clinic-secondary">Cancel</button>';
-    form.querySelector('small').textContent = 'Enter the time in your device time zone (' +
+    form.querySelector('small').textContent = 'After agreeing a time with the patient, enter it in your device time zone (' +
       Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
     const input = form.querySelector('input');
     form.querySelector('[type="button"]').addEventListener('click', () => {
@@ -1083,7 +1087,7 @@
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
-        claimed: 'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
+        claimed: 'Inquiry moved to Assigned to me. Confirm the booking after agreeing a time with the patient.',
         booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
         reopened: 'Inquiry available for follow-up.'
