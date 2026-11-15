@@ -259,8 +259,14 @@
   }
 
   function messengerTestChat(setup) {
-    const pageId = String(setup.pageId || '');
-    return /^\d{5,30}$/.test(pageId) ? 'https://m.me/' + pageId : setup.pageUrl;
+    if (/^\d{5,30}$/.test(String(setup.pageId || ''))) return 'https://m.me/' + setup.pageId;
+    let page;
+    try { page = new URL(setup.pageUrl); }
+    catch { return ''; }
+    if (page.origin !== 'https://www.facebook.com') return '';
+    const pageId = page.pathname === '/profile.php' ? page.searchParams.get('id') :
+      /^\/(\d{5,30})\/?$/.exec(page.pathname)?.[1];
+    return /^\d{5,30}$/.test(pageId) ? 'https://m.me/' + pageId : '';
   }
 
   function renderMessengerGuide({ resetFacts = false } = {}) {
@@ -306,38 +312,53 @@
     byId('clinic-messenger-use-import').setAttribute('aria-expanded', String(!factsForm.hidden && Boolean(importedLocation)));
     show('clinic-messenger-cancel-facts', factsReady || importedLocation);
     byId('clinic-messenger-connect-help').textContent = authorized ?
-      (connected ? 'Your Facebook Page is connected.' : 'Facebook approved access. Verify delivery in step 3.') :
-      (factsReady ? 'Sign in with the Facebook profile that manages this Page and select it when asked.' : 'Confirm your clinic facts first.');
+      (connected ? 'Your Facebook Page is connected. You can go straight to the reply test.' :
+        'Facebook approved access. Verify delivery in step 3.') :
+      (factsReady ? 'Give Eden access to receive and reply to messages for your clinic’s Page.' : 'Confirm your clinic facts first.');
+    const connectOptions = byId('clinic-messenger-connect-options');
+    const connectState = factsReady ? (authorized ? 'authorized' : 'ready') : 'waiting';
+    if (connectOptions.dataset.state !== connectState ||
+        connectOptions.dataset.location !== setup.locationId) {
+      connectOptions.open = connectState === 'ready';
+      connectOptions.dataset.state = connectState;
+      connectOptions.dataset.location = setup.locationId;
+    }
+    connectOptions.hidden = !factsReady;
+    byId('clinic-messenger-connect-summary').textContent = authorized ? 'Connection options' : 'What to click in Facebook';
     const connect = byId('clinic-messenger-connect');
-    connect.textContent = authorized ? 'Reconnect Messenger' : 'Connect Messenger';
+    connect.textContent = authorized ? 'Reconnect in Facebook' : 'Continue to Facebook';
     connect.classList.toggle('clinic-secondary', authorized);
-    connect.hidden = !factsReady;
+    const chatUrl = canSend ? messengerTestChat(setup) : '';
     const help = byId('clinic-messenger-test-help');
     let instruction = authorized
       ? 'Confirm your clinic facts to start the private reply test.'
       : 'Confirm your clinic facts and connect Facebook to start the test.';
     if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created.';
     else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
-    else if (opened && canSend) instruction = 'In the Messenger tab, paste the test message into the message box and press Send. Then return here.';
-    else if (opened) instruction = 'We’ll look for Eden’s reply here after you send the test message.';
-    else if (canSend) instruction = 'Open the clinic chat from your personal Facebook profile. Paste the copied message into the message box, press Send, then return here.';
+    else if (canSend) instruction = 'From your personal Facebook profile, paste the test message into the private chat with ' +
+      setup.clinicName + ' and press Send. Then return here. Posts and comments on Facebook are public.';
+    else if (opened) instruction = 'We’ll look for Eden’s reply after you send the test message in the clinic’s private Messenger chat.';
     else if (ready) instruction = expired ? 'This test message expired. Create a new one to continue.' :
       'Send a private message to check that Eden replies and brings the inquiry here.';
     if (help.textContent !== instruction) help.textContent = instruction;
     byId('clinic-messenger-test-instructions').hidden = !canSend;
     byId('clinic-messenger-test-recovery').hidden = !opened;
-    byId('clinic-messenger-test-retry-send').hidden = !canSend;
+    show('clinic-messenger-test-retry-send', canSend && chatUrl && setup.pageUrl);
     const start = byId('clinic-messenger-start-test');
     show(start.id, ready && (!test ? !waiting : claimed));
-    start.textContent = claimed ? 'Run another test' : 'Create test message';
+    start.textContent = claimed ? 'Run another test' : 'Prepare a test message';
     start.classList.toggle('clinic-secondary', Boolean(claimed));
-    show('clinic-messenger-test-page', canSend);
+    show('clinic-messenger-test-page', chatUrl);
+    show('clinic-messenger-test-page-fallback', canSend && !chatUrl && setup.pageUrl);
     show('clinic-messenger-check-test', opened);
     show('clinic-messenger-claim-test', test && !claimed);
     if (canSend) {
       byId('clinic-messenger-test-message').value = setupTest.message;
-      byId('clinic-messenger-test-page').href = messengerTestChat(setup);
-      byId('clinic-messenger-reopen-page').href = setup.pageUrl;
+      if (chatUrl) byId('clinic-messenger-test-page').href = chatUrl;
+      if (setup.pageUrl) {
+        byId('clinic-messenger-find-page').href = setup.pageUrl;
+        byId('clinic-messenger-reopen-page').href = setup.pageUrl;
+      }
     }
   }
 
@@ -426,8 +447,14 @@
       if (selectedMessengerGuide()?.locationId !== locationId) return;
       setupTest = test;
       byId('clinic-messenger-test-recovery').open = false;
+      byId('clinic-messenger-test-instructions').open = false;
       renderMessengerGuide();
-      byId('clinic-messenger-test-page').focus();
+      const chat = byId('clinic-messenger-test-page');
+      if (chat.hidden) {
+        const instructions = byId('clinic-messenger-test-instructions');
+        instructions.open = true;
+        byId('clinic-messenger-copy-test').focus();
+      } else chat.focus();
     } catch (error) {
       if (selectedMessengerGuide()?.locationId === setup.locationId) messengerGuideStatus(error.message, 'error');
     } finally { button.disabled = false; }
@@ -447,6 +474,7 @@
       return true;
     } catch {
       if (attempt === setupTest && !guide.hidden) {
+        byId('clinic-messenger-test-instructions').open = true;
         field.focus();
         field.select();
         messengerGuideStatus('Copy the selected test message and paste it into the clinic’s Messenger chat.');
@@ -456,6 +484,12 @@
   }
   byId('clinic-messenger-copy-test').addEventListener('click', async () => {
     if (await copySetupMessage()) messengerGuideStatus('Test message copied.', 'success');
+  });
+  byId('clinic-messenger-find-page').addEventListener('click', () => {
+    if (!setupTest?.message) return;
+    setupTest.opened = true;
+    renderMessengerGuide();
+    byId('clinic-messenger-check-test').focus();
   });
   byId('clinic-messenger-test-page').addEventListener('click', event => {
     if (!setupTest?.message || setupTest.expiresAt <= Date.now()) {
@@ -1408,7 +1442,7 @@
     sessionStorage.removeItem(messengerStorageKey);
     const expected = saved?.startsWith('{') ? JSON.parse(saved) : { ...legacyMessengerConnect, state: saved };
     if (!expected.accountId || !expected.locationId || expected.state !== returnedState) {
-      throw Error('Messenger sign-in expired. Click Connect Messenger to try again.');
+      throw Error('Messenger sign-in expired. Return to the Facebook connection step to try again.');
     }
     if (!code) throw Error('Messenger authorization was cancelled. You can connect again when ready.');
     const { accountId, locationId } = expected;
@@ -1424,7 +1458,7 @@
     if (!guide.hidden) {
       switchWorkspaceView('setup');
       channelSteps.find(step=>step.channel==='facebook_messenger').panel.open = true;
-      byId('clinic-messenger-title').focus();
+      byId('clinic-messenger-test-help').focus();
     }
   }
 

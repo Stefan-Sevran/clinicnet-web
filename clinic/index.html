@@ -8,11 +8,11 @@
 <link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-16">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-17">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-16"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-17"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -155,30 +155,38 @@ fetchpriority="high"
           <li>
             <h3>Connect your Facebook Page</h3>
             <p id="clinic-messenger-connect-help"></p>
-            <button id="clinic-messenger-connect" type="button" hidden>Connect Messenger</button>
+            <details id="clinic-messenger-connect-options" class="clinic-messenger-recovery" hidden>
+              <summary id="clinic-messenger-connect-summary">What to click in Facebook</summary>
+              <ul class="clinic-messenger-directions">
+                <li>Use the Facebook profile that manages your clinic’s Page.</li>
+                <li>Click <strong>Continue</strong> to reuse the access you already gave Eden. Use <strong>Edit settings</strong> to add the clinic’s Page or update its permissions.</li>
+                <li>If Facebook asks you to choose Pages, select your clinic’s Page, keep any Pages you’ve already connected selected, and approve the requested access. When you return to Workspace, test your reply below.</li>
+              </ul>
+              <button id="clinic-messenger-connect" type="button">Continue to Facebook</button>
+            </details>
           </li>
           <li>
             <h3>Test your Messenger reply</h3>
             <p id="clinic-messenger-test-help" role="status" tabindex="-1"></p>
-            <div id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions" hidden>
-              <label for="clinic-messenger-test-message">Private test message</label>
-              <div class="clinic-messenger-copy-field">
-                <input id="clinic-messenger-test-message" readonly>
-                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary" aria-label="Copy test message" title="Copy test message">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
-                </button>
-              </div>
-            </div>
             <div id="clinic-messenger-test-actions" class="clinic-messenger-actions">
-              <button id="clinic-messenger-start-test" type="button" hidden>Create test message</button>
-              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy message and open Messenger</a>
+              <button id="clinic-messenger-start-test" type="button" hidden>Prepare a test message</button>
+              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy message and open private chat</a>
               <button id="clinic-messenger-check-test" type="button" hidden>Check for reply</button>
               <button id="clinic-messenger-claim-test" type="button" hidden>Claim test inquiry</button>
             </div>
+            <p id="clinic-messenger-test-page-fallback" hidden>Open the clinic’s <a id="clinic-messenger-find-page" target="_blank" rel="noopener noreferrer">Facebook Page</a> and select <strong>Message</strong> to open the private chat.</p>
+            <details id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions clinic-messenger-recovery" hidden>
+              <summary>Copy the test message manually</summary>
+              <label for="clinic-messenger-test-message">Private test message</label>
+              <div class="clinic-messenger-copy-field">
+                <input id="clinic-messenger-test-message" readonly>
+                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary">Copy</button>
+              </div>
+            </details>
             <details id="clinic-messenger-test-recovery" class="clinic-messenger-recovery" hidden>
               <summary>Having trouble?</summary>
               <div id="clinic-messenger-test-retry-send" hidden>
-                <p>If the chat didn’t open, open your clinic’s Facebook Page from your personal profile and select <strong>Message</strong>.</p>
+                <p>Open your clinic’s Facebook Page from your personal profile and select <strong>Message</strong> to open the private chat.</p>
                 <a id="clinic-messenger-reopen-page" target="_blank" rel="noopener noreferrer">Open Facebook Page</a>
               </div>
               <button id="clinic-messenger-restart-test" class="clinic-secondary" type="button">Start a new test</button>

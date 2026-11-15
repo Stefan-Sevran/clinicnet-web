@@ -91,6 +91,10 @@ body[data-page="clinic"] { background: #f7f5fb; color: #19182f; }
 .clinic-messenger-recovery { margin-top: 10px; color: #5c5872; }
 .clinic-messenger-recovery summary { cursor: pointer; }
 .clinic-messenger-recovery > button { margin-top: 8px; }
+.clinic-messenger-directions { margin: 8px 0 0; padding-inline-start: 20px; }
+.clinic-messenger-directions li + li { margin-top: 5px; }
+.clinic-messenger-test-instructions > label { display: block; margin-top: 8px; }
+#clinic-messenger-test-page-fallback { margin-top: 10px; }
 .clinic-messenger-guide :is(textarea, input, a):focus-visible { outline: 3px solid #a790f0; outline-offset: 2px; }
 .clinic-messenger-guide .clinic-status { margin-top: 12px; }
 .clinic-channel-progress { list-style: none; margin: 16px 0 0; padding: 0; }
