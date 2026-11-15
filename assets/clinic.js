@@ -278,14 +278,18 @@
       return;
     }
     const factsReady = hasMessengerFacts(setup.facts);
-    if (guideLocation !== setup.locationId || resetFacts) {
-      if (guideLocation !== setup.locationId) {
+    const newLocation = guideLocation !== setup.locationId;
+    const draft = ownerSetupFor(setup);
+    if (newLocation || resetFacts) {
+      if (newLocation) {
         setupTest = testReturn?.accountId === setup.accountId && testReturn.locationId === setup.locationId
           ? { testId: testReturn.testId, opened: true } : null;
         importedLocation = null;
       }
       guideLocation = setup.locationId;
-      fillMessengerFacts(setup.facts);
+      const prefill = newLocation && !setup.facts && draft;
+      if (prefill) importedLocation = setup.locationId;
+      fillMessengerFacts(prefill ? draft.facts : setup.facts);
       factsForm.hidden = factsReady;
       messengerGuideStatus();
     }
@@ -301,13 +305,15 @@
     const canSend = waiting && setupTest.message;
     const opened = waiting && setupTest.opened;
     byId('clinic-messenger-page').textContent = 'Facebook Page · ' + setup.clinicName;
-    const draft = ownerSetupFor(setup);
     show('clinic-messenger-import', draft && !importedLocation);
     if (draft) {
       byId('clinic-messenger-import-help').textContent = 'Review the details from ' + draft.clinic +
         ' before saving them for Messenger.';
     }
     show('clinic-messenger-edit-facts', factsReady && factsForm.hidden);
+    byId('clinic-messenger-facts-help').textContent = importedLocation ?
+      'These details come from your website receptionist setup. Review or edit them before saving for Messenger.' :
+      'Use the information you already give to patients. Eden uses these details when it replies on Messenger.';
     byId('clinic-messenger-edit-facts').setAttribute('aria-expanded', String(!factsForm.hidden && !importedLocation));
     byId('clinic-messenger-use-import').setAttribute('aria-expanded', String(!factsForm.hidden && Boolean(importedLocation)));
     show('clinic-messenger-cancel-facts', factsReady || importedLocation);
