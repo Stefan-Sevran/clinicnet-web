@@ -861,12 +861,46 @@
     return line;
   }
 
+  function patientName(details) {
+    return typeof details?.patientName === 'string' ? details.patientName.trim() : '';
+  }
+
+  function appendPatientDetails(row, details) {
+    const name = patientName(details);
+    if (name) {
+      const line = document.createElement('small');
+      line.textContent = 'Name · ' + name;
+      row.append(line);
+    }
+    const contact = typeof details?.contact === 'string' ? details.contact.trim() : '';
+    if (!contact) return;
+
+    const email = /^([a-z0-9._%+-]+)@([a-z0-9.-]+\.[a-z]{2,})$/i.exec(contact);
+    const phone = contact.replace(/[(). -]/g, '');
+    const isPhone = /^\+?\d{7,15}$/.test(phone);
+    const line = document.createElement('small');
+    if (email || isPhone) {
+      line.textContent = email ? 'Email · ' : 'Phone · ';
+      const link = document.createElement('a');
+      link.href = email ? 'mailto:' + encodeURIComponent(email[1]) + '@' + email[2] : 'tel:' + phone;
+      link.textContent = contact;
+      line.append(link);
+    } else {
+      line.textContent = 'Contact · ' + contact;
+    }
+    row.append(line);
+  }
+
   function renderInboxEvents(events, fallback) {
     const container = byId('clinic-inbox');
     if (!events.length) return empty(container, fallback);
     container.replaceChildren();
     for (const event of events) {
       const row = document.createElement('article'); row.className = 'clinic-event';
+      if (event.event_key) {
+        row.dataset.eventKey = event.event_key;
+        row.tabIndex = -1;
+      }
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
       const setupSample = isMessengerSetupSample(event);
@@ -906,7 +940,7 @@
         note.textContent = 'Fictional setup test · No appointment created';
         row.append(note);
       } else if (needsFollowup) {
-        if (event.channel === 'facebook_messenger' && event.details?.service) {
+        if (event.details?.service) {
           const service = document.createElement('small');
           service.textContent = 'Service · ' + event.details.service;
           row.append(service);
@@ -916,6 +950,7 @@
           timing.textContent = 'Requested time · ' + event.details.requestedTime;
           row.append(timing);
         }
+        if (event.details?.demo !== true) appendPatientDetails(row, event.details);
         const alert = document.createElement('small');
         const alertLabels = {
           sent: 'Email alert: sent to provider',
@@ -966,6 +1001,8 @@
           }
           row.append(controls);
         }
+      } else if (event.details?.demo !== true && ['booking.updated', 'booking.cancelled'].includes(event.kind)) {
+        appendPatientDetails(row, event.details);
       }
       container.append(row);
     }
@@ -1011,6 +1048,20 @@
     renderInboxEvents(...views[inboxFilter]);
   }
 
+  function openBookedActivity(eventKey) {
+    const locate = () => [...byId('clinic-inbox').children].find(row => row.dataset.eventKey === eventKey);
+    let card = locate();
+    if (!card) {
+      inboxFilter = 'booked';
+      renderDailyInbox();
+      card = locate();
+    }
+    if (card) {
+      card.focus({ preventScroll: true });
+      card.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
   function renderDailyWork(inbox, bookings, locationId) {
     const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
     for (const booking of bookings) {
@@ -1043,13 +1094,18 @@
     if (appointments.length) {
       list.replaceChildren();
       for (const { event, date } of appointments) {
-        const row = document.createElement('div');
-        row.className = 'clinic-event';
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'clinic-event clinic-secondary clinic-today-booking';
         const title = document.createElement('strong');
-        title.textContent = event.details?.service || event.summary || 'Appointment';
+        const name = patientName(event.details);
+        const service = event.details?.service;
+        title.textContent = name || service || event.summary || 'Appointment';
         const time = document.createElement('small');
-        time.textContent = [timeLabel.format(date), labels[event.channel] || event.channel].filter(Boolean).join(' · ');
+        time.textContent = [timeLabel.format(date), name && service, labels[event.channel] || event.channel]
+          .filter(Boolean).join(' · ');
         row.append(title, time);
+        row.addEventListener('click', () => openBookedActivity(event.event_key));
         list.append(row);
       }
     } else {
@@ -1074,11 +1130,11 @@
     form.className = 'clinic-appointment-editor';
     const help = document.createElement('p');
     const cancelling = action === 'cancelled';
-    let input;
+    let input, timeZone;
     if (cancelling) {
       help.textContent = 'Cancel this appointment? It will remain in All activity as Cancelled.';
     } else {
-      const timeZone = clinicTimeZone(event.location_id);
+      timeZone = clinicTimeZone(event.location_id);
       const locationName = state.locations.find(location => location.id === event.location_id)?.name;
       const label = document.createElement('label');
       label.textContent = 'Appointment date and time';
@@ -1099,6 +1155,18 @@
     errorLine.className = 'clinic-appointment-error';
     errorLine.setAttribute('role', 'alert');
     errorLine.hidden = true;
+    const checkAppointmentTime = () => {
+      if (!input) return true;
+      input.min = clinicDateTimeValue(new Date(Date.now() + 60000).toISOString(), timeZone);
+      const pastTime = input.value && input.value < input.min;
+      if (pastTime) errorLine.textContent = 'Choose an appointment time in the future.';
+      errorLine.hidden = !pastTime;
+      return !pastTime;
+    };
+    if (input) {
+      input.addEventListener('input', checkAppointmentTime);
+      checkAppointmentTime();
+    }
     const group = document.createElement('div');
     group.className = 'clinic-appointment-actions';
     const save = document.createElement('button');
@@ -1123,7 +1191,7 @@
     });
     form.addEventListener('submit', async submission => {
       submission.preventDefault();
-      if (save.disabled) return;
+      if (save.disabled || !checkAppointmentTime()) return;
       save.disabled = back.disabled = true;
       if (input) input.disabled = true;
       errorLine.hidden = true;

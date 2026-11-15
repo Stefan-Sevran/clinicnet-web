@@ -400,3 +400,13 @@ body[data-page="clinic"] .ecn-site-header::before {
 }
 .clinic-appointment-editor .clinic-appointment-error { color: #8b3025; }
 .clinic-appointment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.clinic-panel .clinic-today-booking {
+  width: 100%;
+  text-align: start;
+}
+.clinic-today-booking small { display: block; font-weight: 400; }
+#clinic-inbox .clinic-event[tabindex="-1"]:focus {
+  outline: 2px solid #4b7960;
+  outline-offset: 2px;
+}
