@@ -258,6 +258,11 @@
       typeof facts?.[name] === 'string' && facts[name].trim());
   }
 
+  function messengerTestChat(setup) {
+    const pageId = String(setup.pageId || '');
+    return /^\d{5,30}$/.test(pageId) ? 'https://m.me/' + pageId : setup.pageUrl;
+  }
+
   function renderMessengerGuide({ resetFacts = false } = {}) {
     const setup = selectedMessengerGuide();
     guide.hidden = !setup;
@@ -313,29 +318,25 @@
       : 'Confirm your clinic facts and connect Facebook to start the test.';
     if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created.';
     else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
-    else if (opened) instruction = 'Sent the test message? We’ll look for Eden’s reply here.';
-    else if (canSend) instruction = 'On Facebook, click Message. Paste and send the test message from your personal profile, then return here.';
+    else if (opened && canSend) instruction = 'In the Messenger tab, paste the test message into the message box and press Send. Then return here.';
+    else if (opened) instruction = 'We’ll look for Eden’s reply here after you send the test message.';
+    else if (canSend) instruction = 'Open the clinic chat from your personal Facebook profile. Paste the copied message into the message box, press Send, then return here.';
     else if (ready) instruction = expired ? 'This test message expired. Create a new one to continue.' :
       'Send a private message to check that Eden replies and brings the inquiry here.';
     if (help.textContent !== instruction) help.textContent = instruction;
-    const instructions = byId('clinic-messenger-test-instructions');
-    const recovery = byId('clinic-messenger-test-recovery');
-    const retrySend = byId('clinic-messenger-test-retry-send');
-    const instructionsParent = opened ? retrySend : byId('clinic-messenger-test-send');
-    if (instructions.parentElement !== instructionsParent) instructionsParent.append(instructions);
-    instructions.hidden = !canSend;
-    recovery.hidden = !opened;
-    retrySend.hidden = !canSend;
+    byId('clinic-messenger-test-instructions').hidden = !canSend;
+    byId('clinic-messenger-test-recovery').hidden = !opened;
+    byId('clinic-messenger-test-retry-send').hidden = !canSend;
     const start = byId('clinic-messenger-start-test');
     show(start.id, ready && (!test ? !waiting : claimed));
     start.textContent = claimed ? 'Run another test' : 'Create test message';
     start.classList.toggle('clinic-secondary', Boolean(claimed));
-    show('clinic-messenger-test-page', canSend && !opened);
+    show('clinic-messenger-test-page', canSend);
     show('clinic-messenger-check-test', opened);
     show('clinic-messenger-claim-test', test && !claimed);
     if (canSend) {
       byId('clinic-messenger-test-message').value = setupTest.message;
-      byId('clinic-messenger-test-page').href = setup.pageUrl;
+      byId('clinic-messenger-test-page').href = messengerTestChat(setup);
       byId('clinic-messenger-reopen-page').href = setup.pageUrl;
     }
   }
@@ -446,10 +447,9 @@
       return true;
     } catch {
       if (attempt === setupTest && !guide.hidden) {
-        if (attempt.opened) byId('clinic-messenger-test-recovery').open = true;
         field.focus();
         field.select();
-        messengerGuideStatus('Copy the selected test message, then open Facebook.');
+        messengerGuideStatus('Copy the selected test message and paste it into the clinic’s Messenger chat.');
       }
       return false;
     }
@@ -458,7 +458,7 @@
     if (await copySetupMessage()) messengerGuideStatus('Test message copied.', 'success');
   });
   byId('clinic-messenger-test-page').addEventListener('click', event => {
-    if (setupTest?.expiresAt <= Date.now()) {
+    if (!setupTest?.message || setupTest.expiresAt <= Date.now()) {
       event.preventDefault();
       renderMessengerGuide();
       return;
@@ -467,7 +467,9 @@
     messengerGuideStatus();
     renderMessengerGuide();
     byId('clinic-messenger-check-test').focus();
-    void copySetupMessage();
+    void copySetupMessage().then(copied => {
+      if (copied) messengerGuideStatus('Copied. Paste the test message into the clinic’s Messenger chat and press Send.', 'success');
+    });
   });
   async function checkSetupReply() {
     const attempt = setupTest;
