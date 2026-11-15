@@ -62,7 +62,7 @@
   daily.hidden = true;
   daily.innerHTML = `
     <section class="clinic-panel clinic-daily-primary" aria-labelledby="clinic-attention-title">
-      <h2 id="clinic-attention-title">Needs attention <span id="clinic-attention-count" class="clinic-daily-count"></span></h2>
+      <h2 id="clinic-attention-title" tabindex="-1">Needs attention <span id="clinic-attention-count" class="clinic-daily-count"></span></h2>
       <p>Unclaimed inquiries from the recent inbox, oldest first.</p>
       <div id="clinic-attention" class="clinic-events"></div>
     </section>
@@ -337,9 +337,9 @@
     let instruction = authorized
       ? 'Confirm your clinic facts to start the private reply test.'
       : 'Confirm your clinic facts and connect Facebook to start the test.';
-    if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created.';
+    if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created. New inquiries appear in Daily work.';
     else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
-    else if (canSend) instruction = 'From your personal Facebook profile, paste the test message into the private chat with ' +
+    else if (canSend) instruction = 'If Facebook asks you to sign in, use your personal profile. Paste the test message into the private chat with ' +
       setup.clinicName + ' and press Send. Then return here. Posts and comments on Facebook are public.';
     else if (opened) instruction = 'We’ll look for Eden’s reply after you send the test message in the clinic’s private Messenger chat.';
     else if (ready) instruction = expired ? 'This test message expired. Create a new one to continue.' :
@@ -356,6 +356,7 @@
     show('clinic-messenger-test-page-fallback', canSend && !chatUrl && setup.pageUrl);
     show('clinic-messenger-check-test', opened);
     show('clinic-messenger-claim-test', test && !claimed);
+    show('clinic-messenger-open-daily', claimed);
     if (canSend) {
       byId('clinic-messenger-test-message').value = setupTest.message;
       if (chatUrl) byId('clinic-messenger-test-page').href = chatUrl;
@@ -547,6 +548,10 @@
     if (!test) return;
     await updateFollowup(test, 'claimed', byId('clinic-messenger-test-actions'));
     if (!guide.hidden && byId('clinic-messenger-claim-test').hidden) byId('clinic-messenger-test-help').focus();
+  });
+  byId('clinic-messenger-open-daily').addEventListener('click', () => {
+    switchWorkspaceView('daily', true);
+    byId('clinic-attention-title').focus();
   });
 
   function createChannelSteps() {
