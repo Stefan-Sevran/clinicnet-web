@@ -56,13 +56,13 @@
       <section id="clinic-team-invite" class="clinic-panel" hidden>
         <details>
           <summary>Invite a teammate</summary>
-          <p>Send the private link to their work email. It expires in two hours and opens at the location and service you choose. The role applies across this clinic account.</p>
+          <p>The link expires in two hours and opens Daily work at the selected location. The role applies across this clinic account.</p>
           <form id="clinic-invite-form" class="clinic-form clinic-grid">
             <label>Work email<input name="email" type="email" maxlength="160" required></label>
-            <label>Role<select name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></label>
-            <label>Start at<select name="channel"><option value="website_chat">Website chat</option><option value="facebook_messenger">Messenger</option><option value="ai_phone">Missed calls</option></select></label>
+            <label>Role<select name="role" aria-describedby="clinic-invite-roles"><option value="staff">Staff</option><option value="admin">Admin</option></select></label>
             <button type="submit">Create invite link</button>
           </form>
+          <p id="clinic-invite-roles">Choose Staff to handle inquiries and bookings. Choose Admin if they also need to set up channels or assign inquiries to teammates.</p>
           <div id="clinic-invite-link" hidden>
             <label class="clinic-form">Private invitation link<input id="clinic-invite-url" readonly></label>
             <button type="button" class="clinic-secondary" id="clinic-invite-copy">Copy link</button>

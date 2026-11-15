@@ -667,11 +667,11 @@
   function updateHeroAction() {
     const needsWorkspace = !byId('clinic-create').hidden;
     const channelsReady = !daily.hidden;
-    const allConnected = channelsReady && channelSteps.every(step => step.link.dataset.connected === 'true');
-    heroAction.hidden = !state.session || (!needsWorkspace && (!channelsReady || (allConnected && workspaceView === 'daily')));
+    const opensDaily = channelsReady && (!canManageClinic || channelSteps.every(step => step.link.dataset.connected === 'true'));
+    heroAction.hidden = !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
     if (heroAction.hidden) return;
-    heroAction.setAttribute('href', needsWorkspace ? '#clinic-create' : '/clinic/?view=' + (allConnected ? 'daily' : 'setup'));
-    heroAction.textContent = needsWorkspace ? 'Create your workspace' : allConnected ? 'Open Daily work' : 'Channel setup';
+    heroAction.setAttribute('href', needsWorkspace ? '#clinic-create' : '/clinic/?view=' + (opensDaily ? 'daily' : 'setup'));
+    heroAction.textContent = needsWorkspace ? 'Create your workspace' : opensDaily ? 'Open Daily work' : 'Channel setup';
   }
 
   function renderWorkspaceHero(signedIn) {
@@ -1874,7 +1874,8 @@
     try {
       const {data, error} = await state.client.rpc('create_clinic_workspace_invite', {
         p_account_id: accountId, p_location_id: locationId, p_email: fields.get('email'),
-        p_role: fields.get('role'), p_channel: fields.get('channel')
+        // The invitation RPC still requires a legacy setup channel. Accepted invites open Daily work.
+        p_role: fields.get('role'), p_channel: 'website_chat'
       });
       if (error) throw Error(error.message || 'Could not create the invitation.');
       if (!/^[a-f0-9]{64}$/.test(data || '')) throw Error('The invitation could not be verified.');
@@ -1939,10 +1940,15 @@
         const invitation = await acceptWorkspaceInvite();
         if (state.session?.user?.id !== session.user?.id) return;
         const selection = invitation || initialSelection;
-        await refreshAccounts(testReturn?.accountId || selection?.accountId, testReturn?.locationId || selection?.locationId);
-        focusSetupChannel(selection);
+        await refreshAccounts(invitation?.accountId || testReturn?.accountId || selection?.accountId,
+          invitation?.locationId || testReturn?.locationId || selection?.locationId);
+        if (state.session?.user?.id !== session.user?.id) return;
+        const staffDefault = state.locations.length > 0 && !canManageClinic && !query.has('view') &&
+          !selection?.channel && !testReturn;
+        if (invitation || staffDefault) openDailyWork();
+        else focusSetupChannel(selection);
         if (state.locations.length) initialSelection = null;
-        if (testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
+        if (!invitation && testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
           switchWorkspaceView('setup');
           channelSteps.find(step=>step.channel==='facebook_messenger').panel.open = true;
           byId('clinic-messenger-test-help').focus();
