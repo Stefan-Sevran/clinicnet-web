@@ -857,15 +857,18 @@
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = hasConversation ? 'Open Messenger conversation' : 'Open Page inbox';
-    const line = document.createElement('small');
-    line.append(link);
-    return line;
+    return link;
   }
 
-  function messengerConfirmation(event, latest) {
+  function messengerConfirmation(event, latest, messengerLink, previousPanel) {
     if (event.channel !== 'facebook_messenger' || event.details?.demo === true ||
         latest?.action !== 'booked' || latest.recorded_action === 'cancelled' ||
         !Number.isFinite(Date.parse(latest.appointment_at))) return null;
+
+    const href = messengerLink?.href || '';
+    if (previousPanel?.dataset.appointmentAt === latest.appointment_at && previousPanel.dataset.messengerHref === href) {
+      return previousPanel;
+    }
 
     const time = new Intl.DateTimeFormat('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -875,6 +878,8 @@
 
     const panel = document.createElement('details');
     panel.className = 'clinic-messenger-confirmation';
+    panel.dataset.appointmentAt = latest.appointment_at;
+    panel.dataset.messengerHref = href;
     const heading = document.createElement('summary');
     heading.textContent = 'Messenger confirmation';
     const draft = document.createElement('textarea');
@@ -893,17 +898,26 @@
     const feedback = document.createElement('small');
     feedback.setAttribute('role', 'status');
     copy.addEventListener('click', async () => {
+      if (copy.disabled) return;
+      copy.disabled = true;
+      copy.textContent = 'Copying…';
+      feedback.textContent = '';
       try {
         await navigator.clipboard.writeText(draft.value);
-        feedback.textContent = 'Copied. Paste it into the Messenger conversation.';
+        copy.textContent = 'Copied';
+        feedback.textContent = 'Paste the reply into Messenger and send it.';
       } catch {
+        copy.textContent = 'Copy reply';
         draft.focus();
         draft.select();
-        feedback.textContent = 'Reply selected. Copy it, then paste it into Messenger.';
+        feedback.textContent = 'Text selected. Press ⌘C or Ctrl+C to copy it.';
+      } finally {
+        copy.disabled = false;
       }
     });
-    actions.append(copy, feedback);
-    panel.append(heading, draft, actions);
+    actions.append(copy);
+    if (messengerLink) actions.append(messengerLink);
+    panel.append(heading, draft, actions, feedback);
     return panel;
   }
 
@@ -940,6 +954,9 @@
   function renderInboxEvents(events, fallback) {
     const container = byId('clinic-inbox');
     if (!events.length) return empty(container, fallback);
+    const previousPanels = new Map([...container.children].map(row => [
+      row.dataset.eventKey, row.querySelector('.clinic-messenger-confirmation')
+    ]));
     container.replaceChildren();
     for (const event of events) {
       const row = document.createElement('article'); row.className = 'clinic-event';
@@ -956,7 +973,7 @@
       const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
       const assigneeName = clinicTeam.get(latest?.actor_user_id);
       const statusLabel = setupSample ? 'Setup test' : cancelled ? 'Cancelled' : needsFollowup ? ({
-        booked: 'Confirmed',
+        booked: 'Booked',
         claimed: ownClaim ? 'Assigned to you' : 'Assigned to ' + (assigneeName || 'teammate'),
         handled: 'Handled'
       }[latest?.action] || {
@@ -970,7 +987,7 @@
       if (statusLabel) {
         const badge = document.createElement('span');
         badge.className = 'clinic-event-status';
-        if (statusLabel === 'Confirmed') badge.dataset.status = 'confirmed';
+        if (['Booked', 'Confirmed'].includes(statusLabel)) badge.dataset.status = 'confirmed';
         if (statusLabel === 'Cancelled') badge.dataset.status = 'cancelled';
         badge.textContent = statusLabel;
         heading.append(badge);
@@ -1021,7 +1038,12 @@
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
         row.append(alert);
         const messengerLink = event.channel === 'facebook_messenger' && messengerInboxLink(event.details);
-        if (messengerLink) row.append(messengerLink);
+        const confirmation = messengerConfirmation(event, latest, messengerLink, previousPanels.get(event.event_key));
+        if (messengerLink && !confirmation) {
+          const line = document.createElement('small');
+          line.append(messengerLink);
+          row.append(line);
+        }
         if (latest?.appointment_at) {
           const appointment = document.createElement('small');
           const timeZone = clinicTimeZone(event.location_id);
@@ -1072,7 +1094,6 @@
           }
           row.append(controls);
         }
-        const confirmation = messengerConfirmation(event, latest);
         if (confirmation) row.append(confirmation);
       } else if (event.details?.demo !== true && ['booking.updated', 'booking.cancelled'].includes(event.kind)) {
         appendPatientDetails(row, event.details);
@@ -1149,7 +1170,12 @@
       .filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind))
       .sort((a, b) => (Date.parse(b.occurred_at) || 0) - (Date.parse(a.occurred_at) || 0));
     renderDailyInbox();
+    renderTodayAppointments(locationId);
+    daily.hidden = false;
+    updateHeroAction();
+  }
 
+  function renderTodayAppointments(locationId) {
     const timeZone = clinicTimeZone(locationId);
     const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: 'full' });
     const timeLabel = new Intl.DateTimeFormat(undefined, { timeZone, timeStyle: 'short' });
@@ -1187,8 +1213,6 @@
     } else {
       empty(list, 'No confirmed appointments today in recent activity.');
     }
-    daily.hidden = false;
-    updateHeroAction();
   }
 
   function clinicDateTimeValue(instant, timeZone) {
@@ -1247,16 +1271,20 @@
     group.className = 'clinic-appointment-actions';
     const save = document.createElement('button');
     save.type = 'submit';
-    save.textContent = {
-      booked: 'Save confirmation', rescheduled: 'Save new time',
+    const saveLabel = {
+      booked: 'Book appointment', rescheduled: 'Save new time',
       cancelled: 'Yes, cancel booking', restored: 'Confirm restoration'
     }[action];
+    save.textContent = saveLabel;
+    const progress = document.createElement('p');
+    progress.className = 'clinic-appointment-progress';
+    progress.setAttribute('role', 'status');
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'clinic-secondary';
     back.textContent = cancelling ? 'Keep booking' : 'Close';
     group.append(save, back);
-    form.append(help, errorLine, group);
+    form.append(help, errorLine, group, progress);
 
     const rowButtons = [...controls.querySelectorAll('button')];
     rowButtons.forEach(button => { button.disabled = true; });
@@ -1271,7 +1299,10 @@
       save.disabled = back.disabled = true;
       if (input) input.disabled = true;
       errorLine.hidden = true;
+      save.textContent = action === 'booked' ? 'Booking…' : cancelling ? 'Cancelling…' : 'Saving…';
+      progress.textContent = cancelling ? 'Cancelling the appointment…' : 'Saving the appointment…';
       const generation = state.generation;
+      let saved = false;
       try {
         const { error } = await state.client.rpc('save_clinic_appointment', {
           p_account_id: event.account_id, p_location_id: event.location_id, p_event_key: event.event_key,
@@ -1290,20 +1321,32 @@
           errorLine.hidden = false;
           return;
         }
-        await refreshActivity();
+        saved = true;
+        progress.textContent = 'Saved. Updating Daily work…';
+        const followups = await getFollowups(event.account_id, event.location_id);
+        if (generation !== state.generation) return;
+        loadedGeneration = ++state.generation;
+        state.followups = new Map(followups.map(row => [row.event_key, row]));
+        if (action === 'booked') inboxFilter = 'booked';
+        renderDailyInbox();
+        renderTodayAppointments(event.location_id);
         status({
-          booked: 'Booking confirmed.', rescheduled: 'Appointment time updated.',
+          booked: 'Appointment booked.', rescheduled: 'Appointment time updated.',
           cancelled: 'Booking cancelled.', restored: 'Booking restored.'
         }[action], 'success');
-        if (event.channel === 'facebook_messenger' && event.details?.demo !== true &&
-            !cancelling && openBookedActivity(event.event_key, true)) return;
+        if (workspaceView !== 'daily' ||
+            (!cancelling && openBookedActivity(event.event_key, event.channel === 'facebook_messenger'))) return;
         inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
       } catch {
-        errorLine.textContent = 'Could not refresh booking activity. Refresh the workspace before trying again.';
+        errorLine.textContent = saved ? 'The change was saved. Refresh Daily work to see it.' :
+          'Could not verify the change. Refresh Daily work to check the appointment.';
         errorLine.hidden = false;
       } finally {
-        save.disabled = back.disabled = false;
-        if (input) input.disabled = false;
+        progress.textContent = '';
+        save.textContent = saved ? 'Saved' : saveLabel;
+        save.disabled = saved;
+        back.disabled = false;
+        if (input) input.disabled = saved;
       }
     });
     controls.append(form);

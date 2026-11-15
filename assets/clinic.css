@@ -512,3 +512,16 @@ body[data-page="clinic"] .ecn-site-header::before {
 #clinic-inbox-sound { font-size: .875rem; }
 #clinic-inbox-sound[aria-pressed="true"] { background: #e4f5ec; }
 #clinic-inbox-sound-help:not(:empty) { margin-top: 6px; font-size: .875rem; }
+
+
+.clinic-appointment-editor .clinic-appointment-progress {
+  color: #305b48;
+  font-weight: 650;
+}
+
+.clinic-messenger-confirmation > small {
+  display: block;
+  color: #305b48;
+}
+
+.clinic-messenger-confirmation > small:not(:empty) { margin-top: 6px; }
