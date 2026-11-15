@@ -842,6 +842,25 @@
     return '';
   }
 
+  function messengerInboxLink(details) {
+    if (!/^\d{5,30}$/.test(details?.pageId || '')) return null;
+    const url = new URL('https://business.facebook.com/latest/inbox/all/');
+    url.searchParams.set('asset_id', details.pageId);
+    const hasConversation = /^\d{5,30}$/.test(details.senderId || '');
+    if (hasConversation) {
+      url.searchParams.set('selected_item_id', details.senderId);
+      url.searchParams.set('thread_type', 'FB_MESSAGE');
+    }
+    const link = document.createElement('a');
+    link.href = url.href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = hasConversation ? 'Open Messenger conversation' : 'Open Page inbox';
+    const line = document.createElement('small');
+    line.append(link);
+    return line;
+  }
+
   function renderInboxEvents(events, fallback) {
     const container = byId('clinic-inbox');
     if (!events.length) return empty(container, fallback);
@@ -852,8 +871,9 @@
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
       const setupSample = isMessengerSetupSample(event);
       const latest = state.followups.get(event.event_key);
+      const cancelled = latest?.recorded_action === 'cancelled';
       const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
-      const statusLabel = setupSample ? 'Setup test' : needsFollowup ? ({
+      const statusLabel = setupSample ? 'Setup test' : cancelled ? 'Cancelled' : needsFollowup ? ({
         booked: 'Confirmed',
         claimed: ownClaim ? 'Assigned to you' : 'Assigned to teammate',
         handled: 'Handled'
@@ -869,6 +889,7 @@
         const badge = document.createElement('span');
         badge.className = 'clinic-event-status';
         if (statusLabel === 'Confirmed') badge.dataset.status = 'confirmed';
+        if (statusLabel === 'Cancelled') badge.dataset.status = 'cancelled';
         badge.textContent = statusLabel;
         heading.append(badge);
       }
@@ -906,17 +927,8 @@
         alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
         row.append(alert);
-        if (event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
-            !['booked', 'handled'].includes(latest?.action)) {
-          const inboxLink = document.createElement('a');
-          inboxLink.href = 'https://business.facebook.com/latest/inbox/all/?asset_id=' + event.details.pageId;
-          inboxLink.target = '_blank';
-          inboxLink.rel = 'noopener noreferrer';
-          inboxLink.textContent = ownClaim ? 'Reply in Messenger' : 'Open Page inbox';
-          const inboxLinkRow = document.createElement('small');
-          inboxLinkRow.append(inboxLink);
-          row.append(inboxLinkRow);
-        }
+        const messengerLink = event.channel === 'facebook_messenger' && messengerInboxLink(event.details);
+        if (messengerLink) row.append(messengerLink);
         if (latest?.appointment_at) {
           const appointment = document.createElement('small');
           const timeZone = clinicTimeZone(event.location_id);
@@ -926,7 +938,8 @@
           });
           row.append(appointment);
         }
-        const actions = latest?.action === 'booked' ? [] :
+        const actions = cancelled ? [] :
+          latest?.action === 'booked' ? [['rescheduled', 'Change time'], ['cancelled', 'Cancel booking']] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ['booked', 'Confirm booking'], ['reopened', 'Release assignment'], ['handled', 'Mark handled']
           ] : []) :
@@ -944,8 +957,9 @@
             if (action !== 'booked') button.classList.add('clinic-secondary');
             button.textContent = label;
             button.addEventListener('click', () => {
-              if (action === 'booked') showAppointmentEditor(event, controls, button);
-              else updateFollowup(event, action, controls);
+              if (['booked', 'rescheduled', 'cancelled'].includes(action)) {
+                showAppointmentEditor(event, controls, button, action, latest);
+              } else updateFollowup(event, action, controls);
             });
             controls.append(button);
           }
@@ -976,8 +990,11 @@
       const latest = state.followups.get(event.event_key);
       return latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
     });
-    const booked = activity.filter(event => state.followups.get(event.event_key)?.action === 'booked' ||
-      bookingStatus(event) === 'Confirmed');
+    const booked = activity.filter(event => {
+      const followup = state.followups.get(event.event_key);
+      return followup?.recorded_action !== 'cancelled' &&
+        (followup?.action === 'booked' || bookingStatus(event) === 'Confirmed');
+    });
     const tests = dailyEvents.filter(isMessengerSetupSample);
     const views = {
       all: [activity, 'No activity yet for this location.'],
@@ -1041,40 +1058,106 @@
     updateHeroAction();
   }
 
-  function showAppointmentEditor(event, controls, opener) {
+  function clinicDateTimeValue(instant, timeZone) {
+    if (!instant || !Number.isFinite(Date.parse(instant))) return '';
+    const parts = new Intl.DateTimeFormat('en-GB-u-ca-iso8601-nu-latn', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(new Date(instant));
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return values.year + '-' + values.month + '-' + values.day + 'T' + values.hour + ':' + values.minute;
+  }
+
+  function showAppointmentEditor(event, controls, opener, action, latest) {
     const form = document.createElement('form');
     form.className = 'clinic-appointment-editor';
-    form.innerHTML = '<label>Confirmed appointment <input type="datetime-local" required></label>' +
-      '<small></small><button type="submit" class="clinic-secondary">Save confirmation</button>' +
-      '<button type="button" class="clinic-secondary">Cancel</button>';
-    form.querySelector('small').textContent = 'After agreeing a time with the patient, enter it in your device time zone (' +
-      Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
-    const input = form.querySelector('input');
-    form.querySelector('[type="button"]').addEventListener('click', () => {
-      form.remove(); opener.disabled = false; opener.focus();
+    const help = document.createElement('p');
+    const cancelling = action === 'cancelled';
+    let input;
+    if (cancelling) {
+      help.textContent = 'Cancel this appointment? It will remain in All activity as Cancelled.';
+    } else {
+      const timeZone = clinicTimeZone(event.location_id);
+      const locationName = state.locations.find(location => location.id === event.location_id)?.name;
+      const label = document.createElement('label');
+      label.textContent = 'Appointment date and time';
+      input = document.createElement('input');
+      input.type = 'datetime-local';
+      input.required = true;
+      input.value = clinicDateTimeValue(latest?.appointment_at, timeZone);
+      label.append(input);
+      form.append(label);
+      help.textContent = 'Enter the agreed time in ' + (locationName ? locationName + ' time' : 'the clinic’s time zone') +
+        ' (' + timeZone + ').';
+    }
+    const errorLine = document.createElement('p');
+    errorLine.className = 'clinic-appointment-error';
+    errorLine.setAttribute('role', 'alert');
+    errorLine.hidden = true;
+    const group = document.createElement('div');
+    group.className = 'clinic-appointment-actions';
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.textContent = {
+      booked: 'Save confirmation', rescheduled: 'Save new time', cancelled: 'Yes, cancel booking'
+    }[action];
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'clinic-secondary';
+    back.textContent = cancelling ? 'Keep booking' : 'Close';
+    group.append(save, back);
+    form.append(help, errorLine, group);
+
+    const rowButtons = [...controls.querySelectorAll('button')];
+    rowButtons.forEach(button => { button.disabled = true; });
+    back.addEventListener('click', () => {
+      form.remove();
+      rowButtons.forEach(button => { button.disabled = false; });
+      opener.focus();
     });
     form.addEventListener('submit', async submission => {
       submission.preventDefault();
-      const appointment = new Date(input.value);
-      if (!Number.isFinite(appointment.getTime())) return;
-      const localTime = new Date(appointment.getTime() - appointment.getTimezoneOffset() * 60000);
-      if (localTime.toISOString().slice(0, 16) !== input.value) {
-        input.setCustomValidity('Choose an available local time.');
-        input.reportValidity();
-        return;
+      if (save.disabled) return;
+      save.disabled = back.disabled = true;
+      if (input) input.disabled = true;
+      errorLine.hidden = true;
+      const generation = state.generation;
+      try {
+        const { error } = await state.client.rpc('save_clinic_appointment', {
+          p_account_id: event.account_id, p_location_id: event.location_id, p_event_key: event.event_key,
+          p_action: action, p_prior_action_at: action === 'booked' ? null : latest.created_at,
+          p_local_time: input?.value || null
+        });
+        if (generation !== state.generation) return;
+        if (error?.code === '23505') {
+          await refreshActivity();
+          status('This booking changed. Review its current status before trying again.', 'error');
+          inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
+          return;
+        }
+        if (error) {
+          errorLine.textContent = error.code === '22023' ? error.message : 'Could not save the booking. Try again.';
+          errorLine.hidden = false;
+          return;
+        }
+        await refreshActivity();
+        status({
+          booked: 'Booking confirmed.', rescheduled: 'Appointment time updated.', cancelled: 'Booking cancelled.'
+        }[action], 'success');
+        inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
+      } catch {
+        errorLine.textContent = 'Could not refresh booking activity. Refresh the workspace before trying again.';
+        errorLine.hidden = false;
+      } finally {
+        save.disabled = back.disabled = false;
+        if (input) input.disabled = false;
       }
-      input.disabled = true;
-      await updateFollowup(event, 'booked', controls, appointment.toISOString());
-      input.disabled = false;
-      opener.disabled = true;
     });
-    opener.disabled = true;
-    input.addEventListener('input', () => input.setCustomValidity(''));
     controls.append(form);
-    input.focus();
+    (input || back).focus();
   }
 
-  async function updateFollowup(event, action, controls, appointmentAt) {
+  async function updateFollowup(event, action, controls) {
     const buttons = [...controls.querySelectorAll('button')];
     const generation = state.generation;
     buttons.forEach(button => { button.disabled = true; });
@@ -1082,13 +1165,12 @@
       await request('/clinic/followups', { method: 'POST', body: JSON.stringify({
         accountId: event.account_id,
         locationId: event.location_id,
-        eventKey: event.event_key, action, appointmentAt
+        eventKey: event.event_key, action
       }) });
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
         claimed: 'Inquiry moved to Assigned to me. Confirm the booking after agreeing a time with the patient.',
-        booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
         reopened: 'Inquiry available for follow-up.'
       }[action], 'success');
@@ -1252,6 +1334,14 @@
     }
   }
 
+  async function getFollowups(accountId, locationId) {
+    const { data, error } = await state.client.from('clinic_followup_states')
+      .select('event_key,action,recorded_action,actor_user_id,created_at,appointment_at')
+      .eq('account_id', accountId).eq('location_id', locationId);
+    if (error) throw Error('Could not load booking activity. Please refresh.');
+    return data;
+  }
+
   async function refreshActivity(quiet = false) {
     if (!quiet) commentPilotPanel.hidden = true;
     const generation = quiet ? state.generation : ++state.generation;
@@ -1261,7 +1351,7 @@
     const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
     const [connections, bookings, inbox, followups] = await Promise.all([
       request('/clinic/connections' + query), request('/clinic/bookings' + query),
-      request('/clinic/inbox' + query + '&limit=100'), request('/clinic/followups' + query)
+      request('/clinic/inbox' + query + '&limit=100'), getFollowups(accountId, locationId)
     ]);
     if (generation !== state.generation || (quiet && document.querySelector('.clinic-appointment-editor'))) return;
     state.connections = connections;

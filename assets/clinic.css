@@ -383,3 +383,20 @@ body[data-page="clinic"] .ecn-site-header::before {
 @media (min-width: 1050px) {
   .clinic-daily { grid-template-columns: minmax(0, 1fr) minmax(290px, 28%); }
 }
+
+.clinic-event-status[data-status="cancelled"] { background: #f9eae7; color: #8b3025; }
+.clinic-appointment-editor {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding-top: 12px;
+  border-top: 1px solid #ece8f4;
+}
+.clinic-appointment-editor input {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 7px 9px;
+  font: inherit;
+}
+.clinic-appointment-editor .clinic-appointment-error { color: #8b3025; }
+.clinic-appointment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
