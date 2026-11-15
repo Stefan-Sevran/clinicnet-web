@@ -8,11 +8,11 @@
 <link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-14">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-15">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-14"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-15"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -130,7 +130,7 @@ fetchpriority="high"
         <div id="clinic-messenger-import" class="clinic-event" hidden>
           <p id="clinic-messenger-import-help"></p>
           <div class="clinic-messenger-actions">
-            <button id="clinic-messenger-use-import" type="button">Review website setup details</button>
+            <button id="clinic-messenger-use-import" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false">Review website setup details</button>
             <button id="clinic-messenger-dismiss-import" type="button" class="clinic-secondary">Dismiss</button>
           </div>
         </div>
@@ -138,7 +138,7 @@ fetchpriority="high"
           <li>
             <h3>Confirm clinic facts</h3>
             <p>Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
-            <button id="clinic-messenger-edit-facts" type="button" class="clinic-secondary" hidden>Edit clinic facts</button>
+            <button id="clinic-messenger-edit-facts" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false" class="clinic-secondary" hidden>Edit clinic facts</button>
             <form id="clinic-messenger-facts" class="clinic-form clinic-messenger-facts" hidden>
               <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
               <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>

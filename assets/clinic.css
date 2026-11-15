@@ -147,6 +147,29 @@ body[data-page="clinic"] { background: #f5f1e9; color: #1b302b; }
 .clinic-panel button, .clinic-toolbar button, .clinic-messenger-primary-link { background: #173a33; }
 .clinic-panel button:hover, .clinic-toolbar button:hover, .clinic-messenger-primary-link:hover { background: #265448; }
 .clinic-panel button.clinic-secondary, .clinic-toolbar button.clinic-secondary { border-color: #a9b9ac; color: #173a33; }
+.clinic-panel button.clinic-secondary:hover:enabled, .clinic-toolbar button.clinic-secondary:hover:enabled {
+  background: #e8f1ea;
+  border-color: #779a86;
+  color: #173a33;
+}
+.clinic-messenger-guide button[aria-controls="clinic-messenger-facts"]:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: .65em;
+}
+.clinic-messenger-guide button[aria-controls="clinic-messenger-facts"]::after {
+  content: "";
+  width: .42em;
+  height: .42em;
+  margin-block-start: -.2em;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.clinic-messenger-guide button[aria-controls="clinic-messenger-facts"][aria-expanded="true"]::after {
+  margin-block-start: .2em;
+  transform: rotate(225deg);
+}
 .clinic-messenger-guide, .clinic-daily-primary { border-top-color: #426c59; }
 .clinic-channel-progress a:hover { background: #eef2e9; }
 .clinic-channel-progress li:not(:last-child)::after { background: #c6d5c8; }

@@ -297,6 +297,8 @@
         ' before saving them for Messenger.';
     }
     show('clinic-messenger-edit-facts', factsReady && factsForm.hidden);
+    byId('clinic-messenger-edit-facts').setAttribute('aria-expanded', String(!factsForm.hidden && !importedLocation));
+    byId('clinic-messenger-use-import').setAttribute('aria-expanded', String(!factsForm.hidden && Boolean(importedLocation)));
     show('clinic-messenger-cancel-facts', factsReady || importedLocation);
     byId('clinic-messenger-connect-help').textContent = authorized ?
       (connected ? 'Your Facebook Page is connected.' : 'Facebook approved access. Verify delivery in step 3.') :
