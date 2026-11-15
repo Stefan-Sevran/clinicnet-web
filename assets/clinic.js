@@ -1753,7 +1753,7 @@
       const start = soundContext.currentTime + delay;
       tone.frequency.value = frequency;
       volume.gain.setValueAtTime(0.001, start);
-      volume.gain.exponentialRampToValueAtTime(0.07, start + 0.035);
+      volume.gain.exponentialRampToValueAtTime(0.17, start + 0.035);
       volume.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
       tone.connect(volume);
       volume.connect(soundContext.destination);
