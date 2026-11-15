@@ -863,6 +863,51 @@
     return line;
   }
 
+  function messengerConfirmation(event, latest) {
+    if (event.channel !== 'facebook_messenger' || event.details?.demo === true ||
+        latest?.action !== 'booked' || latest.recorded_action === 'cancelled' ||
+        !Number.isFinite(Date.parse(latest.appointment_at))) return null;
+
+    const time = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZone: clinicTimeZone(event.location_id),
+      timeZoneName: 'shortOffset'
+    }).format(new Date(latest.appointment_at));
+
+    const panel = document.createElement('details');
+    panel.className = 'clinic-messenger-confirmation';
+    const heading = document.createElement('summary');
+    heading.textContent = 'Messenger confirmation';
+    const draft = document.createElement('textarea');
+    draft.setAttribute('aria-label', 'Messenger confirmation reply');
+    draft.readOnly = true;
+    draft.rows = 3;
+    draft.value = 'Hi! Your appointment is confirmed for ' + time +
+      '. Please reply here if you need to change your appointment. We look forward to seeing you!';
+
+    const actions = document.createElement('div');
+    actions.className = 'clinic-appointment-actions';
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'clinic-secondary';
+    copy.textContent = 'Copy reply';
+    const feedback = document.createElement('small');
+    feedback.setAttribute('role', 'status');
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(draft.value);
+        feedback.textContent = 'Copied. Paste it into the Messenger conversation.';
+      } catch {
+        draft.focus();
+        draft.select();
+        feedback.textContent = 'Reply selected. Copy it, then paste it into Messenger.';
+      }
+    });
+    actions.append(copy, feedback);
+    panel.append(heading, draft, actions);
+    return panel;
+  }
+
   function patientName(details) {
     return typeof details?.patientName === 'string' ? details.patientName.trim() : '';
   }
@@ -1028,6 +1073,8 @@
           }
           row.append(controls);
         }
+        const confirmation = messengerConfirmation(event, latest);
+        if (confirmation) row.append(confirmation);
       } else if (event.details?.demo !== true && ['booking.updated', 'booking.cancelled'].includes(event.kind)) {
         appendPatientDetails(row, event.details);
       }
@@ -1075,7 +1122,7 @@
     renderInboxEvents(...views[inboxFilter]);
   }
 
-  function openBookedActivity(eventKey) {
+  function openBookedActivity(eventKey, showConfirmation = false) {
     const locate = () => [...byId('clinic-inbox').children].find(row => row.dataset.eventKey === eventKey);
     let card = locate();
     if (!card) {
@@ -1083,10 +1130,13 @@
       renderDailyInbox();
       card = locate();
     }
-    if (card) {
-      card.focus({ preventScroll: true });
-      card.scrollIntoView({ block: 'nearest' });
-    }
+    if (!card) return false;
+    const confirmation = showConfirmation && card.querySelector('.clinic-messenger-confirmation');
+    if (confirmation) confirmation.open = true;
+    const target = confirmation ? confirmation.querySelector('summary') : card;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest' });
+    return true;
   }
 
   function renderDailyWork(inbox, bookings, locationId) {
@@ -1246,6 +1296,8 @@
           booked: 'Booking confirmed.', rescheduled: 'Appointment time updated.',
           cancelled: 'Booking cancelled.', restored: 'Booking restored.'
         }[action], 'success');
+        if (event.channel === 'facebook_messenger' && event.details?.demo !== true &&
+            !cancelling && openBookedActivity(event.event_key, true)) return;
         inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
       } catch {
         errorLine.textContent = 'Could not refresh booking activity. Refresh the workspace before trying again.';
