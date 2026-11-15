@@ -245,9 +245,19 @@
     note.hidden = !message;
   }
 
+  function isMessengerSetupSample(event) {
+    return event.channel === 'facebook_messenger' && event.details?.demo === true &&
+      Boolean(event.details.messengerSetupTestId);
+  }
+
   function receivedSetupTest() {
-    return guideInbox.find(event => event.details?.demo === true && event.details?.messengerSetupTestId &&
+    return guideInbox.find(event => isMessengerSetupSample(event) &&
       (!setupTest || event.details.messengerSetupTestId === setupTest.testId));
+  }
+
+  function messengerTestComplete() {
+    return state.connections.some(row => row.channel === 'facebook_messenger' && row.status === 'connected') &&
+      Boolean(receivedSetupTest());
   }
 
   function hasMessengerFacts(facts) {
@@ -296,10 +306,10 @@
     byId('clinic-messenger-title').textContent = connected ? 'Manage Messenger' : 'Set up Messenger';
     const ready = factsReady && authorized;
     const test = ready ? receivedSetupTest() : null;
-    const claimed = test && ['claimed', 'handled', 'booked'].includes(state.followups.get(test.event_key)?.action);
+    const complete = connected && Boolean(test);
     const expired = setupTest?.expiresAt && setupTest.expiresAt <= Date.now();
-    const waiting = ready && setupTest && !test && !expired;
-    const canSend = waiting && setupTest.message;
+    const waiting = ready && setupTest && !complete && (Boolean(test) || !expired);
+    const canSend = waiting && !test && setupTest.message;
     const opened = waiting && setupTest.opened;
     byId('clinic-messenger-page').textContent = 'Facebook Page · ' + setup.clinicName;
     show('clinic-messenger-import', draft && !importedLocation);
@@ -315,7 +325,8 @@
     byId('clinic-messenger-use-import').setAttribute('aria-expanded', String(!factsForm.hidden && Boolean(importedLocation)));
     show('clinic-messenger-cancel-facts', factsReady || importedLocation);
     byId('clinic-messenger-connect-help').textContent = authorized ?
-      (connected ? 'Your Facebook Page is connected. You can go straight to the reply test.' :
+      (connected ? (complete ? 'Your Facebook Page is connected.' :
+        'Your Facebook Page is connected. You can go straight to the reply test.') :
         'Facebook approved access. Verify delivery in step 3.') :
       (factsReady ? 'Connect ' + setup.clinicName + ' so Eden can receive and reply to its Messenger messages.' :
         'Confirm your clinic facts first.');
@@ -337,8 +348,12 @@
     let instruction = authorized
       ? 'Confirm your clinic facts to start the private reply test.'
       : 'Confirm your clinic facts and connect Facebook to start the test.';
-    if (claimed) instruction = 'Setup complete. Eden replied and the test inquiry was assigned. No real appointment was created. New inquiries appear in Daily work.';
-    else if (test) instruction = 'Eden replied. Claim the test inquiry to assign it to yourself and finish setup.';
+    if (complete) {
+      const booking = setup.facts.bookingMode === 'information'
+        ? 'direct patients to your clinic team for bookings.'
+        : 'collect booking requests. Your team confirms appointment times.';
+      instruction = 'Congratulations! Your AI receptionist is connected to Facebook Messenger. Eden can answer patient inquiries 24/7 and ' + booking;
+    } else if (test) instruction = 'Eden sent the test reply. Waiting for the Facebook Page connection to finish verifying.';
     else if (canSend) instruction = 'If Facebook asks you to sign in, use your personal profile. Paste the test message into the private chat with ' +
       setup.clinicName + ' and press Send. Then return here. Posts and comments on Facebook are public.';
     else if (opened) instruction = 'We’ll look for Eden’s reply after you send the test message in the clinic’s private Messenger chat.';
@@ -349,14 +364,13 @@
     byId('clinic-messenger-test-recovery').hidden = !opened;
     show('clinic-messenger-test-retry-send', canSend && chatUrl && setup.pageUrl);
     const start = byId('clinic-messenger-start-test');
-    show(start.id, ready && (!test ? !waiting : claimed));
-    start.textContent = claimed ? 'Run another test' : 'Prepare a test message';
-    start.classList.toggle('clinic-secondary', Boolean(claimed));
+    show(start.id, ready && (complete || (!test && !waiting)));
+    start.textContent = complete ? 'Run another test' : 'Prepare a test message';
+    start.classList.toggle('clinic-secondary', complete);
     show('clinic-messenger-test-page', chatUrl);
     show('clinic-messenger-test-page-fallback', canSend && !chatUrl && setup.pageUrl);
-    show('clinic-messenger-check-test', opened);
-    show('clinic-messenger-claim-test', test && !claimed);
-    show('clinic-messenger-open-daily', claimed);
+    show('clinic-messenger-check-test', opened || (test && !complete));
+    show('clinic-messenger-open-daily', complete);
     if (canSend) {
       byId('clinic-messenger-test-message').value = setupTest.message;
       if (chatUrl) byId('clinic-messenger-test-page').href = chatUrl;
@@ -512,7 +526,7 @@
   });
   async function checkSetupReply() {
     const attempt = setupTest;
-    if (!attempt?.opened || guide.hidden || checkingTest || receivedSetupTest()) return;
+    if ((!attempt?.opened && !receivedSetupTest()) || guide.hidden || checkingTest || messengerTestComplete()) return;
     const button = byId('clinic-messenger-check-test');
     checkingTest = true;
     button.disabled = true;
@@ -520,14 +534,13 @@
     try {
       await refreshActivity(true);
       if (attempt !== setupTest || guide.hidden) return;
-      if (receivedSetupTest()) {
+      if (messengerTestComplete()) {
         messengerGuideStatus();
-        const claim = byId('clinic-messenger-claim-test');
         if (document.activeElement === document.body || document.activeElement === button) {
-          (claim.hidden ? byId('clinic-messenger-test-help') : claim).focus();
+          byId('clinic-messenger-test-help').focus();
         }
       } else {
-        messengerGuideStatus(attempt.expiresAt && attempt.expiresAt <= Date.now() ? '' :
+        messengerGuideStatus(receivedSetupTest() || (attempt?.expiresAt && attempt.expiresAt <= Date.now()) ? '' :
           'Still waiting for the test reply. If you’ve sent the message, give it a few seconds and check again.');
       }
     } catch (error) {
@@ -542,12 +555,6 @@
   window.addEventListener('focus', checkSetupReply);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) checkSetupReply();
-  });
-  byId('clinic-messenger-claim-test').addEventListener('click', async () => {
-    const test = receivedSetupTest();
-    if (!test) return;
-    await updateFollowup(test, 'claimed', byId('clinic-messenger-test-actions'));
-    if (!guide.hidden && byId('clinic-messenger-claim-test').hidden) byId('clinic-messenger-test-help').focus();
   });
   byId('clinic-messenger-open-daily').addEventListener('click', () => {
     switchWorkspaceView('daily', true);
@@ -809,14 +816,18 @@
       const row = document.createElement('article'); row.className = 'clinic-event';
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
-      const setupSample = Boolean(event.details?.demo && event.details?.messengerSetupTestId);
+      const setupSample = isMessengerSetupSample(event);
       const meta = document.createElement('small');
       meta.textContent = [labels[event.channel] || event.channel,
         needsFollowup ? null : event.status,
         dailyAction && dailyAction !== 'today' ? waitingTime(event.occurred_at) :
           event.occurred_at && !dailyAction ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
       row.append(title, meta);
-      if (needsFollowup) {
+      if (setupSample) {
+        const note = document.createElement('small');
+        note.textContent = 'Fictional setup test · No appointment created';
+        row.append(note);
+      } else if (needsFollowup) {
         if (event.channel === 'facebook_messenger' && event.details?.service) {
           const service = document.createElement('small');
           service.textContent = 'Service · ' + event.details.service;
@@ -844,7 +855,7 @@
         const followup = document.createElement('small');
         followup.textContent = {
           booked: 'Booked',
-          claimed: ownClaim ? (setupSample ? 'Claimed by you · Finish the sample when ready' : event.channel === 'facebook_messenger' ?
+          claimed: ownClaim ? (event.channel === 'facebook_messenger' ?
             'Claimed by you · Reply in Messenger to confirm a time' : 'Claimed by you · Follow up with the patient') :
             'Claimed by another staff member',
           handled: 'Staff follow-up: handled'
@@ -854,7 +865,7 @@
           'inquiry.followup_needed': 'Needs staff reply'
         }[event.kind];
         row.append(followup);
-        if (!setupSample && event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
+        if (event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
             !['booked', 'handled'].includes(latest?.action)) {
           const inboxLink = document.createElement('a');
           inboxLink.href = 'https://business.facebook.com/latest/inbox/all/?asset_id=' + event.details.pageId;
@@ -874,9 +885,7 @@
           });
           row.append(appointment);
         }
-        const actions = setupSample ? (latest?.action === 'claimed' && ownClaim ? [['handled', 'Finish test']] :
-          !latest || latest.action === 'reopened' ? [['claimed', 'Claim inquiry']] : []) :
-          dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
+        const actions = dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
           dailyAction === 'book' ? [['booked', 'Mark booked']] :
           latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
@@ -929,7 +938,7 @@
     const today = dateLabel.format(new Date());
     const attention = [], assigned = [], appointments = [];
     for (const event of inbox) {
-      if (!event.event_key || !followupKinds.includes(event.kind)) continue;
+      if (!event.event_key || !followupKinds.includes(event.kind) || isMessengerSetupSample(event)) continue;
       const latest = state.followups.get(event.event_key);
       if (!latest || latest.action === 'reopened') attention.push(event);
       if (latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id) assigned.push(event);
@@ -1001,8 +1010,7 @@
       if (state.generation !== generation) return;
       await refreshActivity();
       status({
-        claimed: event.details?.messengerSetupTestId ? 'Messenger setup complete. You claimed the test inquiry.' :
-          'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
+        claimed: 'Inquiry moved to Assigned to me. Mark it booked after the patient confirms.',
         booked: 'Booking outcome recorded.',
         handled: 'Follow-up marked handled.',
         reopened: 'Inquiry available for follow-up.'
@@ -1016,7 +1024,8 @@
   }
 
   function renderBookingOutcomes(inbox) {
-    const outcomes = inbox.filter(event => state.followups.get(event.event_key)?.action === 'booked');
+    const outcomes = inbox.filter(event => !isMessengerSetupSample(event) &&
+      state.followups.get(event.event_key)?.action === 'booked');
     const demos = outcomes.filter(event => event.details?.demo === true);
     byId('clinic-booked-count').textContent = (outcomes.length - demos.length) + ' clinic · ' + demos.length + ' sample';
     renderEvents('clinic-booked-outcomes', outcomes, 'No confirmed booking outcomes in the recent inbox.');
@@ -1259,7 +1268,7 @@
   });
 
   function inboxAlertKeys(inbox) {
-    return new Set(inbox.filter(event => followupKinds.includes(event.kind))
+    return new Set(inbox.filter(event => followupKinds.includes(event.kind) && !isMessengerSetupSample(event))
       .map(event => event.event_key).filter(Boolean));
   }
 
