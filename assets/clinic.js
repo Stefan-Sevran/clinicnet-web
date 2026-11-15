@@ -1844,7 +1844,11 @@
       acceptingInvite = (async () => {
         const {data, error} = await state.client.rpc('accept_clinic_workspace_invite', {p_token:token});
         if (state.session?.user?.id !== userId) return null;
-        if (error) throw Error(error.message || 'Could not open the clinic invitation.');
+        if (error) {
+          throw Object.assign(Error(error.message || 'Could not open the clinic invitation.'), {
+            inviteRejected: error.code === '22023'
+          });
+        }
         pendingInvite = null;
         sessionStorage.removeItem(invitationKey);
         return data;
@@ -1877,7 +1881,7 @@
       if (current()) {
         byId('clinic-invite-url').value = location.origin + '/clinic/#clinic-invite=' + data;
         show('clinic-invite-link', true);
-        note.textContent = 'Copy the link and send it to this teammate.';
+        note.textContent = 'Send the link to the address entered above. Your teammate should use that address to sign in to Workspace.';
       }
     } catch (error) {
       if (current()) note.textContent = error.message;
@@ -1947,8 +1951,38 @@
       }
     } catch (error) {
       if (!state.accounts.length) await refreshAccounts().catch(() => {});
-      status(error.message, 'error');
+      if (state.session?.user?.id !== session.user?.id) return;
+      if (error.inviteRejected) showInviteAccountError(session.user?.email);
+      else status(error.message, 'error');
     }
+  }
+
+  function showInviteAccountError(email) {
+    const account = email || 'your current Workspace account';
+    status('This invitation couldn’t be accepted while you’re signed in as ' + account +
+      '. Switch accounts and sign in with the address the clinic owner entered. If that address still gets this message, request a fresh invitation.', 'error');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'clinic-invite-switch';
+    button.textContent = 'Switch account';
+    button.addEventListener('click', async () => {
+      if (button.disabled) return;
+      button.disabled = true;
+      try {
+        const { error } = await state.client.auth.signOut({ scope: 'local' });
+        if (error) throw error;
+        clearOwnerSetup();
+        emailInput.value = '';
+        codeForm.reset();
+        await authenticated(null);
+        emailInput.focus();
+      } catch (error) {
+        status(error.message || 'Could not switch accounts. Please try signing out.', 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+    byId('clinic-status').append(button);
   }
 
   signInForm.addEventListener('submit', async event => {

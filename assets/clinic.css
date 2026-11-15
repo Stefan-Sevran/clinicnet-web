@@ -418,3 +418,16 @@ body[data-page="clinic"] .ecn-site-header::before {
   padding: 7px 9px;
   font: inherit;
 }
+
+.clinic-invite-switch {
+  display: block;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.clinic-invite-switch:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
