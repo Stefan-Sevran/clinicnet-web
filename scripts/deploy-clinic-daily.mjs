@@ -19,7 +19,7 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|1[0-9]|2[0-3]))"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|1[0-9]|2[0-4]))"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
@@ -34,11 +34,13 @@ const locationSection = /<section class="clinic-panel clinic-selectors"[^>]*>[\s
 const channelsSection = /<(section|nav) id="clinic-channel-setup"[^>]*>[\s\S]*?<\/\1>/;
 const legacyChannelsSection = /<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?<div id="clinic-channels"[^>]*><\/div>\s*<\/section>\s*/;
 const nextSection = /<section class="clinic-panel clinic-next"[^>]*>[\s\S]*?<\/section>\s*/;
+const dailySection = /<!-- Clinic Daily work -->[\s\S]*?<!-- \/Clinic Daily work -->/;
+const legacyDailySection = /(?:<div class="clinic-columns">\s*)?<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-bookings"[\s\S]*?<\/section>(?:\s*<\/div>)?\s*<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-inbox"[\s\S]*?<\/section>\s*<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-booked-outcomes"[\s\S]*?<\/section>/;
 const cssMarker = '/* Eden Messenger setup guide */';
 function isWorkspaceDeployment(folder) {
   if (![clinicPage, clinicScript, clinicStyle, '_worker.js', 'assets/pearlsmile-pilot.js'].every(file => existsSync(join(folder, file)))) return false;
   const clinic = readFileSync(join(folder, clinicPage), 'utf8');
-  return clinic.includes('class="ecn-footer-main"') && clinic.includes('id="clinic-booked-outcomes"') &&
+  return clinic.includes('class="ecn-footer-main"') && (dailySection.test(clinic) || legacyDailySection.test(clinic)) &&
     scriptTag.test(clinic) && styleTag.test(clinic) && signInSection.test(clinic) && locationSection.test(clinic) &&
     readFileSync(join(folder, '_worker.js'), 'utf8').includes('Serve the Clinic Workspace from Pages assets.');
 }
@@ -67,12 +69,14 @@ const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
 const team = reviewedPage.match(inviteSection)?.[0];
 const hero = reviewedPage.match(heroSection)?.[0];
-const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|1[0-9]|2[0-3]))"/)?.[1];
+const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|1[0-9]|2[0-4]))"/)?.[1];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const channels = reviewedPage.match(channelsSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
+const guideNumber = Number(version?.split('-').at(-1));
+const daily = reviewedPage.match(dailySection)?.[0];
 if (!guide || !signIn?.includes('id="clinic-code-form"') || !channels || cssStart < 0 ||
-    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9','messenger-guide-10','messenger-guide-11','messenger-guide-12','messenger-guide-13','messenger-guide-14','messenger-guide-15','messenger-guide-16','messenger-guide-17','messenger-guide-18','messenger-guide-19','messenger-guide-20','messenger-guide-21','messenger-guide-22','messenger-guide-23'].includes(version) && !team))) {
+    !version || (guideNumber >= 6 && !hero) || (guideNumber >= 8 && !team) || (guideNumber >= 24 && !daily)) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
@@ -100,6 +104,13 @@ clinic = channelsSection.test(clinic)
   : clinic.replace(locationSection, section => section + '\n      ' + channels);
 if ((clinic.match(/id="clinic-channels"/g) || []).length !== 1) {
   throw Error('Could not safely replace the channel setup card.');
+}
+if (daily) {
+  const currentDaily = dailySection.test(clinic) ? dailySection : legacyDailySection;
+  if (!currentDaily.test(clinic)) throw Error('Could not find Daily work in the source Workspace.');
+  clinic = clinic.replace(currentDaily, () => daily);
+} else if (dailySection.test(clinic)) {
+  throw Error('Use a production folder from before the Daily work update for this revision.');
 }
 clinic = clinic.replace(signInSection, () => signIn)
   .replace(scriptTag, 'src="/assets/clinic.js?v=' + version + '"')

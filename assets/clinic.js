@@ -59,28 +59,16 @@
   commentPilotPanel.className = 'clinic-events';
   commentPilotPanel.hidden = true;
   byId('clinic-inbox').before(commentPilotPanel);
-  const daily = document.createElement('div');
-  daily.className = 'clinic-daily';
-  daily.hidden = true;
-  daily.innerHTML = `
-    <section class="clinic-panel clinic-daily-primary" aria-labelledby="clinic-attention-title">
-      <h2 id="clinic-attention-title" tabindex="-1">Needs attention <span id="clinic-attention-count" class="clinic-daily-count"></span></h2>
-      <p>Unclaimed inquiries from the recent inbox, oldest first.</p>
-      <div id="clinic-attention" class="clinic-events"></div>
-    </section>
-    <div class="clinic-daily-columns">
-      <section class="clinic-panel" aria-labelledby="clinic-assigned-title">
-        <h2 id="clinic-assigned-title">Assigned to me <span id="clinic-assigned-count" class="clinic-daily-count"></span></h2>
-        <p>Inquiries you claimed and can follow up on.</p>
-        <div id="clinic-assigned" class="clinic-events"></div>
-      </section>
-      <section class="clinic-panel" aria-labelledby="clinic-today-title">
-        <h2 id="clinic-today-title">Today's appointments <span id="clinic-today-count" class="clinic-daily-count"></span></h2>
-        <p id="clinic-today-date"></p>
-        <div id="clinic-today" class="clinic-events"></div>
-      </section>
-    </div>`;
-  byId('clinic-bookings').closest('.clinic-columns')?.classList.remove('clinic-columns');
+  const daily = byId('clinic-daily');
+  const inboxFilters = [...daily.querySelectorAll('[data-filter]')];
+  let dailyEvents = [];
+  let inboxFilter = 'all';
+  for (const button of inboxFilters) {
+    button.addEventListener('click', () => {
+      inboxFilter = button.dataset.filter;
+      renderDailyInbox();
+    });
+  }
   let canManageClinic = false;
   let isClinicOwner = false;
   let acceptingInvite;
@@ -355,7 +343,7 @@
       const booking = setup.facts.bookingMode === 'information'
         ? 'direct patients to your clinic team for bookings.'
         : 'collect booking requests. Your team confirms appointment times.';
-      instruction = 'Congratulations! Your AI receptionist is connected to Facebook Messenger. Eden can answer patient inquiries 24/7 and ' + booking;
+      instruction = 'Congratulations! Your AI receptionist is connected to Facebook Messenger. It can answer patient inquiries 24/7 and ' + booking;
     } else if (test) instruction = 'Eden sent the test reply. Waiting for the Facebook Page connection to finish verifying.';
     else if (canSend) instruction = 'If Facebook asks you to sign in, use your personal profile. Paste the test message into the private chat with ' +
       setup.clinicName + ' and press Send. Then return here. Posts and comments on Facebook are public.';
@@ -561,7 +549,7 @@
   });
   function openDailyWork() {
     switchWorkspaceView('daily', true);
-    byId('clinic-attention-title').focus();
+    byId('clinic-inbox-title').focus();
   }
   byId('clinic-messenger-open-daily').addEventListener('click', openDailyWork);
   heroAction.addEventListener('click', event => {
@@ -632,7 +620,7 @@
     work.id = 'clinic-daily-view';
     dashboard.append(setup,work);
     setup.append(...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
-    work.append(daily,...['clinic-bookings','clinic-inbox','clinic-booked-outcomes'].map(id=>byId(id).closest('.clinic-panel')));
+    work.append(daily);
 
     const views = document.createElement('nav');
     views.className = 'clinic-view-switch';
@@ -846,8 +834,16 @@
     channelNav.hidden = workspaceView !== 'setup';
   }
 
-  function renderEvents(id, events, fallback, dailyAction) {
-    const container = byId(id);
+  function bookingStatus(event) {
+    if (event.kind === 'booking.cancelled') return 'Cancelled';
+    if (event.kind === 'booking.updated') return {
+      CONFIRMED: 'Confirmed', RESCHEDULE_REQUESTED: 'Reschedule requested', AWAITING_CLINIC: 'Needs confirmation'
+    }[event.status];
+    return '';
+  }
+
+  function renderInboxEvents(events, fallback) {
+    const container = byId('clinic-inbox');
     if (!events.length) return empty(container, fallback);
     container.replaceChildren();
     for (const event of events) {
@@ -855,12 +851,34 @@
       const title = document.createElement('strong'); title.textContent = event.summary || event.kind || 'Activity';
       const needsFollowup = followupKinds.includes(event.kind) && event.event_key;
       const setupSample = isMessengerSetupSample(event);
+      const latest = state.followups.get(event.event_key);
+      const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
+      const statusLabel = setupSample ? 'Setup test' : needsFollowup ? ({
+        booked: 'Confirmed',
+        claimed: ownClaim ? 'Assigned to you' : 'Assigned to teammate',
+        handled: 'Handled'
+      }[latest?.action] || {
+        'call.followup_needed': 'Needs callback',
+        'booking.requested': 'Needs confirmation',
+        'inquiry.followup_needed': 'Needs staff reply'
+      }[event.kind]) : bookingStatus(event);
+      const heading = document.createElement('div');
+      heading.className = 'clinic-event-heading';
+      heading.append(title);
+      if (statusLabel) {
+        const badge = document.createElement('span');
+        badge.className = 'clinic-event-status';
+        if (statusLabel === 'Confirmed') badge.dataset.status = 'confirmed';
+        badge.textContent = statusLabel;
+        heading.append(badge);
+      }
       const meta = document.createElement('small');
       meta.textContent = [labels[event.channel] || event.channel,
-        needsFollowup ? null : event.status,
-        dailyAction && dailyAction !== 'today' ? waitingTime(event.occurred_at) :
-          event.occurred_at && !dailyAction ? new Date(event.occurred_at).toLocaleString() : ''].filter(Boolean).join(' · ');
-      row.append(title, meta);
+        statusLabel ? null : event.status,
+        event.occurred_at && new Date(event.occurred_at).toLocaleString(undefined, {
+          dateStyle: 'medium', timeStyle: 'short', timeZone: clinicTimeZone(event.location_id)
+        })].filter(Boolean).join(' · ');
+      row.append(heading, meta);
       if (setupSample) {
         const note = document.createElement('small');
         note.textContent = 'Fictional setup test · No appointment created';
@@ -887,22 +905,7 @@
         };
         alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
-        if (!dailyAction || event.details?.demo === true) row.append(alert);
-        const latest = state.followups.get(event.event_key);
-        const ownClaim = latest?.actor_user_id === state.session?.user?.id;
-        const followup = document.createElement('small');
-        followup.textContent = {
-          booked: 'Booked',
-          claimed: ownClaim ? (event.channel === 'facebook_messenger' ?
-            'Claimed by you · Reply in Messenger to confirm a time' : 'Claimed by you · Follow up with the patient') :
-            'Claimed by another staff member',
-          handled: 'Staff follow-up: handled'
-        }[latest?.action] || {
-          'call.followup_needed': 'Needs callback',
-          'booking.requested': 'Needs confirmation',
-          'inquiry.followup_needed': 'Needs staff reply'
-        }[event.kind];
-        row.append(followup);
+        row.append(alert);
         if (event.channel === 'facebook_messenger' && /^\d{5,30}$/.test(event.details?.pageId || '') &&
             !['booked', 'handled'].includes(latest?.action)) {
           const inboxLink = document.createElement('a');
@@ -923,9 +926,7 @@
           });
           row.append(appointment);
         }
-        const actions = dailyAction === 'claim' ? [['claimed', 'Claim inquiry']] :
-          dailyAction === 'book' ? [['booked', 'Mark booked']] :
-          latest?.action === 'booked' ? [] :
+        const actions = latest?.action === 'booked' ? [] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ['booked', 'Mark booked'], ['reopened', 'Release claim'], ['handled', 'Mark handled']
           ] : []) :
@@ -936,7 +937,7 @@
           for (const [action, label] of actions) {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = dailyAction ? 'clinic-followup-button' : 'clinic-secondary clinic-followup-button';
+            button.className = 'clinic-secondary clinic-followup-button';
             button.textContent = label;
             button.addEventListener('click', () => {
               if (action === 'booked') showAppointmentEditor(event, controls, button);
@@ -960,45 +961,78 @@
     }
   }
 
-  function waitingTime(value) {
-    const time = Date.parse(value);
-    if (!Number.isFinite(time)) return '';
-    const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
-    if (minutes < 1) return 'Just arrived';
-    if (minutes < 60) return 'Waiting ' + minutes + 'm';
-    if (minutes < 1440) return 'Waiting ' + Math.floor(minutes / 60) + 'h';
-    return 'Waiting ' + Math.floor(minutes / 1440) + 'd';
+  function renderDailyInbox() {
+    const activity = dailyEvents.filter(event => !isMessengerSetupSample(event));
+    const attention = activity.filter(event => {
+      if (!event.event_key || !followupKinds.includes(event.kind)) return false;
+      const action = state.followups.get(event.event_key)?.action;
+      return !action || action === 'reopened';
+    });
+    const assigned = activity.filter(event => {
+      const latest = state.followups.get(event.event_key);
+      return latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
+    });
+    const booked = activity.filter(event => state.followups.get(event.event_key)?.action === 'booked' ||
+      bookingStatus(event) === 'Confirmed');
+    const tests = dailyEvents.filter(isMessengerSetupSample);
+    const views = {
+      all: [activity, 'No activity yet for this location.'],
+      attention: [attention, 'No unclaimed inquiries need follow-up.'],
+      assigned: [assigned, 'No inquiries are assigned to you.'],
+      booked: [booked, 'No confirmed bookings in recent activity.'],
+      tests: [tests, 'No setup tests yet.']
+    };
+    for (const button of inboxFilters) {
+      button.setAttribute('aria-pressed', String(button.dataset.filter === inboxFilter));
+      if (button.dataset.filter === 'attention') button.textContent = 'Needs attention (' + attention.length + ')';
+    }
+    renderInboxEvents(...views[inboxFilter]);
   }
 
-  function renderDailyWork(inbox, locationId) {
-    const timezone = clinicTimeZone(locationId);
-    const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone: timezone, dateStyle: 'full' });
+  function renderDailyWork(inbox, bookings, locationId) {
+    const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
+    for (const booking of bookings) {
+      if (!byKey.has(booking.event_key) && booking.event_key && booking.details?.demo !== true) {
+        byKey.set(booking.event_key, booking);
+      }
+    }
+    dailyEvents = [...byKey.values(), ...inbox.filter(event => !event.event_key)]
+      .filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind))
+      .sort((a, b) => (Date.parse(b.occurred_at) || 0) - (Date.parse(a.occurred_at) || 0));
+    renderDailyInbox();
+
+    const timeZone = clinicTimeZone(locationId);
+    const dateLabel = new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: 'full' });
+    const timeLabel = new Intl.DateTimeFormat(undefined, { timeZone, timeStyle: 'short' });
     const today = dateLabel.format(new Date());
-    const attention = [], assigned = [], appointments = [];
-    for (const event of inbox) {
-      if (!event.event_key || !followupKinds.includes(event.kind) || isMessengerSetupSample(event)) continue;
+    const appointments = [];
+    for (const event of dailyEvents) {
+      if (event.details?.demo === true) continue;
       const latest = state.followups.get(event.event_key);
-      if (!latest || latest.action === 'reopened') attention.push(event);
-      if (latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id) assigned.push(event);
-      const appointment = Date.parse(latest?.appointment_at);
-      if (latest?.action === 'booked' && Number.isFinite(appointment) &&
-          dateLabel.format(appointment) === today) appointments.push(event);
+      const date = Date.parse(latest?.appointment_at);
+      if (latest?.action === 'booked' && Number.isFinite(date) && dateLabel.format(date) === today) {
+        appointments.push({ event, date });
+      }
     }
-    const oldestFirst = (a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at);
-    appointments.sort((a, b) =>
-      Date.parse(state.followups.get(a.event_key).appointment_at) -
-      Date.parse(state.followups.get(b.event_key).appointment_at));
-    for (const [id, events, message, action] of [
-      ['clinic-attention', attention.sort(oldestFirst), 'No unclaimed inquiries in the recent inbox.', 'claim'],
-      ['clinic-assigned', assigned.sort(oldestFirst), 'No recent inquiries assigned to you.', 'book'],
-      ['clinic-today', appointments, 'No confirmed appointments for today in the recent inbox.', 'today']
-    ]) {
-      const samples = events.filter(event => event.details?.demo === true).length;
-      byId(id + '-count').textContent = samples ? (events.length - samples) + ' · ' + samples +
-        (samples === 1 ? ' sample' : ' samples') : String(events.length);
-      renderEvents(id, events, message, action);
+    appointments.sort((a, b) => a.date - b.date);
+    byId('clinic-today-count').textContent = String(appointments.length);
+    byId('clinic-today-date').textContent = today;
+    const list = byId('clinic-today');
+    if (appointments.length) {
+      list.replaceChildren();
+      for (const { event, date } of appointments) {
+        const row = document.createElement('div');
+        row.className = 'clinic-event';
+        const title = document.createElement('strong');
+        title.textContent = event.details?.service || event.summary || 'Appointment';
+        const time = document.createElement('small');
+        time.textContent = [timeLabel.format(date), labels[event.channel] || event.channel].filter(Boolean).join(' · ');
+        row.append(title, time);
+        list.append(row);
+      }
+    } else {
+      empty(list, 'No confirmed appointments today in recent activity.');
     }
-    byId('clinic-today-date').textContent = today + ' · ' + timezone + ' · Recent inbox';
     daily.hidden = false;
     updateHeroAction();
   }
@@ -1060,14 +1094,6 @@
       status(error.message, 'error');
       buttons.forEach(button => { button.disabled = false; });
     }
-  }
-
-  function renderBookingOutcomes(inbox) {
-    const outcomes = inbox.filter(event => !isMessengerSetupSample(event) &&
-      state.followups.get(event.event_key)?.action === 'booked');
-    const demos = outcomes.filter(event => event.details?.demo === true);
-    byId('clinic-booked-count').textContent = (outcomes.length - demos.length) + ' clinic · ' + demos.length + ' sample';
-    renderEvents('clinic-booked-outcomes', outcomes, 'No confirmed booking outcomes in the recent inbox.');
   }
 
   async function reviewCommentReply(event, opener) {
@@ -1238,13 +1264,8 @@
     state.followups = new Map(followups.map(row => [row.event_key, row]));
     pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
     renderChannels();
-    renderEvents('clinic-bookings', bookings.filter(event => event.details?.demo !== true),
-      'No booking requests yet. Requests will appear when a verified channel delivers them.');
-    renderEvents('clinic-inbox', inbox.filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind)),
-      'No activity yet for this location.');
     renderCommentPilot(inbox);
-    renderBookingOutcomes(inbox);
-    renderDailyWork(inbox, locationId);
+    renderDailyWork(inbox, bookings, locationId);
     guideInbox = inbox;
     renderMessengerGuide();
     const keys = inboxAlertKeys(inbox);
