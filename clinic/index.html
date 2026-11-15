@@ -8,11 +8,11 @@
 <link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-18">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-19">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-18"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-19"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -101,12 +101,9 @@ fetchpriority="high"
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
-      <section id="clinic-channel-setup" class="clinic-panel" aria-labelledby="clinic-channel-setup-title" hidden>
-        <h2 id="clinic-channel-setup-title">Connect your channels</h2>
-        <nav aria-label="Channel setup">
-          <ol id="clinic-channels" class="clinic-channel-progress"></ol>
-        </nav>
-      </section>
+      <nav id="clinic-channel-setup" class="clinic-sticky-channel-nav" aria-label="Channel status" hidden>
+        <ol id="clinic-channels" class="clinic-channel-progress"></ol>
+      </nav>
       <section id="clinic-team-invite" class="clinic-panel" hidden>
         <details>
           <summary>Invite a teammate</summary>
@@ -158,9 +155,9 @@ fetchpriority="high"
             <details id="clinic-messenger-connect-options" class="clinic-messenger-recovery" hidden>
               <summary id="clinic-messenger-connect-summary">What to click in Facebook</summary>
               <ul class="clinic-messenger-directions">
-                <li>Use the Facebook profile that manages your clinic’s Page.</li>
-                <li>Click <strong>Continue</strong> to reuse the access you already gave Eden. Use <strong>Edit settings</strong> to add the clinic’s Page or update its permissions.</li>
-                <li>If Facebook asks you to choose Pages, select your clinic’s Page, keep any Pages you’ve already connected selected, and approve the requested access. When you return to Workspace, test your reply below.</li>
+                <li>If Facebook asks you to sign in, use the profile that manages your clinic’s Page.</li>
+                <li>When asked to choose Pages, select your clinic’s Page, keep any previously connected Pages selected, and approve access for Eden.</li>
+                <li>If Facebook asks to reuse previous settings, click <strong>Continue</strong> if your clinic’s Page is already included. Click <strong>Edit settings</strong> to add the Page or update access.</li>
               </ul>
               <button id="clinic-messenger-connect" type="button">Continue to Facebook</button>
             </details>

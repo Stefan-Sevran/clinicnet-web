@@ -90,10 +90,7 @@
   let inboxSnapshot;
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
-  const channelSetup = byId('clinic-channel-setup');
-  const channelNav = channelSetup.querySelector('nav');
-  channelNav.className = 'clinic-sticky-channel-nav';
-  channelNav.hidden = true;
+  const channelNav = byId('clinic-channel-setup');
   document.querySelector('.clinic-hero').after(channelNav);
   const channelSteps = createChannelSteps();
   const workspaceViews = createWorkspaceViews();
@@ -320,7 +317,8 @@
     byId('clinic-messenger-connect-help').textContent = authorized ?
       (connected ? 'Your Facebook Page is connected. You can go straight to the reply test.' :
         'Facebook approved access. Verify delivery in step 3.') :
-      (factsReady ? 'Give Eden access to receive and reply to messages for your clinic’s Page.' : 'Confirm your clinic facts first.');
+      (factsReady ? 'Connect ' + setup.clinicName + ' so Eden can receive and reply to its Messenger messages.' :
+        'Confirm your clinic facts first.');
     const connectOptions = byId('clinic-messenger-connect-options');
     const connectState = factsReady ? (authorized ? 'authorized' : 'ready') : 'waiting';
     if (connectOptions.dataset.state !== connectState ||
@@ -594,7 +592,6 @@
       });
       return { channel, index, panel, heading, body, link, marker, badge, feedback };
     });
-    channelSetup.after(...steps.map(step=>step.panel));
     return steps;
   }
 
@@ -605,7 +602,7 @@
     const work = document.createElement('div');
     work.id = 'clinic-daily-view';
     dashboard.append(setup,work);
-    setup.append(channelSetup,...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
+    setup.append(...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
     work.append(daily,...['clinic-bookings','clinic-inbox','clinic-booked-outcomes'].map(id=>byId(id).closest('.clinic-panel')));
 
     const views = document.createElement('nav');
@@ -633,7 +630,7 @@
     workspaceView = setup?'setup':'daily';
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = setup;
-    channelNav.hidden = !setup || channelSetup.hidden;
+    channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
     for (const [key, link] of Object.entries(workspaceViews.links)) {
       if (key===workspaceView) link.setAttribute('aria-current','page');
       else link.removeAttribute('aria-current');
@@ -648,7 +645,7 @@
   }
 
   function hideChannelSetup() {
-    channelSetup.hidden = channelNav.hidden = true;
+    channelNav.hidden = true;
     for (const { panel, feedback } of channelSteps) {
       panel.hidden = true;
       panel.open = false;
@@ -732,8 +729,6 @@
   }
 
   function renderChannels() {
-    channelSetup.hidden = false;
-    switchWorkspaceView(workspaceView);
     for (const { channel, index, panel, heading, body, link, marker, badge } of channelSteps) {
       const connection = state.connections.find(item=>item.channel===channel);
       const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
@@ -798,6 +793,7 @@
       body.replaceChildren(row);
       if (hadFocus) heading.focus({preventScroll:true});
     }
+    channelNav.hidden = workspaceView !== 'setup';
   }
 
   function renderEvents(id, events, fallback, dailyAction) {
