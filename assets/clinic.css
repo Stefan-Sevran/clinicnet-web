@@ -392,12 +392,59 @@ body[data-page="clinic"] .ecn-site-header::before {
   padding-top: 12px;
   border-top: 1px solid #ece8f4;
 }
-.clinic-appointment-editor input {
-  box-sizing: border-box;
-  max-width: 100%;
-  padding: 7px 9px;
-  font: inherit;
+.clinic-appointment-editor > label,
+#clinic-invite-form > label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #263d33;
+  font-size: .875rem;
+  font-weight: 700;
 }
+
+.clinic-appointment-editor > label {
+  width: min(100%, 22rem);
+}
+
+.clinic-appointment-editor :is(input, select),
+#clinic-invite-form :is(input, select) {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #7a9084;
+  border-radius: 10px;
+  background-color: #fbfcfa;
+  color: #173a33;
+  color-scheme: light;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.clinic-appointment-editor select,
+#clinic-invite-form select {
+  cursor: pointer;
+}
+
+.clinic-appointment-editor input::-webkit-calendar-picker-indicator { cursor: pointer; }
+
+.clinic-appointment-editor :is(input, select):hover:enabled,
+#clinic-invite-form :is(input, select):hover:enabled {
+  border-color: #456d57;
+  background-color: #fff;
+}
+
+.clinic-appointment-editor :is(input, select):focus,
+#clinic-invite-form :is(input, select):focus {
+  outline: 2px solid #3c6c56;
+  outline-offset: 2px;
+}
+
+.clinic-appointment-editor > p { font-size: .875rem; }
 .clinic-appointment-editor .clinic-appointment-error { color: #8b3025; }
 .clinic-appointment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
@@ -409,14 +456,6 @@ body[data-page="clinic"] .ecn-site-header::before {
 #clinic-inbox .clinic-event[tabindex="-1"]:focus {
   outline: 2px solid #4b7960;
   outline-offset: 2px;
-}
-
-.clinic-assignment-editor select {
-  display: block;
-  max-width: 100%;
-  margin-top: 4px;
-  padding: 7px 9px;
-  font: inherit;
 }
 
 .clinic-invite-switch {
