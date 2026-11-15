@@ -44,7 +44,7 @@
   const guide = byId('clinic-messenger-guide');
   const factsForm = byId('clinic-messenger-facts');
   const workspaceHero = document.querySelector('.clinic-hero');
-  const heroDailyLink = byId('clinic-hero-daily');
+  const heroAction = byId('clinic-hero-action');
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
@@ -156,6 +156,7 @@
     state.accounts = accounts;
     show('clinic-create', accounts.length === 0);
     show('clinic-dashboard', accounts.length > 0);
+    updateHeroAction();
     if (!accounts.length) return status('You are signed in. Create your first workspace.');
     selectOptions(byId('clinic-account'), accounts, preferred || byId('clinic-account').value, 'name');
     await refreshLocations(preferredLocation);
@@ -563,10 +564,18 @@
     byId('clinic-attention-title').focus();
   }
   byId('clinic-messenger-open-daily').addEventListener('click', openDailyWork);
-  heroDailyLink.addEventListener('click', event => {
+  heroAction.addEventListener('click', event => {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    openDailyWork();
+    const destination = heroAction.getAttribute('href');
+    if (destination === '#clinic-create') {
+      byId('clinic-create-form').querySelector('input').focus();
+    } else if (destination === '/clinic/?view=daily') {
+      openDailyWork();
+    } else {
+      switchWorkspaceView('setup', true);
+      channelSteps.find(step => step.link.dataset.connected !== 'true')?.link.click();
+    }
   });
 
   function createChannelSteps() {
@@ -651,7 +660,7 @@
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = setup;
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
-    updateHeroDailyLink();
+    updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
       if (key===workspaceView) link.setAttribute('aria-current','page');
       else link.removeAttribute('aria-current');
@@ -665,8 +674,14 @@
     }
   }
 
-  function updateHeroDailyLink() {
-    heroDailyLink.hidden = !(state.session && workspaceView === 'setup' && !daily.hidden);
+  function updateHeroAction() {
+    const needsWorkspace = !byId('clinic-create').hidden;
+    const channelsReady = !daily.hidden;
+    const allConnected = channelsReady && channelSteps.every(step => step.link.dataset.connected === 'true');
+    heroAction.hidden = !state.session || (!needsWorkspace && (!channelsReady || (allConnected && workspaceView === 'daily')));
+    if (heroAction.hidden) return;
+    heroAction.setAttribute('href', needsWorkspace ? '#clinic-create' : '/clinic/?view=' + (allConnected ? 'daily' : 'setup'));
+    heroAction.textContent = needsWorkspace ? 'Create your workspace' : allConnected ? 'Open Daily work' : 'Channel setup';
   }
 
   function renderWorkspaceHero(signedIn) {
@@ -676,7 +691,7 @@
     workspaceHero.setAttribute('aria-labelledby', signedIn ? 'clinic-workspace-member-title' : 'clinic-workspace-title');
     const photo = byId('clinic-member-hero-image');
     if (signedIn && !photo.hasAttribute('src')) photo.src = photo.dataset.src;
-    updateHeroDailyLink();
+    updateHeroAction();
   }
 
   function hideChannelSetup() {
@@ -985,7 +1000,7 @@
     }
     byId('clinic-today-date').textContent = today + ' · ' + timezone + ' · Recent inbox';
     daily.hidden = false;
-    updateHeroDailyLink();
+    updateHeroAction();
   }
 
   function showAppointmentEditor(event, controls, opener) {
@@ -1587,6 +1602,7 @@
   async function authenticated(session) {
     state.session = session;
     daily.hidden = true;
+    show('clinic-create', false);
     renderWorkspaceHero(Boolean(session));
     if (session) codeForm.reset();
     show('clinic-signin', !session);
@@ -1678,13 +1694,13 @@
   });
   byId('clinic-account').addEventListener('change', () => {
     daily.hidden = true;
-    updateHeroDailyLink();
+    updateHeroAction();
     commentPilotPanel.hidden = true;
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
     daily.hidden = true;
-    updateHeroDailyLink();
+    updateHeroAction();
     guide.hidden = true;
     hideChannelSetup();
     show('clinic-invite-link', false);
