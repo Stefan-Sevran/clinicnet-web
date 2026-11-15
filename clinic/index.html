@@ -8,11 +8,11 @@
 <link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
-<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-21">
+<link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-22">
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-21"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-22"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -63,11 +63,23 @@ fetchpriority="high"
 
 <main id="main-content" class="clinic-shell">
   <section class="clinic-hero" aria-labelledby="clinic-workspace-title">
-    <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
-    <div class="clinic-hero-copy">
-      <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
-      <h1 id="clinic-workspace-title">Every booking starts with a Hello.</h1>
-      <p>Connect your AI receptionist to website chat, Messenger, and AI phone so patients can request appointments 24/7.</p>
+    <div id="clinic-guest-hero">
+      <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
+      <div class="clinic-hero-copy">
+        <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
+        <h1 id="clinic-workspace-title">Every booking starts with a Hello.</h1>
+        <p>Connect your AI receptionist to website chat, Messenger, and AI phone so patients can request appointments 24/7.</p>
+      </div>
+    </div>
+    <div class="clinic-member-hero" id="clinic-member-hero" hidden>
+      <div class="clinic-member-hero-copy">
+        <h1 id="clinic-workspace-member-title">Give every patient a next step.</h1>
+        <p>See who’s waiting, follow up on requests, and confirm appointments.</p>
+        <a class="clinic-messenger-primary-link" id="clinic-hero-daily" href="/clinic/?view=daily" hidden>Open Daily work</a>
+      </div>
+      <div class="clinic-member-hero-photo">
+        <img id="clinic-member-hero-image" data-src="/assets/eden-workspace-team.webp" width="1280" height="533" alt="" decoding="async">
+      </div>
     </div>
   </section>
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>

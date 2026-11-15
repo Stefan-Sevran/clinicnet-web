@@ -43,6 +43,8 @@
   let checkingTest = false;
   const guide = byId('clinic-messenger-guide');
   const factsForm = byId('clinic-messenger-facts');
+  const workspaceHero = document.querySelector('.clinic-hero');
+  const heroDailyLink = byId('clinic-hero-daily');
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
@@ -91,7 +93,7 @@
 
   const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const channelNav = byId('clinic-channel-setup');
-  document.querySelector('.clinic-hero').after(channelNav);
+  workspaceHero.after(channelNav);
   const channelSteps = createChannelSteps();
   const workspaceViews = createWorkspaceViews();
   switchWorkspaceView(workspaceView);
@@ -556,9 +558,15 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) checkSetupReply();
   });
-  byId('clinic-messenger-open-daily').addEventListener('click', () => {
+  function openDailyWork() {
     switchWorkspaceView('daily', true);
     byId('clinic-attention-title').focus();
+  }
+  byId('clinic-messenger-open-daily').addEventListener('click', openDailyWork);
+  heroDailyLink.addEventListener('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openDailyWork();
   });
 
   function createChannelSteps() {
@@ -643,6 +651,7 @@
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = setup;
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
+    updateHeroDailyLink();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
       if (key===workspaceView) link.setAttribute('aria-current','page');
       else link.removeAttribute('aria-current');
@@ -654,6 +663,20 @@
       if (url.hash.startsWith('#clinic-')) url.hash='';
       history.replaceState(null,'',url);
     }
+  }
+
+  function updateHeroDailyLink() {
+    heroDailyLink.hidden = !(state.session && workspaceView === 'setup' && !daily.hidden);
+  }
+
+  function renderWorkspaceHero(signedIn) {
+    byId('clinic-guest-hero').hidden = signedIn;
+    byId('clinic-member-hero').hidden = !signedIn;
+    workspaceHero.classList.toggle('clinic-hero-signed-in', signedIn);
+    workspaceHero.setAttribute('aria-labelledby', signedIn ? 'clinic-workspace-member-title' : 'clinic-workspace-title');
+    const photo = byId('clinic-member-hero-image');
+    if (signedIn && !photo.hasAttribute('src')) photo.src = photo.dataset.src;
+    updateHeroDailyLink();
   }
 
   function hideChannelSetup() {
@@ -962,6 +985,7 @@
     }
     byId('clinic-today-date').textContent = today + ' · ' + timezone + ' · Recent inbox';
     daily.hidden = false;
+    updateHeroDailyLink();
   }
 
   function showAppointmentEditor(event, controls, opener) {
@@ -1562,6 +1586,8 @@
 
   async function authenticated(session) {
     state.session = session;
+    daily.hidden = true;
+    renderWorkspaceHero(Boolean(session));
     if (session) codeForm.reset();
     show('clinic-signin', !session);
     show('clinic-authenticated', Boolean(session));
@@ -1652,11 +1678,13 @@
   });
   byId('clinic-account').addEventListener('change', () => {
     daily.hidden = true;
+    updateHeroDailyLink();
     commentPilotPanel.hidden = true;
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
     daily.hidden = true;
+    updateHeroDailyLink();
     guide.hidden = true;
     hideChannelSetup();
     show('clinic-invite-link', false);

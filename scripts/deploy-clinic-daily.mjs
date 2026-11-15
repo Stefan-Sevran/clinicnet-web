@@ -19,13 +19,14 @@ const root = tmpdir();
 const clinicPage = 'clinic/index.html';
 const clinicScript = 'assets/clinic.js';
 const clinicStyle = 'assets/clinic.css';
-const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|1[0-9]|2[01]))"/;
+const scriptTag = /src="\/assets\/clinic\.js\?v=(?:clinic-daily-1|clinic-messenger-1|clinic-messenger-connect-[123]|clinic-comment-pilot-[12]|messenger-guide-(?:[1-9]|1[0-9]|2[0-2]))"/;
 const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
 const workspaceFaviconAsset = 'assets/clinicnet-favicon.svg';
 const iconTag = /<link rel="icon"[^>]*>/;
 const workspaceHeroAsset = 'assets/eden-owner-eve-welcome-sign.webp';
+const workspaceMemberHeroAsset = 'assets/eden-workspace-team.webp';
 const inviteSection = /<section id="clinic-team-invite"[^>]*>[\s\S]*?<\/section>/;
 const guideSection = /<section id="clinic-messenger-guide"[^>]*>[\s\S]*?<\/section>/;
 const signInSection = /<section id="clinic-signin"[^>]*>[\s\S]*?<\/section>/;
@@ -66,12 +67,12 @@ const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
 const team = reviewedPage.match(inviteSection)?.[0];
 const hero = reviewedPage.match(heroSection)?.[0];
-const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|1[0-9]|2[01]))"/)?.[1];
+const version = reviewedPage.match(/\/assets\/clinic\.js\?v=(messenger-guide-(?:[5-9]|1[0-9]|2[0-2]))"/)?.[1];
 const signIn = reviewedPage.match(signInSection)?.[0];
 const channels = reviewedPage.match(channelsSection)?.[0];
 const cssStart = reviewedStyle.indexOf(cssMarker);
 if (!guide || !signIn?.includes('id="clinic-code-form"') || !channels || cssStart < 0 ||
-    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9','messenger-guide-10','messenger-guide-11','messenger-guide-12','messenger-guide-13','messenger-guide-14','messenger-guide-15','messenger-guide-16','messenger-guide-17','messenger-guide-18','messenger-guide-19','messenger-guide-20','messenger-guide-21'].includes(version) && !team))) {
+    (!version || (version !== 'messenger-guide-5' && !hero) || (['messenger-guide-8','messenger-guide-9','messenger-guide-10','messenger-guide-11','messenger-guide-12','messenger-guide-13','messenger-guide-14','messenger-guide-15','messenger-guide-16','messenger-guide-17','messenger-guide-18','messenger-guide-19','messenger-guide-20','messenger-guide-21','messenger-guide-22'].includes(version) && !team))) {
   throw Error('The revision does not contain the guided Messenger Workspace.');
 }
 let clinic = readFileSync(join(stage, clinicPage), 'utf8');
@@ -81,6 +82,10 @@ if (hero) {
   clinic = clinic.replace(currentHero, () => hero);
   const image = execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + workspaceHeroAsset]);
   writeFileSync(join(stage, workspaceHeroAsset), image);
+  if (hero.includes('/' + workspaceMemberHeroAsset)) {
+    const teamImage = execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + workspaceMemberHeroAsset]);
+    writeFileSync(join(stage, workspaceMemberHeroAsset), teamImage);
+  }
 }
 if (team) clinic = inviteSection.test(clinic)
   ? clinic.replace(inviteSection, () => team)

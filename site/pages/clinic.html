@@ -1,10 +1,22 @@
 <main id="main-content" class="clinic-shell">
   <section class="clinic-hero" aria-labelledby="clinic-workspace-title">
-    <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
-    <div class="clinic-hero-copy">
-      <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
-      <h1 id="clinic-workspace-title">Every booking starts with a Hello.</h1>
-      <p>Connect your AI receptionist to website chat, Messenger, and AI phone so patients can request appointments 24/7.</p>
+    <div id="clinic-guest-hero">
+      <img class="clinic-hero-image" src="/assets/eden-owner-eve-welcome-sign.webp" width="1902" height="827" alt="" fetchpriority="high">
+      <div class="clinic-hero-copy">
+        <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
+        <h1 id="clinic-workspace-title">Every booking starts with a Hello.</h1>
+        <p>Connect your AI receptionist to website chat, Messenger, and AI phone so patients can request appointments 24/7.</p>
+      </div>
+    </div>
+    <div class="clinic-member-hero" id="clinic-member-hero" hidden>
+      <div class="clinic-member-hero-copy">
+        <h1 id="clinic-workspace-member-title">Give every patient a next step.</h1>
+        <p>See who’s waiting, follow up on requests, and confirm appointments.</p>
+        <a class="clinic-messenger-primary-link" id="clinic-hero-daily" href="/clinic/?view=daily" hidden>Open Daily work</a>
+      </div>
+      <div class="clinic-member-hero-photo">
+        <img id="clinic-member-hero-image" data-src="/assets/eden-workspace-team.webp" width="1280" height="533" alt="" decoding="async">
+      </div>
     </div>
   </section>
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
@@ -38,12 +50,9 @@
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
-      <section id="clinic-channel-setup" class="clinic-panel" aria-labelledby="clinic-channel-setup-title" hidden>
-        <h2 id="clinic-channel-setup-title">Connect your channels</h2>
-        <nav aria-label="Channel setup">
-          <ol id="clinic-channels" class="clinic-channel-progress"></ol>
-        </nav>
-      </section>
+      <nav id="clinic-channel-setup" class="clinic-sticky-channel-nav" aria-label="Channel status" hidden>
+        <ol id="clinic-channels" class="clinic-channel-progress"></ol>
+      </nav>
       <section id="clinic-team-invite" class="clinic-panel" hidden>
         <details>
           <summary>Invite a teammate</summary>
@@ -67,15 +76,15 @@
         <div id="clinic-messenger-import" class="clinic-event" hidden>
           <p id="clinic-messenger-import-help"></p>
           <div class="clinic-messenger-actions">
-            <button id="clinic-messenger-use-import" type="button">Review saved clinic details</button>
+            <button id="clinic-messenger-use-import" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false">Review website setup details</button>
             <button id="clinic-messenger-dismiss-import" type="button" class="clinic-secondary">Dismiss</button>
           </div>
         </div>
         <ol id="clinic-messenger-steps" class="clinic-messenger-steps">
           <li>
             <h3>Confirm clinic facts</h3>
-            <p>Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
-            <button id="clinic-messenger-edit-facts" type="button" class="clinic-secondary" hidden>Edit clinic facts</button>
+            <p id="clinic-messenger-facts-help">Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
+            <button id="clinic-messenger-edit-facts" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false" class="clinic-secondary" hidden>Edit clinic facts</button>
             <form id="clinic-messenger-facts" class="clinic-form clinic-messenger-facts" hidden>
               <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
               <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>
@@ -92,32 +101,39 @@
           <li>
             <h3>Connect your Facebook Page</h3>
             <p id="clinic-messenger-connect-help"></p>
-            <button id="clinic-messenger-connect" type="button" hidden>Connect Messenger</button>
+            <details id="clinic-messenger-connect-options" class="clinic-messenger-recovery" hidden>
+              <summary id="clinic-messenger-connect-summary">What to click in Facebook</summary>
+              <ul class="clinic-messenger-directions">
+                <li>If Facebook asks you to sign in, use the profile that manages your clinic’s Page.</li>
+                <li>When asked to choose Pages, select your clinic’s Page, keep any previously connected Pages selected, and approve access for Eden.</li>
+                <li>If Facebook asks to reuse previous settings, click <strong>Continue</strong> if your clinic’s Page is already included. Click <strong>Edit settings</strong> to add the Page or update access.</li>
+              </ul>
+              <button id="clinic-messenger-connect" type="button">Continue to Facebook</button>
+            </details>
           </li>
           <li>
             <h3>Test your Messenger reply</h3>
             <p id="clinic-messenger-test-help" role="status" tabindex="-1"></p>
-            <div id="clinic-messenger-test-send"></div>
-            <div id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions" hidden>
+            <div id="clinic-messenger-test-actions" class="clinic-messenger-actions">
+              <button id="clinic-messenger-start-test" type="button" hidden>Prepare a test message</button>
+              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy message and open private Facebook chat</a>
+              <button id="clinic-messenger-check-test" type="button" hidden>Check for reply</button>
+              <button id="clinic-messenger-open-daily" type="button" hidden>Open Daily work</button>
+            </div>
+            <p id="clinic-messenger-test-page-fallback" hidden>Open the clinic’s <a id="clinic-messenger-find-page" target="_blank" rel="noopener noreferrer">Facebook Page</a> and select <strong>Message</strong> to open the private chat.</p>
+            <details id="clinic-messenger-test-instructions" class="clinic-messenger-test-instructions clinic-messenger-recovery" hidden>
+              <summary>Copy the test message manually</summary>
               <label for="clinic-messenger-test-message">Private test message</label>
               <div class="clinic-messenger-copy-field">
                 <input id="clinic-messenger-test-message" readonly>
-                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary" aria-label="Copy test message" title="Copy test message">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
-                </button>
+                <button id="clinic-messenger-copy-test" type="button" class="clinic-secondary">Copy</button>
               </div>
-            </div>
-            <div id="clinic-messenger-test-actions" class="clinic-messenger-actions">
-              <button id="clinic-messenger-start-test" type="button" hidden>Create test message</button>
-              <a id="clinic-messenger-test-page" class="clinic-messenger-primary-link" target="_blank" rel="noopener noreferrer" hidden>Copy and open Facebook</a>
-              <button id="clinic-messenger-check-test" type="button" hidden>Check for reply</button>
-              <button id="clinic-messenger-claim-test" type="button" hidden>Claim test inquiry</button>
-            </div>
+            </details>
             <details id="clinic-messenger-test-recovery" class="clinic-messenger-recovery" hidden>
               <summary>Having trouble?</summary>
               <div id="clinic-messenger-test-retry-send" hidden>
-                <p>Sign in to Facebook if asked, then use your personal profile to send the test message.</p>
-                <a id="clinic-messenger-reopen-page" target="_blank" rel="noopener noreferrer">Reopen Facebook Page</a>
+                <p>Open your clinic’s Facebook Page from your personal profile and select <strong>Message</strong> to open the private chat.</p>
+                <a id="clinic-messenger-reopen-page" target="_blank" rel="noopener noreferrer">Open Facebook Page</a>
               </div>
               <button id="clinic-messenger-restart-test" class="clinic-secondary" type="button">Start a new test</button>
             </details>
