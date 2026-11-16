@@ -60,6 +60,12 @@
   commentPilotPanel.hidden = true;
   byId('clinic-inbox').before(commentPilotPanel);
   const daily = byId('clinic-daily');
+  const addBookingButton = byId('clinic-add-booking');
+  const addBookingForm = byId('clinic-add-booking-form');
+  const addBookingClose = byId('clinic-add-booking-close');
+  const addBookingFeedback = byId('clinic-add-booking-feedback');
+  const addBookingResult = byId('clinic-add-booking-result');
+  let manualBooking;
   const inboxFilters = [...daily.querySelectorAll('[data-filter]')];
   let dailyEvents = [];
   let inboxFilter = 'all';
@@ -80,7 +86,7 @@
   let loadedGeneration = -1;
   let inboxSnapshot;
 
-  const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
+  const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone', staff_booking: 'Booked by staff' };
   const channelNav = byId('clinic-channel-setup');
   workspaceHero.after(channelNav);
   const channelSteps = createChannelSteps();
@@ -1054,7 +1060,7 @@
         };
         alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
-        row.append(alert);
+        if (event.channel !== 'staff_booking') row.append(alert);
         const messengerLink = event.channel === 'facebook_messenger' && messengerInboxLink(event.details);
         const confirmation = messengerConfirmation(event, latest, messengerLink, previousPanels.get(event.event_key));
         if (messengerLink && !confirmation) {
@@ -1189,6 +1195,8 @@
   }
 
   function renderDailyWork(inbox, bookings, locationId) {
+    if (manualBooking && (manualBooking.locationId !== locationId ||
+        manualBooking.accountId !== byId('clinic-account').value)) closeManualBooking();
     const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
     for (const booking of bookings) {
       if (!byKey.has(booking.event_key) && booking.event_key && booking.details?.demo !== true) {
@@ -1296,6 +1304,91 @@
     if (weekday && weekday.toLowerCase() !== value.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase()) return '';
     return value.toISOString().slice(0, 16);
   }
+
+  function closeManualBooking() {
+    manualBooking = undefined;
+    addBookingForm.hidden = true;
+    addBookingForm.reset();
+    for (const field of addBookingForm.elements) field.disabled = false;
+    addBookingForm.querySelector('button[type="submit"]').textContent = 'Book appointment';
+    addBookingFeedback.hidden = true;
+    addBookingButton.setAttribute('aria-expanded', 'false');
+  }
+
+  addBookingButton.addEventListener('click', () => {
+    if (manualBooking) {
+      if (!manualBooking.saving) addBookingForm.elements.patientName.focus();
+      return;
+    }
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    if (!accountId || !locationId) return;
+    const timeZone = clinicTimeZone(locationId);
+    manualBooking = { accountId, locationId, timeZone, id: crypto.randomUUID() };
+    addBookingResult.hidden = true;
+    addBookingForm.elements.appointment.min = clinicDateTimeValue(new Date(Date.now() + 60000).toISOString(), timeZone);
+    byId('clinic-add-booking-zone').textContent = 'Appointment time is in ' + timeZone + '.';
+    addBookingForm.hidden = false;
+    addBookingButton.setAttribute('aria-expanded', 'true');
+    addBookingForm.elements.patientName.focus();
+  });
+
+  addBookingClose.addEventListener('click', () => {
+    closeManualBooking();
+    addBookingButton.focus();
+  });
+
+  addBookingForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const booking = manualBooking;
+    if (!booking || booking.saving) return;
+    if (booking.accountId !== byId('clinic-account').value || booking.locationId !== byId('clinic-location').value) {
+      closeManualBooking();
+      return;
+    }
+    const { patientName, service, appointment } = addBookingForm.elements;
+    const payload = {
+      p_account_id: booking.accountId, p_location_id: booking.locationId, p_submission_id: booking.id,
+      p_patient_name: patientName.value.trim(), p_service: service.value.trim(), p_local_time: appointment.value
+    };
+    const fields = [...addBookingForm.elements];
+    const save = addBookingForm.querySelector('button[type="submit"]');
+    booking.saving = true;
+    fields.forEach(field => { field.disabled = true; });
+    save.textContent = 'Booking…';
+    addBookingFeedback.hidden = true;
+    let saved = false;
+    try {
+      const { data: eventKey, error } = await state.client.rpc('create_manual_clinic_booking', payload);
+      if (manualBooking !== booking) return;
+      if (error) {
+        addBookingFeedback.textContent = ['22023', '23514'].includes(error.code) ? error.message :
+          'Could not save the booking. Try again.';
+        addBookingFeedback.hidden = false;
+        return;
+      }
+      saved = true;
+      closeManualBooking();
+      addBookingResult.textContent = 'Appointment booked.';
+      addBookingResult.hidden = false;
+      inboxFilter = 'booked';
+      await refreshActivity();
+      if (workspaceView === 'daily' && !openBookedActivity(eventKey)) addBookingButton.focus();
+    } catch {
+      if (saved) {
+        addBookingResult.textContent = 'Appointment booked. Refresh Daily work to see it.';
+      } else if (manualBooking === booking) {
+        addBookingFeedback.textContent = 'Could not verify the booking. Retry this form to check.';
+        addBookingFeedback.hidden = false;
+      }
+    } finally {
+      if (manualBooking === booking) {
+        fields.forEach(field => { field.disabled = false; });
+        save.textContent = 'Book appointment';
+        booking.saving = false;
+      }
+    }
+  });
 
   function showAppointmentEditor(event, controls, opener, action, latest) {
     const form = document.createElement('form');
@@ -2225,16 +2318,22 @@
     finally { button.disabled = false; }
   });
   byId('clinic-signout').addEventListener('click', async () => {
+    closeManualBooking();
+    addBookingResult.hidden = true;
     try { await state.client.auth.signOut(); clearOwnerSetup(); await authenticated(null); }
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => {
+    closeManualBooking();
+    addBookingResult.hidden = true;
     daily.hidden = true;
     updateHeroAction();
     commentPilotPanel.hidden = true;
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
+    closeManualBooking();
+    addBookingResult.hidden = true;
     daily.hidden = true;
     updateHeroAction();
     guide.hidden = true;
