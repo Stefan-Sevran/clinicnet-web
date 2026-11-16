@@ -1244,22 +1244,38 @@
   function requestedAppointmentValue(requestedTime) {
     if (typeof requestedTime !== 'string') return '';
     const text = requestedTime.trim();
-    const iso = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::00)?$/.exec(text);
-    let year, month, day, hours, minutes, weekday;
+    const iso = /^(\d{4})-(\d{2})-(\d{2})(?: at |T| )(.+)$/i.exec(text);
+    let year, month, day, weekday, time;
     if (iso) {
-      [year, month, day, hours, minutes] = iso.slice(1).map(Number);
+      [year, month, day] = iso.slice(1, 4).map(Number);
+      time = iso[4];
     } else {
-      const written = /^(?:(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), )?([A-Za-z]+) (\d{1,2}), (\d{4}) at (\d{1,2})(?::(\d{2}))?\s*([AP])\.?M\.?$/i.exec(text);
+      const written = /^(?:(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),? )?(?:([A-Za-z]+) (\d{1,2})|(\d{1,2}) ([A-Za-z]+)),? (\d{4}) at (.+)$/i.exec(text);
       if (!written) return '';
-      const [, dayName, monthName, dayNumber, yearNumber, hour, minute, period] = written;
+      const [, dayName, firstMonth, firstDay, secondDay, secondMonth, yearNumber, clock] = written;
       const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-      month = months.indexOf(monthName.toLowerCase()) + 1;
-      if (!month || Number(hour) < 1 || Number(hour) > 12) return '';
+      const monthName = (firstMonth || secondMonth).toLowerCase();
+      month = months.findIndex(name => name === monthName || name.slice(0, 3) === monthName) + 1;
+      if (!month) return '';
       year = Number(yearNumber);
-      day = Number(dayNumber);
-      hours = Number(hour) % 12 + (period.toUpperCase() === 'P' ? 12 : 0);
-      minutes = Number(minute || 0);
+      day = Number(firstDay || secondDay);
       weekday = dayName;
+      time = clock;
+    }
+
+    const meridiem = /^(0?[1-9]|1[0-2])(?::([0-5]\d))?\s*([AP])\.?M\.?$/i.exec(time);
+    const military = /^([01]\d|2[0-3]):([0-5]\d)(?::00)?$/.exec(time);
+    let hours, minutes;
+    if (meridiem) {
+      hours = Number(meridiem[1]) % 12 + (meridiem[3].toUpperCase() === 'P' ? 12 : 0);
+      minutes = Number(meridiem[2] || 0);
+    } else if (military) {
+      [hours, minutes] = military.slice(1).map(Number);
+    } else if (time.toLowerCase() === 'noon') {
+      hours = 12;
+      minutes = 0;
+    } else {
+      return '';
     }
     const value = new Date(Date.UTC(year, month - 1, day, hours, minutes));
     if (value.getUTCFullYear() !== year || value.getUTCMonth() + 1 !== month ||
