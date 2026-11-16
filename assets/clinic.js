@@ -876,48 +876,65 @@
       timeZoneName: 'shortOffset'
     }).format(new Date(latest.appointment_at));
 
-    const panel = document.createElement('details');
+    const panel = document.createElement('div');
     panel.className = 'clinic-messenger-confirmation';
     panel.dataset.appointmentAt = latest.appointment_at;
     panel.dataset.messengerHref = href;
-    const heading = document.createElement('summary');
-    heading.textContent = 'Messenger confirmation';
+    const message = 'Hi! Your appointment is confirmed for ' + time +
+      '. Please reply here if you need to change your appointment. We look forward to seeing you!';
     const draft = document.createElement('textarea');
     draft.setAttribute('aria-label', 'Messenger confirmation reply');
     draft.readOnly = true;
     draft.rows = 3;
-    draft.value = 'Hi! Your appointment is confirmed for ' + time +
-      '. Please reply here if you need to change your appointment. We look forward to seeing you!';
+    draft.value = message;
+    draft.hidden = true;
 
     const actions = document.createElement('div');
     actions.className = 'clinic-appointment-actions';
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'clinic-secondary';
-    copy.textContent = 'Copy reply';
+    const copyLabel = href ? 'Copy reply & open Messenger' : 'Copy reply';
+    copy.textContent = copyLabel;
     const feedback = document.createElement('small');
     feedback.setAttribute('role', 'status');
+    if (messengerLink) messengerLink.hidden = true;
     copy.addEventListener('click', async () => {
       if (copy.disabled) return;
       copy.disabled = true;
       copy.textContent = 'Copying…';
       feedback.textContent = '';
+      let messengerTab;
       try {
-        await navigator.clipboard.writeText(draft.value);
-        copy.textContent = 'Copied';
-        feedback.textContent = 'Paste the reply into Messenger and send it.';
+        const copying = navigator.clipboard.writeText(message);
+        if (href) {
+          messengerTab = window.open('about:blank', '_blank');
+          if (messengerTab) messengerTab.opener = null;
+        }
+        await copying;
       } catch {
-        copy.textContent = 'Copy reply';
+        messengerTab?.close();
+        copy.textContent = copyLabel;
+        draft.hidden = false;
+        if (messengerLink) messengerLink.hidden = false;
         draft.focus();
         draft.select();
         feedback.textContent = 'Text selected. Press ⌘C or Ctrl+C to copy it.';
+        return;
       } finally {
         copy.disabled = false;
       }
+      draft.hidden = true;
+      if (messengerTab?.closed) messengerTab = null;
+      if (messengerLink) messengerLink.hidden = Boolean(messengerTab);
+      copy.textContent = 'Copied';
+      feedback.textContent = messengerTab ? 'Paste and send in Messenger.' :
+        href ? 'Open Messenger, then paste and send.' : 'Reply copied to the clipboard.';
+      messengerTab?.location.replace(href);
     });
     actions.append(copy);
     if (messengerLink) actions.append(messengerLink);
-    panel.append(heading, draft, actions, feedback);
+    panel.append(actions, feedback, draft);
     return panel;
   }
 
@@ -1152,8 +1169,7 @@
     }
     if (!card) return false;
     const confirmation = showConfirmation && card.querySelector('.clinic-messenger-confirmation');
-    if (confirmation) confirmation.open = true;
-    const target = confirmation ? confirmation.querySelector('summary') : card;
+    const target = confirmation ? confirmation.querySelector('button') : card;
     target.focus({ preventScroll: true });
     target.scrollIntoView({ block: 'nearest' });
     return true;
@@ -1225,6 +1241,33 @@
     return values.year + '-' + values.month + '-' + values.day + 'T' + values.hour + ':' + values.minute;
   }
 
+  function requestedAppointmentValue(requestedTime) {
+    if (typeof requestedTime !== 'string') return '';
+    const text = requestedTime.trim();
+    const iso = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::00)?$/.exec(text);
+    let year, month, day, hours, minutes, weekday;
+    if (iso) {
+      [year, month, day, hours, minutes] = iso.slice(1).map(Number);
+    } else {
+      const written = /^(?:(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), )?([A-Za-z]+) (\d{1,2}), (\d{4}) at (\d{1,2})(?::(\d{2}))?\s*([AP])\.?M\.?$/i.exec(text);
+      if (!written) return '';
+      const [, dayName, monthName, dayNumber, yearNumber, hour, minute, period] = written;
+      const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      month = months.indexOf(monthName.toLowerCase()) + 1;
+      if (!month || Number(hour) < 1 || Number(hour) > 12) return '';
+      year = Number(yearNumber);
+      day = Number(dayNumber);
+      hours = Number(hour) % 12 + (period.toUpperCase() === 'P' ? 12 : 0);
+      minutes = Number(minute || 0);
+      weekday = dayName;
+    }
+    const value = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+    if (value.getUTCFullYear() !== year || value.getUTCMonth() + 1 !== month ||
+        value.getUTCDate() !== day || value.getUTCHours() !== hours || value.getUTCMinutes() !== minutes) return '';
+    if (weekday && weekday.toLowerCase() !== value.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase()) return '';
+    return value.toISOString().slice(0, 16);
+  }
+
   function showAppointmentEditor(event, controls, opener, action, latest) {
     const form = document.createElement('form');
     form.className = 'clinic-appointment-editor';
@@ -1242,11 +1285,14 @@
       input.type = 'datetime-local';
       input.required = true;
       const previousTime = action === 'restored' ? latest?.previous_appointment_at : latest?.appointment_at;
-      input.value = clinicDateTimeValue(previousTime, timeZone);
+      const requested = action === 'booked' && requestedAppointmentValue(event.details?.requestedTime);
+      const future = requested && requested >= clinicDateTimeValue(new Date(Date.now() + 60000).toISOString(), timeZone);
+      input.value = future ? requested : clinicDateTimeValue(previousTime, timeZone);
       label.append(input);
       form.append(label);
       help.textContent = 'Enter the agreed time in ' + (locationName ? locationName + ' time' : 'the clinic’s time zone') +
         ' (' + timeZone + ').';
+      if (future) help.textContent = 'Prefilled from the request. ' + help.textContent;
       if (action === 'restored') {
         help.textContent = 'Check that the appointment time is still available. ' + help.textContent;
       }
