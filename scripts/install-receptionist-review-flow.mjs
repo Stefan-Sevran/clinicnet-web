@@ -4,7 +4,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-const marker = 'Eden receptionist review flow v1';
+const previousMarker = 'Eden receptionist review flow v1';
+const marker = 'Eden receptionist review flow v2';
 
 function replace(source, pattern, replacement) {
   const matches = typeof pattern === 'string'
@@ -127,17 +128,49 @@ function updateClient(source) {
   return source;
 }
 
+function preventRepeatedReview(source) {
+  const patch = (from, to) => { source = replace(source, from, to); };
+  patch("  let selectedContact = '';",
+    "  let selectedContact = '', awaitingReview = false;");
+  patch("    if (run.mode === 'text' && !run.reviewReply) run.reviewReply = 'pending';",
+    "    if (run.mode === 'text') {\n      awaitingReview = true;\n      if (!run.reviewReply) run.reviewReply = 'pending';\n    }");
+  patch("'Select Review request, then select Send request on the form.'",
+    "'After reviewing, select Send request on the form.'");
+  patch("'Your request is ready to review. Select Review request below, then select Send request on the form.'",
+    "'Your details are ready. Select Review request below.'");
+  patch("  async function sendText() {\n    const text = chatText.value.trim();\n    if (!text || switching || requestPending) return;",
+    `  async function sendText() {
+    const text = chatText.value.trim();
+    if (!text || switching || requestPending) return;
+    const acknowledgement = text.toLowerCase().replace(/[,!.]+/g, ' ').replace(/\\s+/g, ' ').trim();
+    if (draft && awaitingReview &&
+        /^(?:yes|yep|ok(?:ay)?|all good|looks good|sounds good|please do|go ahead|sure)(?: (?:please|thanks|thank you))?$/.test(acknowledgement)) {
+      addTurn('visitor (text)', text);
+      chatText.value = '';
+      reviewButton.focus();
+      return;
+    }
+    awaitingReview = false;`);
+  return source;
+}
+
 function updateWorker(source) {
   if (source.includes(marker)) return source;
-  source = replace(source, '#reviewRequest:not([hidden]){margin:.65rem auto 0;display:block}',
-    '#reviewRequest:not([hidden]){display:block}\n' + reviewStyles);
-  source = replace(source, /(<button id="reviewRequest"[^>]*>)[^<]*(<\/button>)(<p id="reviewRequestNote"[^>]*>)[^<]*(<\/p>)/,
-    (_, button, closeButton, note, closeNote) => '<div id="requestReviewStep" hidden>' +
-      note + 'Review your details, then select Send request.' + closeNote +
-      button.replace('aria-controls="request"', 'aria-controls="request" aria-describedby="reviewRequestNote"') +
-      'Review request' + closeButton + '</div>');
+  const alreadyInstalled = source.includes(previousMarker);
+  if (alreadyInstalled) {
+    source = replace(source, previousMarker, marker);
+  } else {
+    source = replace(source, '#reviewRequest:not([hidden]){margin:.65rem auto 0;display:block}',
+      '#reviewRequest:not([hidden]){display:block}\n' + reviewStyles);
+    source = replace(source, /(<button id="reviewRequest"[^>]*>)[^<]*(<\/button>)(<p id="reviewRequestNote"[^>]*>)[^<]*(<\/p>)/,
+      (_, button, closeButton, note, closeNote) => '<div id="requestReviewStep" hidden>' +
+        note + 'Review your details, then select Send request.' + closeNote +
+        button.replace('aria-controls="request"', 'aria-controls="request" aria-describedby="reviewRequestNote"') +
+        'Review request' + closeButton + '</div>');
+  }
   return replace(source, /const receptionistClient\s*=\s*("(?:\\.|[^"\\])*");/, (_, encoded) => {
-    const client = updateClient(JSON.parse(encoded));
+    const original = JSON.parse(encoded);
+    const client = preventRepeatedReview(alreadyInstalled ? original : updateClient(original));
     checkModule(client);
     return 'const receptionistClient = ' + JSON.stringify(client) + ';';
   });
