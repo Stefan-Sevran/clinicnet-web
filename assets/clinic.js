@@ -633,7 +633,7 @@
     views.className = 'clinic-view-switch';
     views.setAttribute('aria-label','Clinic Workspace');
     const links = {};
-    for (const [key,label] of [['setup','Channel setup'],['daily','Daily work']]) {
+    for (const [key,label] of [['setup','Channel setup'],['daily','Daily Action']]) {
       const link = document.createElement('a');
       link.href = '/clinic/?view=' + key;
       link.textContent = label;
@@ -676,7 +676,7 @@
     heroAction.hidden = !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
     if (heroAction.hidden) return;
     heroAction.setAttribute('href', needsWorkspace ? '#clinic-create' : '/clinic/?view=' + (opensDaily ? 'daily' : 'setup'));
-    heroAction.textContent = needsWorkspace ? 'Create your workspace' : opensDaily ? 'Open Daily work' : 'Channel setup';
+    heroAction.textContent = needsWorkspace ? 'Create your workspace' : opensDaily ? 'Open Daily Action' : 'Channel setup';
   }
 
   function renderWorkspaceHero(signedIn) {
@@ -751,7 +751,7 @@
         for (const text of [
           'Use your phone provider’s settings to forward unanswered calls to the number above. If your provider supports forwarding on busy, you can enable that too.',
           'From another phone, call your usual clinic number and let it ring without answering. Speak to Eve, then hang up.',
-          'Select Check test call. The completed call should appear in Daily work once it is verified.'
+          'Select Check test call. The completed call should appear in Daily Action once it is verified.'
         ]) {
           const step = document.createElement('li');
           step.textContent = text;
@@ -1376,7 +1376,7 @@
       if (workspaceView === 'daily' && !openBookedActivity(eventKey)) addBookingButton.focus();
     } catch {
       if (saved) {
-        addBookingResult.textContent = 'Appointment booked. Refresh Daily work to see it.';
+        addBookingResult.textContent = 'Appointment booked. Refresh Daily Action to see it.';
       } else if (manualBooking === booking) {
         addBookingFeedback.textContent = 'Could not verify the booking. Retry this form to check.';
         addBookingFeedback.hidden = false;
@@ -1490,7 +1490,7 @@
           return;
         }
         saved = true;
-        progress.textContent = 'Saved. Updating Daily work…';
+        progress.textContent = 'Saved. Updating Daily Action…';
         const followups = await getFollowups(event.account_id, event.location_id);
         if (generation !== state.generation) return;
         loadedGeneration = ++state.generation;
@@ -1506,8 +1506,8 @@
             (!cancelling && openBookedActivity(event.event_key, event.channel === 'facebook_messenger'))) return;
         inboxFilters.find(button => button.dataset.filter === inboxFilter)?.focus();
       } catch {
-        errorLine.textContent = saved ? 'The change was saved. Refresh Daily work to see it.' :
-          'Could not verify the change. Refresh Daily work to check the appointment.';
+        errorLine.textContent = saved ? 'The change was saved. Refresh Daily Action to see it.' :
+          'Could not verify the change. Refresh Daily Action to check the appointment.';
         errorLine.hidden = false;
       } finally {
         progress.textContent = '';
@@ -1954,7 +1954,7 @@
       if (context.state !== 'running') throw Error('The browser could not enable inbox sound.');
       playInboxSound();
       soundButton.setAttribute('aria-pressed', 'true');
-      if (soundHelp) soundHelp.textContent = 'Chimes play while Daily work is visible.';
+      if (soundHelp) soundHelp.textContent = 'Chimes play while Daily Action is visible.';
     } catch (error) {
       stopInboxSound();
       if (soundHelp) soundHelp.textContent = error.message;
@@ -2154,7 +2154,7 @@
     try {
       const {data, error} = await state.client.rpc('create_clinic_workspace_invite', {
         p_account_id: accountId, p_location_id: locationId, p_email: fields.get('email'),
-        // The invitation RPC still requires a legacy setup channel. Accepted invites open Daily work.
+        // The invitation RPC still requires a legacy setup channel. Accepted invites open Daily Action.
         p_role: fields.get('role'), p_channel: 'website_chat'
       });
       if (error) throw Error(error.message || 'Could not create the invitation.');
