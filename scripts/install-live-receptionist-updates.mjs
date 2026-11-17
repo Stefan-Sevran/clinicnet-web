@@ -14,6 +14,21 @@ function replace(source, from, to) {
   return source.replace(from, () => to);
 }
 
+function addContactToDetailsUpdate(handler) {
+  const preparedUpdates = /([.]prepare\(\s*)(["'`])(\s*UPDATE\s+clinic_assistants\s+SET\s+)((?:\\[\s\S]|(?!\2)[^\\])*)\2(\s*\)\s*[.]bind\(\s*)/gi;
+  const detailsUpdates = [...handler.matchAll(preparedUpdates)].filter(([, , , , sql]) =>
+    /\bclinic\s*=\s*\?/i.test(sql) && /\bagent_id\s*=\s*\?/i.test(sql) && /\bhero_key\s*=/i.test(sql)
+  );
+  if (detailsUpdates.length !== 1) {
+    throw Error('Could not identify the clinic facts database update. No files were changed.');
+  }
+  const [original, prepare, quote, prefix, sql, bind] = detailsUpdates[0];
+  // Match the SET columns so Worker versions can keep their original WHERE and bind order.
+  const fields = 'phone=CASE WHEN ? THEN ? ELSE phone END,maps_url=CASE WHEN ? THEN ? ELSE maps_url END,';
+  const values = 'contact?1:0,next.phone??null,contact?1:0,next.maps_url??null,';
+  return replace(handler, original, prepare + quote + prefix + fields + sql + quote + bind + values);
+}
+
 function updateWorker(source) {
   if (source.includes(marker)) return source;
   const start = source.indexOf(' const x=input.styleOnly===true?{');
@@ -46,8 +61,7 @@ function updateWorker(source) {
  const voiceChanged=`);
   handler = replace(handler, ' const newScene=next.clinic!==a.clinic||next.template!==a.template;',
     ' const newScene=!updatingLive&&(next.clinic!==a.clinic||next.template!==a.template);');
-  handler = replace(handler, ',updated_at=? WHERE id=? AND updated_at=?', ',phone=?,maps_url=?,updated_at=? WHERE id=? AND updated_at=?');
-  handler = replace(handler, ',stamp,id,a.updated_at).run();', ',next.phone??null,next.maps_url??null,stamp,id,a.updated_at).run();');
+  handler = addContactToDetailsUpdate(handler);
   source = replace(source, original, handler);
   const approval = "if(action==='review'&&request.method==='POST'){";
   return replace(source, approval, approval + "if(a.status==='published')return json({error:'This page is already live. Update your clinic facts from setup.'},409);");
