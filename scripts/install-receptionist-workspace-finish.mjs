@@ -4,8 +4,8 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-const { values: { check }, positionals: [root = join(homedir(), 'Desktop', 'clinicnet-voice-preview'), ...rest] } =
-  parseArgs({ allowPositionals: true, options: { check: { type: 'boolean' } } });
+const { values: { check, 'inbox-only': inboxOnly }, positionals: [root = join(homedir(), 'Desktop', 'clinicnet-voice-preview'), ...rest] } =
+  parseArgs({ allowPositionals: true, options: { check: { type: 'boolean' }, 'inbox-only': { type: 'boolean' } } });
 if (rest.length) throw Error('Pass one voice-preview folder, optionally followed by --check.');
 
 // Updates the installed voice-preview site in place.
@@ -93,6 +93,36 @@ if(workspaceResult)return workspaceResult;
     execFileSync(process.execPath, ['--input-type=module', '--check'], {input:client, stdio:['pipe','inherit','inherit']});
     return 'const receptionistClient = '+JSON.stringify(client)+';';
   });
+  return source;
+}
+
+// The status endpoint authenticates the same membership and location as setup.
+// A staff member may read publication status but may never obtain a setup ticket.
+function updateInboxWorker(original) {
+  const statusRoute = "if(path==='/api/assistants/workspace-status')return await workspaceLink(request,env,true);";
+  let source = updateWorker(original);
+  if (source.includes(statusRoute)) return source;
+  const patch = (from, to) => { source = replace(source, from, to); };
+  const linkRoute = "if(path==='/api/assistants/workspace-link')return await workspaceLink(request,env);";
+  patch(linkRoute, statusRoute + linkRoute);
+  patch('async function workspaceLink(request,env){', 'async function workspaceLink(request,env,statusOnly=false){');
+  patch('async function workspaceAccess(auth,accountId,locationId){',
+    'async function workspaceAccess(auth,accountId,locationId,statusOnly=false){');
+  patch("return ['owner','admin'].includes(membership?.role)&&location?.id===locationId?",
+    "return (['owner','admin'].includes(membership?.role)||(statusOnly&&membership?.role==='staff'))&&location?.id===locationId?");
+  patch('const access=await workspaceAccess(auth,accountId,locationId);',
+    'const access=await workspaceAccess(auth,accountId,locationId,statusOnly);');
+  const ticketLimit = "if(!await limit(env,'workspace-link:'+access.userId,30,3600))";
+  patch(ticketLimit, `if(statusOnly){
+      const published=await env.PILOT_DB.prepare(
+        "SELECT 1 AS live FROM assistant_workspace_locations w JOIN clinic_assistants a ON a.id=w.assistant_id WHERE w.account_id=? AND w.location_id=? AND a.status='published'"
+      ).bind(accountId,locationId).first();
+      return respond({published:!!published});
+    }
+    `+ticketLimit);
+  patch("  if (!env.BOOKING_INGEST_KEY) return null;\n  const scope = await findWorkspaceScope(env, 'assistant_id', assistant.id);\n  if (!scope) return null;",
+    "  const scope = await findWorkspaceScope(env, 'assistant_id', assistant.id);\n  if (!scope) return null;\n  if (!env.BOOKING_INGEST_KEY) return json({error:'The clinic inbox is temporarily unavailable. Please try again shortly.'},503);");
+  patch("redirect: 'error', signal: AbortSignal.timeout(12000)", "redirect: 'manual', signal: AbortSignal.timeout(12000)");
   return source;
 }
 
@@ -195,7 +225,9 @@ $('saveLiveReceptionist').onclick=()=>saveLiveReceptionist('livePageStatus');`);
   return source;
 }
 
-const changes = [['assistant-core.js', updateWorker], ['assistant-setup/index.html', updatePage]].map(([path, update]) => {
+const files = [['assistant-core.js', updateInboxWorker]];
+if (!inboxOnly) files.push(['assistant-setup/index.html', updatePage]);
+const changes = files.map(([path, update]) => {
   const file = join(root, path);
   const before = readFileSync(file, 'utf8');
   return { path, file, before, after: update(before) };

@@ -12,7 +12,7 @@
 <script src="/assets/navigation.js?v=2"></script>
 <meta name="referrer" content="no-referrer">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-42"></script>
+<script defer src="/assets/clinic.js?v=messenger-guide-43"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <a class="skip-link" href="#main-content">Skip to content</a>
 <header class="ecn-site-header">
@@ -210,11 +210,9 @@ fetchpriority="high"
           <div class="clinic-inbox-heading">
             <h2 id="clinic-inbox-title" tabindex="-1">Activity inbox</h2>
             <div class="clinic-appointment-actions">
-              <button id="clinic-inbox-sound" type="button" class="clinic-secondary" aria-pressed="false" aria-describedby="clinic-inbox-sound-help">Inbox sound</button>
               <button id="clinic-add-booking" type="button" aria-expanded="false" aria-controls="clinic-add-booking-form">Add booking</button>
             </div>
           </div>
-          <p id="clinic-inbox-sound-help" role="status"></p>
           <form id="clinic-add-booking-form" class="clinic-appointment-editor" aria-label="Add booking" hidden>
             <label>Patient name<input name="patientName" maxlength="120" required></label>
             <label>Service<input name="service" maxlength="100" required></label>

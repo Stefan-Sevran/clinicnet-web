@@ -497,9 +497,6 @@ body[data-page="clinic"] .ecn-site-header::before {
 .clinic-invite-switch:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 .clinic-inbox-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-#clinic-inbox-sound { font-size: .875rem; }
-#clinic-inbox-sound[aria-pressed="true"] { background: #e4f5ec; }
-#clinic-inbox-sound-help:not(:empty) { margin-top: 6px; font-size: .875rem; }
 
 
 .clinic-appointment-editor .clinic-appointment-progress {

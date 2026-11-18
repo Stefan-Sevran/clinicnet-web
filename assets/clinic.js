@@ -48,8 +48,6 @@
   const alertEmailForm = byId('clinic-alert-email-form');
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
-  const soundButton = byId('clinic-inbox-sound');
-  const soundHelp = byId('clinic-inbox-sound-help');
   const pearlPilotLink = document.createElement('a');
   pearlPilotLink.href = '/pearlsmile-cebu/?workspace-pilot=1#pearlsmile-reception-chat-2026';
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
@@ -81,10 +79,10 @@
   let isClinicOwner = false;
   let acceptingInvite;
   let staffEmailAvailable = false;
-  let soundContext;
   let backgroundRefresh = false;
   let loadedGeneration = -1;
-  let inboxSnapshot;
+  let inboxSignature;
+  let publishedWebsite = false;
 
   const setupChannelLabels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const bookingSourceLabels = { ...setupChannelLabels, staff_booking: 'Booked by staff' };
@@ -715,9 +713,10 @@
   }
 
   function channelStatus(channel, connection) {
+    if (channel === 'website_chat' && publishedWebsite && (!connection || ['requested', 'verifying'].includes(connection.status))) return 'Page live · inbox unverified';
     if (!connection) return 'Not set up';
     if (connection.status==='requested') return {
-      website_chat:'Connection pending',facebook_messenger:'Access pending',ai_phone:'Number pending'
+      website_chat:'Inbox unverified',facebook_messenger:'Access pending',ai_phone:'Number pending'
     }[channel];
     return {
       verifying:'Ready to test',connected:'Connected',action_required:'Action needed',disconnected:'Disconnected'
@@ -774,8 +773,8 @@
     }
   }
 
-  function renderChannels() {
-    for (const { channel, index, panel, heading, body, link, marker, badge } of channelSteps) {
+  function renderChannels(steps = channelSteps) {
+    for (const { channel, index, panel, heading, body, link, marker, badge } of steps) {
       const connection = state.connections.find(item=>item.channel===channel);
       const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
         setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
@@ -798,10 +797,12 @@
       if (channel==='website_chat') {
         detail.textContent = canManageClinic?'Start here to set up or resume your AI receptionist.':'A clinic owner or admin can open receptionist setup.';
         if (canManageClinic) row.append(channelButton('Set up AI receptionist',openWebsiteSetup));
-        if (connection?.status==='requested') {
+        if (connection?.status==='requested' || (publishedWebsite && (!connection || connection.status==='verifying'))) {
           const note = document.createElement('small');
           note.className = 'clinic-connection-pending';
-          note.textContent = 'Pending.';
+          note.textContent = publishedWebsite
+            ? 'Your receptionist page is live. The first website request received in Daily Action verifies the inbox connection.'
+            : 'The website inbox connection has yet to be verified.';
           detail.append(note);
         } else if (!connection && canManageClinic) {
           const extra = document.createElement('details');
@@ -1819,24 +1820,25 @@
     if (generation !== state.generation || (quiet && !canRefreshInbox())) return;
     const date = new Date().toLocaleDateString('en-CA', { timeZone: clinicTimeZone(locationId) });
     const signature = JSON.stringify([accountId, locationId, date, inbox, bookings, followups]);
-    if (quiet && inboxSnapshot?.signature === signature) return;
+    if (quiet && inboxSignature === signature) return;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
     if (!quiet) {
+      publishedWebsite = false;
       state.connections = connections;
       clinicTeamAvailable = team !== null;
       clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
       pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
       renderChannels();
       renderCommentPilot(inbox);
+      const website = connections.find(row => row.channel === 'website_chat');
+      if (!website || ['requested', 'verifying'].includes(website.status)) {
+        void checkWebsitePublication(accountId, locationId, generation);
+      }
     }
     renderDailyWork(inbox, bookings, locationId);
     guideInbox = inbox;
     if (!quiet) renderMessengerGuide();
-    const keys = inboxAlertKeys(inbox);
-    if (soundContext?.state === 'running' && !document.hidden &&
-        inboxSnapshot?.accountId === accountId && inboxSnapshot.locationId === locationId &&
-        [...keys].some(key => !inboxSnapshot.keys.has(key))) playInboxSound();
-    inboxSnapshot = { accountId, locationId, keys, signature };
+    inboxSignature = signature;
     loadedGeneration = generation;
     if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
   }
@@ -1892,14 +1894,9 @@
     }
   });
 
-  function inboxAlertKeys(inbox) {
-    return new Set(inbox.filter(event => followupKinds.includes(event.kind) && !isMessengerSetupSample(event))
-      .map(event => event.event_key).filter(Boolean));
-  }
-
   function canRefreshInbox() {
     return state.session && !document.hidden && workspaceView === 'daily' && !daily.hidden &&
-      loadedGeneration === state.generation && !document.querySelector('.clinic-appointment-editor');
+      loadedGeneration === state.generation && !document.querySelector('.clinic-appointment-editor:not([hidden])');
   }
 
   async function pollInbox() {
@@ -1915,52 +1912,22 @@
   window.addEventListener('focus', pollInbox);
   document.addEventListener('visibilitychange', pollInbox);
 
-  function playInboxSound() {
-    for (const [frequency, delay] of [[523.25, 0], [659.25, 0.12]]) {
-      const tone = soundContext.createOscillator();
-      const volume = soundContext.createGain();
-      const start = soundContext.currentTime + delay;
-      tone.frequency.value = frequency;
-      volume.gain.setValueAtTime(0.001, start);
-      volume.gain.exponentialRampToValueAtTime(0.17, start + 0.035);
-      volume.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
-      tone.connect(volume);
-      volume.connect(soundContext.destination);
-      tone.start(start);
-      tone.stop(start + 0.25);
-    }
-  }
-
-  function stopInboxSound() {
-    soundContext?.close().catch(() => {});
-    soundContext = undefined;
-    soundButton?.setAttribute('aria-pressed', 'false');
-    if (soundHelp) soundHelp.textContent = '';
-  }
-
-  soundButton?.addEventListener('click', async () => {
-    if (soundContext) {
-      stopInboxSound();
-      return;
-    }
-    soundButton.disabled = true;
-    if (soundHelp) soundHelp.textContent = 'Enabling inbox sound…';
+  async function checkWebsitePublication(accountId, locationId, generation) {
     try {
-      const Audio = window.AudioContext || window.webkitAudioContext;
-      if (!Audio) throw Error('Inbox sound is unavailable in this browser.');
-      const context = new Audio();
-      soundContext = context;
-      await context.resume();
-      if (soundContext !== context) return;
-      if (context.state !== 'running') throw Error('The browser could not enable inbox sound.');
-      playInboxSound();
-      soundButton.setAttribute('aria-pressed', 'true');
-      if (soundHelp) soundHelp.textContent = 'Chimes play while Daily Action is visible.';
-    } catch (error) {
-      stopInboxSound();
-      if (soundHelp) soundHelp.textContent = error.message;
-    } finally { soundButton.disabled = false; }
-  });
+      const {data} = await state.client.auth.getSession();
+      if (!data?.session || generation !== state.generation) return;
+      const response = await fetch(setupOrigin + '/api/assistants/workspace-status', {
+        method:'POST', cache:'no-store', redirect:'error', signal:AbortSignal.timeout(12000),
+        headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},
+        body:JSON.stringify({accountId,locationId})
+      });
+      if (!response.ok || (await response.json()).published !== true) return;
+      if (generation !== state.generation || accountId !== byId('clinic-account').value ||
+          locationId !== byId('clinic-location').value) return;
+      publishedWebsite = true;
+      renderChannels(channelSteps.filter(step => step.channel === 'website_chat'));
+    } catch { /* Keep the saved inbox status when publication cannot be verified. */ }
+  }
 
   async function openWebsiteSetup(button) {
     const userId = state.session?.user?.id;
@@ -2204,12 +2171,12 @@
     show('clinic-authenticated', Boolean(session));
     if (!session) {
       ++state.generation;
-      inboxSnapshot = undefined;
+      inboxSignature = undefined;
+      publishedWebsite = false;
       guide.hidden = true;
       hideChannelSetup();
       guideLocation = null;
       setupTest = null;
-      stopInboxSound();
       show('clinic-team-invite', false);
       status(pendingInvite ? 'Sign in with the work email that received the invitation.' : 'Sign in to create or open your workspace.');
       return;
