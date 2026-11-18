@@ -83,6 +83,8 @@
   let loadedGeneration = -1;
   let inboxSignature;
   let publishedWebsite = false;
+  let clinicVisits = new Map();
+  let visitRecordsAvailable = false;
 
   const setupChannelLabels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
   const bookingSourceLabels = { ...setupChannelLabels, staff_booking: 'Booked by staff' };
@@ -998,7 +1000,8 @@
       const cancelled = latest?.recorded_action === 'cancelled';
       const ownClaim = latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
       const assigneeName = clinicTeam.get(latest?.actor_user_id);
-      const statusLabel = setupSample ? 'Setup test' : cancelled ? 'Cancelled' : needsFollowup ? ({
+      const visit = clinicVisits.get(event.event_key);
+      const statusLabel = visit ? 'Visit completed' : setupSample ? 'Setup test' : cancelled ? 'Cancelled' : needsFollowup ? ({
         booked: 'Booked',
         claimed: ownClaim ? 'Assigned to you' : 'Assigned to ' + (assigneeName || 'teammate'),
         handled: 'Handled'
@@ -1090,7 +1093,13 @@
           });
           row.append(appointment);
         }
-        const actions = cancelled ? [['restored', 'Restore booking']] :
+        if (visitRecordsAvailable && latest?.action === 'booked' && event.details?.demo !== true &&
+            latest.appointment_at && Date.parse(latest.appointment_at) <= Date.now()) {
+          ClinicRescue.visitControls(row, {event, latest, visit, events:dailyEvents, client:state.client,
+            currency:clinicTimeZone(event.location_id) === 'Asia/Bangkok' ? 'THB' : 'PHP',
+            refresh:() => refreshActivity()});
+        }
+        const actions = visit ? [] : cancelled ? [['restored', 'Restore booking']] :
           latest?.action === 'booked' ? [['rescheduled', 'Change time'], ['cancelled', 'Cancel booking']] :
           latest?.action === 'claimed' ? (ownClaim ? [
             ...(messengerTask ? [] : [['booked', 'Confirm booking']]),
@@ -1328,12 +1337,23 @@
     const timeZone = clinicTimeZone(locationId);
     manualBooking = { accountId, locationId, timeZone, id: crypto.randomUUID() };
     addBookingResult.hidden = true;
-    addBookingForm.elements.appointment.min = clinicDateTimeValue(new Date(Date.now() + 60000).toISOString(), timeZone);
+    setManualVisitTime();
     byId('clinic-add-booking-zone').textContent = 'Appointment time is in ' + timeZone + '.';
     addBookingForm.hidden = false;
     addBookingButton.setAttribute('aria-expanded', 'true');
     addBookingForm.elements.patientName.focus();
   });
+
+  function setManualVisitTime() {
+    const walkin = addBookingForm.elements.entryType.value === 'walkin';
+    const time = addBookingForm.elements.appointment;
+    const localNow = clinicDateTimeValue(new Date().toISOString(), manualBooking.timeZone);
+    time.min = walkin ? '' : clinicDateTimeValue(new Date(Date.now()+60000).toISOString(),manualBooking.timeZone);
+    time.max = walkin ? localNow : '';
+    time.value = walkin ? localNow : '';
+    addBookingForm.querySelector('button[type="submit"]').textContent = walkin ? 'Record walk-in' : 'Book appointment';
+  }
+  addBookingForm.elements.entryType.addEventListener('change',setManualVisitTime);
 
   addBookingClose.addEventListener('click', () => {
     closeManualBooking();
@@ -1361,7 +1381,11 @@
     addBookingFeedback.hidden = true;
     let saved = false;
     try {
-      const { data: eventKey, error } = await state.client.rpc('create_manual_clinic_booking', payload);
+      const walkin = addBookingForm.elements.entryType.value === 'walkin';
+      const {data:eventKey,error} = walkin ? await state.client.rpc('record_clinic_walkin',{
+        p_location:booking.locationId,p_submission:booking.id,p_name:patientName.value.trim(),p_service:service.value.trim(),
+        p_local_time:appointment.value,p_currency:booking.timeZone==='Asia/Bangkok' ? 'THB' : 'PHP'
+      }) : await state.client.rpc('create_manual_clinic_booking',payload);
       if (manualBooking !== booking) return;
       if (error) {
         addBookingFeedback.textContent = ['22023', '23514'].includes(error.code) ? error.message :
@@ -1371,7 +1395,7 @@
       }
       saved = true;
       closeManualBooking();
-      addBookingResult.textContent = 'Appointment booked.';
+      addBookingResult.textContent = walkin ? 'Walk-in recorded. You can add the amount collected or link an Eden request.' : 'Appointment booked.';
       addBookingResult.hidden = false;
       inboxFilter = 'booked';
       await refreshActivity();
@@ -1817,12 +1841,22 @@
       quiet ? null : state.client.rpc('list_clinic_team', { p_account_id: accountId })
         .then(({ data, error }) => error ? null : data || [], () => null)
     ]);
+    const keys = [...new Set([...inbox, ...bookings].map(item => item.event_key).filter(key => key && followups.some(f => f.event_key === key && f.action === 'booked')))];
+    const visitPages = await Promise.all(Array.from({length:Math.ceil(keys.length / 25)}, (_, i) =>
+      state.client.from('clinic_visit_completions').select('event_key,eden_event_key,amount_minor,currency,revision,receipt_ref')
+        .eq('location_id',locationId).in('event_key',keys.slice(i*25,i*25+25))));
     if (generation !== state.generation || (quiet && !canRefreshInbox())) return;
+    visitRecordsAvailable = visitPages.every(page => !page.error);
+    const visits = visitPages.flatMap(page => page.data || []);
     const date = new Date().toLocaleDateString('en-CA', { timeZone: clinicTimeZone(locationId) });
-    const signature = JSON.stringify([accountId, locationId, date, inbox, bookings, followups]);
+    const signature = JSON.stringify([accountId, locationId, date, inbox, bookings, followups, visits, visitRecordsAvailable, followups.filter(f => f.appointment_at && Date.parse(f.appointment_at)<=Date.now()).length]);
     if (quiet && inboxSignature === signature) return;
     state.followups = new Map(followups.map(row => [row.event_key, row]));
+    clinicVisits = new Map(visits.map(visit => [visit.event_key, visit]));
     if (!quiet) {
+      ClinicRescue.pending({client:state.client,locationId,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
+      ClinicRescue.reports({client:state.client,locationId,clinicName:state.locations.find(l=>l.id===locationId)?.name || "",manager:canManageClinic,email:state.session?.user.email,
+        timezone:clinicTimeZone(locationId),reportId:query.get('location')===locationId ? query.get('report') : null});
       publishedWebsite = false;
       state.connections = connections;
       clinicTeamAvailable = team !== null;

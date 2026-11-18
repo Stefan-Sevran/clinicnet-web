@@ -151,6 +151,7 @@
             </div>
           </div>
           <form id="clinic-add-booking-form" class="clinic-appointment-editor" aria-label="Add booking" hidden>
+            <label>Entry type<select name="entryType"><option value="booking">Scheduled appointment</option><option value="walkin">Completed walk-in</option></select></label>
             <label>Patient name<input name="patientName" maxlength="120" required></label>
             <label>Service<input name="service" maxlength="100" required></label>
             <label>Appointment date and time<input name="appointment" type="datetime-local" aria-describedby="clinic-add-booking-zone" required></label>
@@ -169,6 +170,7 @@
             <button type="button" data-filter="booked" aria-pressed="false">Booked</button>
             <button type="button" data-filter="tests" aria-pressed="false">Setup tests</button>
           </div>
+          <details id="clinic-pending-visits"><summary>Visit amounts awaiting entry</summary><div></div></details>
           <div id="clinic-inbox" class="clinic-events" aria-live="polite"></div>
         </section>
         <section class="clinic-panel clinic-today" aria-labelledby="clinic-today-title">
@@ -176,6 +178,10 @@
           <p id="clinic-today-date"></p>
           <div id="clinic-today" class="clinic-events"></div>
         </section>
+        <details id="clinic-rescue" class="clinic-panel clinic-rescue" hidden>
+          <summary>Revenue Rescue Reports</summary>
+          <div id="clinic-rescue-body"></div>
+        </details>
       </div>
       <!-- /Clinic Daily work -->
     </div>

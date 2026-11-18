@@ -510,3 +510,16 @@ body[data-page="clinic"] .ecn-site-header::before {
 }
 
 .clinic-messenger-confirmation > small:not(:empty) { margin-top: 6px; }
+
+.clinic-rescue { grid-column: 1 / -1; }
+.clinic-rescue summary { cursor: pointer; font-weight: 700; padding-block: .5rem; }
+.clinic-rescue #clinic-rescue-body { margin-top: 1rem; }
+.clinic-rescue-form, .clinic-rescue-card[open] { display: grid; gap: .8rem; }
+.clinic-rescue-form { max-width: 34rem; padding-block: .75rem; }
+.clinic-rescue-form label { display: grid; gap: .3rem; }
+.clinic-rescue-form label:has(input[type=checkbox]) { display: flex; align-items: center; flex-direction: row-reverse; justify-content: start; gap: .6rem; }
+.clinic-rescue-form input:not([type=checkbox]), .clinic-rescue-form select { font: inherit; padding: .6rem; border: 1px solid #a9b9ac; border-radius: .5rem; }
+.clinic-rescue-card { border-top: 1px solid #d9e4dc; padding: .8rem 0; }
+.clinic-rescue-card h3 { color: #173a33; font-size: 1.5rem; margin: .4rem 0; }
+.clinic-rescue-totals { display: grid; gap: .45rem; background: #e6f2ed; color: #173a33; padding: 1rem; border-radius: .8rem; }
+.clinic-rescue-card :is(button,a,img) { justify-self: start; }
