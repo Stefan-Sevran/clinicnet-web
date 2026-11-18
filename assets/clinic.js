@@ -86,7 +86,8 @@
   let loadedGeneration = -1;
   let inboxSnapshot;
 
-  const labels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone', staff_booking: 'Booked by staff' };
+  const setupChannelLabels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
+  const bookingSourceLabels = { ...setupChannelLabels, staff_booking: 'Booked by staff' };
   const channelNav = byId('clinic-channel-setup');
   workspaceHero.after(channelNav);
   const channelSteps = createChannelSteps();
@@ -575,7 +576,7 @@
 
   function createChannelSteps() {
     const list = byId('clinic-channels');
-    const steps = Object.entries(labels).map(([channel, name], index) => {
+    const steps = Object.entries(setupChannelLabels).map(([channel, name], index) => {
       const panel = document.createElement('details');
       panel.id = 'clinic-channel-' + channel;
       panel.className = 'clinic-panel clinic-channel-detail';
@@ -1017,7 +1018,7 @@
         heading.append(badge);
       }
       const meta = document.createElement('small');
-      meta.textContent = [labels[event.channel] || event.channel,
+      meta.textContent = [bookingSourceLabels[event.channel] || event.channel,
         statusLabel ? null : event.status,
         event.occurred_at && new Date(event.occurred_at).toLocaleString(undefined, {
           dateStyle: 'medium', timeStyle: 'short', timeZone: clinicTimeZone(event.location_id)
@@ -1241,7 +1242,7 @@
         const service = event.details?.service;
         title.textContent = name || service || event.summary || 'Appointment';
         const time = document.createElement('small');
-        time.textContent = [timeLabel.format(date), name && service, labels[event.channel] || event.channel]
+        time.textContent = [timeLabel.format(date), name && service, bookingSourceLabels[event.channel] || event.channel]
           .filter(Boolean).join(' · ');
         row.append(title, time);
         row.addEventListener('click', () => openBookedActivity(event.event_key));
