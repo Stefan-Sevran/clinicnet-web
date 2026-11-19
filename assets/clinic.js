@@ -1100,7 +1100,7 @@
         if (visitRecordsAvailable && latest?.action === 'booked' && event.details?.demo !== true &&
             latest.appointment_at && Date.parse(latest.appointment_at) <= Date.now()) {
           ClinicRescue.visitControls(row, {event, latest, visit, events:dailyEvents, client:state.client,
-            currency:clinicTimeZone(event.location_id) === 'Asia/Bangkok' ? 'THB' : 'PHP',
+            currency:state.visitCurrency,timezone:clinicTimeZone(event.location_id),
             refresh:() => refreshActivity()});
         }
         const actions = visit ? [] : cancelled ? [['restored', 'Restore booking']] :
@@ -1553,7 +1553,7 @@
           return;
         }
         if (error) {
-          errorLine.textContent = error.code === '22023' ? error.message : 'Could not save the booking. Try again.';
+          errorLine.textContent = ['22023','23514'].includes(error.code) ? error.message : 'Could not save the booking. Try again.';
           errorLine.hidden = false;
           return;
         }
@@ -1876,12 +1876,14 @@
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
     const activityQuery = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
-    const [bookings, inbox, followups, connections, team] = await Promise.all([
+    const [bookings, inbox, followups, connections, team, currency] = await Promise.all([
       request('/clinic/bookings' + activityQuery), request('/clinic/inbox' + activityQuery + '&limit=100'),
       getFollowups(accountId, locationId),
       quiet ? null : request('/clinic/connections' + activityQuery),
       quiet ? null : state.client.rpc('list_clinic_team', { p_account_id: accountId })
-        .then(({ data, error }) => error ? null : data || [], () => null)
+        .then(({ data, error }) => error ? null : data || [], () => null),
+      quiet ? null : state.client.rpc('clinic_visit_currency', {p_location: locationId})
+        .then(({data,error}) => error ? '' : data, () => '')
     ]);
     const keys = [...new Set([...inbox, ...bookings].map(item => item.event_key).filter(key => key && followups.some(f => f.event_key === key && f.action === 'booked')))];
     const visitPages = await Promise.all(Array.from({length:Math.ceil(keys.length / 25)}, (_, i) =>
@@ -1896,9 +1898,12 @@
     state.followups = new Map(followups.map(row => [row.event_key, row]));
     clinicVisits = new Map(visits.map(visit => [visit.event_key, visit]));
     if (!quiet) {
-      ClinicRescue.pending({client:state.client,locationId,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
+      const timezone = clinicTimeZone(locationId);
+      state.visitCurrency = currency;
+      ClinicRescue.pending({client:state.client,locationId,timezone,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
+      ClinicRescue.attributionReviews({client:state.client,locationId,timezone});
       ClinicRescue.reports({client:state.client,locationId,clinicName:state.locations.find(l=>l.id===locationId)?.name || "",manager:canManageClinic,email:state.session?.user.email,
-        timezone:clinicTimeZone(locationId),reportId:query.get('location')===locationId ? query.get('report') : null});
+        timezone,reportId:query.get('location')===locationId ? query.get('report') : null});
       publishedWebsite = false;
       state.connections = connections;
       clinicTeamAvailable = team !== null;
