@@ -28,14 +28,15 @@ const ClinicRescue = (() => {
     return message;
   }
   function visitControls(row,{event,latest,visit,events,client,currency,refresh}) {
-    if (visit) row.append(el('small',visit.amount_minor == null ? 'Amount pending' : 'Amount collected · ' + money(visit.amount_minor,visit.currency)));
+    if (visit) row.append(el('small',visit.amount_minor == null ? 'Payment amount not recorded' : 'Amount paid by patient · ' + money(visit.amount_minor,visit.currency)));
     const opener = button(visit ? (visit.amount_minor == null ? 'Add amount collected' : 'Review visit') : 'Complete visit', () => {
       opener.hidden = true;
       const form = el('form');
       form.className = 'clinic-appointment-editor';
-      const amount = field(form,'Amount collected (optional)',el('input'));
-      Object.assign(amount,{type:'number',min:'0',max:'999999999.99',step:'0.01',placeholder:'Amount pending'});
+      const amount = field(form,visit?.amount_minor != null ? 'Total paid by the patient so far' : 'Total paid by the patient so far (optional)',el('input'));
+      Object.assign(amount,{type:'number',min:'0',max:'999999999.99',step:'0.01',placeholder:'e.g. 2500'});
       if (visit?.amount_minor != null) { amount.value = (visit.amount_minor/100).toFixed(2); amount.required = true; }
+      form.append(el('small',visit?.amount_minor != null ? 'Update the total received for this visit, including any later payments or refunds.' : 'Leave blank if the amount is unknown. Enter 0 for a free visit.'));
       const unit = field(form,'Currency',select(currencies.map(x=>[x,x]),visit?.currency || currency));
       unit.disabled = visit?.amount_minor != null;
       const receipt=field(form,'Receipt reference (optional)',el('input'));
@@ -161,6 +162,19 @@ const ClinicRescue = (() => {
     else if(r.approved_at && settlement && s.share_minor>0) card.append(el('p','Payment link pending from Eden.'));
     card.append(feedback);host.append(card);return card;
   }
+  function currentCard(host, period) {
+    const card=el('section');card.className='clinic-rescue-card';
+    const dateLabel=date=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})
+      .format(new Date(date+'T00:00:00Z'));
+    card.append(el('h3','Current period so far'),el('p',period.period_start===period.through ? 'Today · '+dateLabel(period.through) : dateLabel(period.period_start)+' – '+dateLabel(period.through)));
+    const totals=el('div');totals.className='clinic-rescue-totals';
+    totals.append(el('strong','Paid-period collections from Eden visits · '+money(period.eligible_minor,period.currency)),
+      el('p','Estimated Eden share at '+period.rate_bps/100+'% · '+money(period.estimated_share_minor,period.currency)));
+    const free=period.collected_minor-period.eligible_minor;
+    if(free) totals.append(el('p','Free-pilot collections recorded this period · '+money(free,period.currency)));
+    card.append(totals,el('small','Updates as staff record payments. The monthly settlement accounts for credits and rounding.'));
+    host.append(card);
+  }
   let panelSequence=0;
   function reports(ctx) {
     const seq=++panelSequence;
@@ -179,6 +193,12 @@ const ClinicRescue = (() => {
           ctx.client.from('clinic_rescue_reports').select('*').eq('location_id',ctx.locationId).order('period_end',{ascending:false}).order('kind')]);
         if(!valid()) return;
         if(prefs.error || rows.error) throw prefs.error || rows.error;
+        if(prefs.data) {
+          const currentPeriod=await ctx.client.rpc('current_rescue_period',{p_location:ctx.locationId});
+          if(!valid()) return;
+          if(currentPeriod.error) box.append(el('p','Current figures could not be loaded.'),button('Retry current figures',()=>load()));
+          else if(currentPeriod.data) currentCard(box,currentPeriod.data);
+        }
         if(prefs.data && !rows.data.length) box.append(el('p','Your first results report will appear after the seven-day pilot.'));
         let selected;
         for(const r of rows.data) {
