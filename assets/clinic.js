@@ -67,9 +67,13 @@
   const inboxFilters = [...daily.querySelectorAll('[data-filter]')];
   let dailyEvents = [];
   let inboxFilter = 'all';
+  const inboxPageSize = 5;
+  let inboxPage = 0;
+  let inboxLocation;
   for (const button of inboxFilters) {
     button.addEventListener('click', () => {
       inboxFilter = button.dataset.filter;
+      inboxPage = 0;
       renderDailyInbox();
     });
   }
@@ -1158,7 +1162,7 @@
     }
   }
 
-  function renderDailyInbox() {
+  function renderDailyInbox(targetKey) {
     const activity = dailyEvents.filter(event => !isMessengerSetupSample(event));
     const attention = activity.filter(event => {
       if (!event.event_key || !followupKinds.includes(event.kind)) return false;
@@ -1186,7 +1190,41 @@
       button.setAttribute('aria-pressed', String(button.dataset.filter === inboxFilter));
       if (button.dataset.filter === 'attention') button.textContent = 'Needs attention (' + attention.length + ')';
     }
-    renderInboxEvents(...views[inboxFilter]);
+    const [events, fallback] = views[inboxFilter];
+    if (targetKey) {
+      const index = events.findIndex(event => event.event_key === targetKey);
+      if (index >= 0) inboxPage = Math.floor(index / inboxPageSize);
+    }
+    const pageCount = Math.ceil(events.length / inboxPageSize);
+    inboxPage = Math.min(inboxPage, Math.max(0, pageCount - 1));
+    const start = inboxPage * inboxPageSize;
+    renderInboxEvents(events.slice(start, start + inboxPageSize), fallback);
+    if (pageCount <= 1) return;
+
+    const container = byId('clinic-inbox');
+    const pager = document.createElement('nav');
+    pager.className = 'clinic-appointment-actions';
+    pager.setAttribute('aria-label', 'Activity inbox pages');
+    const range = document.createElement('span');
+    range.textContent = (start + 1) + '–' + Math.min(start + inboxPageSize, events.length) + ' of ' + events.length;
+    for (const [label, offset] of [['Previous', -1], ['Next', 1]]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'clinic-secondary';
+      button.textContent = label;
+      const nextPage = inboxPage + offset;
+      button.disabled = nextPage < 0 || nextPage >= pageCount;
+      button.addEventListener('click', () => {
+        inboxPage = nextPage;
+        renderDailyInbox();
+        const first = container.querySelector('article');
+        first.tabIndex = -1;
+        first.focus();
+      });
+      if (offset === 1) pager.append(range);
+      pager.append(button);
+    }
+    container.append(pager);
   }
 
   function openBookedActivity(eventKey, showConfirmation = false, filter = 'booked') {
@@ -1194,7 +1232,7 @@
     let card = locate();
     if (!card) {
       inboxFilter = filter;
-      renderDailyInbox();
+      renderDailyInbox(eventKey);
       card = locate();
     }
     if (!card) return false;
@@ -1206,6 +1244,10 @@
   }
 
   function renderDailyWork(inbox, bookings, locationId) {
+    if (inboxLocation !== locationId) {
+      inboxPage = 0;
+      inboxLocation = locationId;
+    }
     if (manualBooking && (manualBooking.locationId !== locationId ||
         manualBooking.accountId !== byId('clinic-account').value)) closeManualBooking();
     const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
