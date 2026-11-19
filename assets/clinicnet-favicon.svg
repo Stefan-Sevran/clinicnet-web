@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Eden Clinic Network">
+  <defs><linearGradient id="eden" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#8a16f4"/><stop offset="1" stop-color="#3551ff"/></linearGradient></defs>
+  <path d="M17 46A25 25 0 1 1 43 54l9 5-3-13" fill="#fff" stroke="url(#eden)" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="8.5" cy="50.5" r="2.8" fill="#8226f7"/><circle cx="13.4" cy="56" r="2.6" fill="#772df9"/><circle cx="20.2" cy="59" r="2.4" fill="#6b36fb"/>
+  <path d="M29 20h6v9h9v6h-9v9h-6v-9h-9v-6h9z" fill="url(#eden)" stroke="url(#eden)" stroke-width="2" stroke-linejoin="round"/>
+</svg>
