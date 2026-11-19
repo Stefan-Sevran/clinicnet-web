@@ -1833,11 +1833,11 @@
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
     if (!accountId || !locationId) return;
-    const query = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
+    const activityQuery = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
     const [bookings, inbox, followups, connections, team] = await Promise.all([
-      request('/clinic/bookings' + query), request('/clinic/inbox' + query + '&limit=100'),
+      request('/clinic/bookings' + activityQuery), request('/clinic/inbox' + activityQuery + '&limit=100'),
       getFollowups(accountId, locationId),
-      quiet ? null : request('/clinic/connections' + query),
+      quiet ? null : request('/clinic/connections' + activityQuery),
       quiet ? null : state.client.rpc('list_clinic_team', { p_account_id: accountId })
         .then(({ data, error }) => error ? null : data || [], () => null)
     ]);
