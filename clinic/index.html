@@ -114,7 +114,18 @@ fetchpriority="high"
         <label>Location<select id="clinic-location"></select></label>
         <button id="clinic-refresh" type="button" class="clinic-secondary">Refresh</button>
       </section>
-      <nav id="clinic-channel-setup" class="clinic-sticky-channel-nav" aria-label="Channel status" hidden>
+      <nav id="clinic-channel-setup" class="clinic-panel clinic-connect" aria-labelledby="clinic-connect-title" hidden>
+        <header class="clinic-connect-heading">
+          <div>
+            <h1 id="clinic-connect-title">Connect your clinic</h1>
+            <p id="clinic-connect-location"></p>
+          </div>
+          <p id="clinic-connect-progress" class="clinic-connect-progress" role="status"></p>
+        </header>
+        <div id="clinic-connect-next" class="clinic-connect-next" hidden>
+          <div><strong id="clinic-connect-next-title"></strong><p id="clinic-connect-next-detail"></p></div>
+          <a id="clinic-connect-next-action" class="clinic-messenger-primary-link"></a>
+        </div>
         <ol id="clinic-channels" class="clinic-channel-progress"></ol>
       </nav>
       <section id="clinic-team-invite" class="clinic-panel" hidden>

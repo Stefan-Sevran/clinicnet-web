@@ -31,16 +31,19 @@ for (const role of roles) {
     const requests = [];
     let resolveCebu;
     let delayCebu = false;
+    let messengerStatus = 'action_required';
+    const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
     win.fetch = async raw => {
       const req = new URL(raw);
       const responses = {
-        '/clinic/public-config':{supabaseUrl:'https://example.test',publishableKey:'fixture'},
+        '/clinic/public-config':{supabaseUrl:'https://example.test',publishableKey:'fixture',messengerSetupAvailable:true},
         '/clinic/accounts':[{id:account,name:'Eden fixture'}],
         '/clinic/locations':[{id:cebu,name:'Cebu fixture',timezone:'Asia/Manila'},
           {id:bangkok,name:'Bangkok fixture',timezone:'Asia/Bangkok'}],
         '/clinic/bookings':[], '/clinic/inbox':[],
+        '/clinic/messenger/setups':role==='staff'?[]:[{locationId:cebu,clinicName:'Cebu fixture',facts}],
         '/clinic/connections':req.searchParams.get('locationId')===cebu ?
-          [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:'action_required'}] : []
+          [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:messengerStatus}] : []
       };
       assert.ok(Object.hasOwn(responses,req.pathname),req.pathname);
       return Response.json(responses[req.pathname]);
@@ -79,6 +82,9 @@ for (const role of roles) {
     if (role==='staff') {
       assert.equal(overview.hidden,true);
       assert.ok(!requests.some(([name])=>name==='current_rescue_period'));
+      doc.querySelector('.clinic-view-switch a[href*="view=setup"]').click();
+      assert.equal(doc.querySelector('#clinic-connect-next').hidden,true);
+      assert.match(doc.querySelector('#clinic-channels').textContent,/View status/);
       continue;
     }
     await until(()=>revenue.textContent.includes(amount(1300000,'PHP')));
@@ -88,6 +94,24 @@ for (const role of roles) {
     channels.querySelector('a').click();
     assert.equal(doc.querySelector('#clinic-setup-view').hidden,false);
     assert.equal(doc.querySelector('#clinic-channel-website_chat').open,true);
+    assert.equal(doc.querySelector('#clinic-connect-progress').textContent,'1 of 3 connected');
+    assert.equal(doc.querySelector('#clinic-connect-next-title').textContent,'Facebook Messenger');
+    doc.querySelector('#clinic-connect-next-action').click();
+    assert.equal(doc.querySelector('#clinic-channel-facebook_messenger').open,true);
+    assert.deepEqual([...doc.querySelectorAll('#clinic-messenger-steps .clinic-connect-stage')].map(x=>x.textContent),
+      ['Saved','Ready to authorize','After authorization']);
+    messengerStatus = 'verifying';
+    doc.querySelector('#clinic-refresh').click();
+    await until(()=>doc.querySelector('#clinic-connect-next-action').textContent==='Review test steps');
+    assert.deepEqual([...doc.querySelectorAll('#clinic-messenger-steps .clinic-connect-stage')].map(x=>x.textContent),
+      ['Saved','Authorized','Ready to test']);
+    assert.equal(doc.querySelector('#clinic-connect-progress').textContent,'1 of 3 connected');
+    messengerStatus = 'connected';
+    doc.querySelector('#clinic-refresh').click();
+    await until(()=>doc.querySelector('#clinic-connect-progress').textContent==='2 of 3 connected');
+    assert.deepEqual([...doc.querySelectorAll('#clinic-messenger-steps .clinic-connect-stage')].map(x=>x.textContent),
+      ['Saved','Authorized','Connected']);
+    assert.equal(doc.querySelector('#clinic-connect-next-title').textContent,'AI phone');
     overviewNav.click();
     const report = doc.querySelector('#clinic-overview-open-report');
     assert.equal(new URL(report.href).searchParams.get('location'),cebu);
@@ -111,4 +135,4 @@ for (const role of roles) {
     assert.equal(new URL(report.href).searchParams.get('location'),bangkok);
   } finally { dom.window.close(); }
 }
-console.log('PASS Owner Overview role access, report links, live channel states, and stale-location isolation.');
+console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification states, and location isolation.');
