@@ -156,7 +156,7 @@ try {
   ];
   const period = {period_start:'2026-11-19',through:'2026-11-19',currency:'PHP',rate_bps:1500,
     eligible_minor:1300000,collected_minor:1400000,estimated_share_minor:195000,counted_visits:counted};
-  const historical = {id:reportId,kind:'settlement',period_start:'2026-11-01',period_end:'2026-12-01',approved_at:early,
+  const historical = {id:reportId,kind:'settlement',period_start:'2026-10-01',period_end:'2026-11-01',approved_at:early,
     snapshot:{...period,share_minor:195000,channels:{},entries:[]}};
   const client = {
     async rpc(name,args) {
@@ -171,7 +171,12 @@ try {
         },
         order:()=>builder,
         maybeSingle:async()=>({data:{currency:'PHP',rate_bps:1500}}),
-        then:resolve=>resolve({data:[historical]})
+        then:resolve=>resolve({data:[
+          {...historical,id:'results',kind:'results',snapshot:{...historical.snapshot,counted_visits:undefined}},
+          historical,
+          {...historical,id:'refund',period_start:'2026-09-01',period_end:'2026-10-01',approved_at:null,
+            snapshot:{...historical.snapshot,collected_minor:-25000,counted_visits:undefined}}
+        ]})
       };
       assert.ok(['clinic_rescue_settings','clinic_rescue_reports'].includes(table));
       return builder;
@@ -195,6 +200,12 @@ try {
   assert.ok(!paid.textContent.includes('request-3'));
   assert.ok(free.textContent.includes('No Eden fee applies'));
   assert.ok(settlement.textContent.includes('request-2'));
+  const timeline=reports.querySelector('.clinic-rescue-chart');
+  assert.equal(timeline.children.length,2);
+  assert.equal(timeline.querySelectorAll('.clinic-rescue-chart-negative').length,1);
+  assert.match(timeline.firstElementChild.textContent,/Draft/);
+  timeline.lastElementChild.querySelector('button').click();
+  assert.equal(reports.querySelectorAll('.clinic-rescue-card[open]').length,1);
   api.attributionReviews(ownerCtx);
   const reviews = document.querySelector('#clinic-attribution-reviews');
   reviews.open = true;
