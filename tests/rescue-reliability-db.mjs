@@ -18,6 +18,7 @@ try {
     create schema clinic_rescue_private;
     create role authenticated;
     create role anon;
+    alter default privileges in schema public grant execute on functions to anon, authenticated;
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('test.user_id',true),'')::uuid
     $$;

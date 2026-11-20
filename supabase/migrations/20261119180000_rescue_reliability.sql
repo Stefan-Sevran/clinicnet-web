@@ -40,7 +40,7 @@ as $$
   join public.clinic_memberships m on m.account_id = s.account_id
   where s.location_id = p_location and m.user_id = auth.uid()
 $$;
-revoke all on function public.clinic_visit_currency(uuid) from public;
+revoke all on function public.clinic_visit_currency(uuid) from public, anon;
 grant execute on function public.clinic_visit_currency(uuid) to authenticated;
 
 create function public.clinic_visit_attribution_reviews(p_location uuid, p_offset integer default 0)
@@ -59,7 +59,7 @@ as $$
   order by v.appointment_at desc, v.event_key
   limit 21 offset greatest(p_offset,0)
 $$;
-revoke all on function public.clinic_visit_attribution_reviews(uuid,integer) from public;
+revoke all on function public.clinic_visit_attribution_reviews(uuid,integer) from public, anon;
 grant execute on function public.clinic_visit_attribution_reviews(uuid,integer) to authenticated;
 
 CREATE OR REPLACE FUNCTION public.record_clinic_visit(p_location uuid, p_event text, p_appointment timestamp with time zone, p_revision integer, p_amount_minor bigint, p_currency text, p_source text DEFAULT NULL::text, p_receipt text DEFAULT NULL::text)
