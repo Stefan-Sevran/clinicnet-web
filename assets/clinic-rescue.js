@@ -207,15 +207,20 @@ const ClinicRescue = (() => {
   function countedVisits(host, lines, currency, timezone, label = '') {
     if (!Array.isArray(lines)) return;
     const details = el('details');
+    details.className = 'clinic-rescue-evidence';
     details.append(el('summary','View counted visits'+(label ? ' · '+label : '')+' ('+lines.length+')'));
     if (!lines.length) details.append(el('p','No qualifying visit payments were recorded for this total.'));
     else {
       const list = el('ul');
+      list.className = 'clinic-rescue-visit-list';
       for (const line of lines) {
         const item = el('li');
         item.append(el('strong',[channels[line.channel] || line.channel,'Inquiry '+line.ref].join(' · ')),
           el('p','Inquiry '+visitTime(line.inquiry_at,timezone)+' · Visit '+visitTime(line.visit_at,timezone)),
-          el('p','Amount collected this period '+money(line.amount_minor,currency)+' · Estimated Eden fee '+money(line.estimated_fee_minor,currency)),
+          metricList([
+            ['Amount collected this period',line.amount_minor],
+            ['Estimated Eden fee',line.estimated_fee_minor]
+          ],currency),
           el('p',line.free ? 'The inquiry or visit was during the free pilot. No Eden fee applies.' :
             'Visit linked to an inquiry received by the appointment time. Both fall in the paid period.'));
         list.append(item);
@@ -228,7 +233,14 @@ const ClinicRescue = (() => {
     const s=r.snapshot;
     const card=el('details');card.className='clinic-rescue-card';
     const settlement=r.kind==='settlement';
-    const heading=el('summary',(settlement?'Monthly settlement':'Results report')+' · '+r.period_start+' – '+priorDay(r.period_end)+' · '+(r.approved_at?'Approved':'Draft'));
+    const heading=el('summary');
+    const label=el('span');
+    label.append(el('strong',settlement?'Monthly settlement':'Results report'),
+      el('small',r.period_start+' – '+priorDay(r.period_end)));
+    const badge=el('span',r.approved_at?'Approved':'Draft');
+    badge.className='clinic-event-status';
+    if (r.approved_at) badge.dataset.status='confirmed';
+    heading.append(label,badge);
     card.append(heading);
     const counts=Object.entries(s.channels);
     card.append(el('h3','Revenue Rescue Report'),el('p',ctx.clinicName+' · '+r.period_start+' – '+priorDay(r.period_end)),
@@ -284,6 +296,16 @@ const ClinicRescue = (() => {
     return period.period_start===period.through ? 'Today · '+dateLabel(period.through) :
       dateLabel(period.period_start)+' – '+dateLabel(period.through);
   }
+  function metricList(values,currency) {
+    const metrics = el('dl');
+    metrics.className = 'clinic-overview-metrics';
+    for (const [label,minor] of values) {
+      const metric = el('div');
+      metric.append(el('dt',label),el('dd',money(minor,currency)));
+      metrics.append(metric);
+    }
+    return metrics;
+  }
   async function overview({client,locationId,valid}) {
     const host = document.getElementById('clinic-overview-revenue');
     host.replaceChildren(el('p','Loading current figures…'));
@@ -295,39 +317,32 @@ const ClinicRescue = (() => {
         host.replaceChildren(el('p','Current figures will appear once reporting is configured and the pilot begins.'));
         return;
       }
-      const metrics = el('dl');
-      metrics.className = 'clinic-overview-metrics';
       const values = [
         ['Paid-period collections',data.eligible_minor],
         ['Estimated Eden fee',data.estimated_share_minor]
       ];
       const free = data.collected_minor-data.eligible_minor;
       if (free) values.push(['Free-pilot collections',free]);
-      for (const [label,minor] of values) {
-        const metric = el('div');
-        metric.append(el('dt',label),el('dd',money(minor,data.currency)));
-        metrics.append(metric);
-      }
-      host.replaceChildren(el('p',periodLabel(data)),metrics);
+      host.replaceChildren(el('p',periodLabel(data)),metricList(values,data.currency));
     } catch {
       if (valid()) host.replaceChildren(el('p','Current figures could not be loaded.'),
         button('Retry',()=>overview({client,locationId,valid})));
     }
   }
   function currentCard(host, period, timezone) {
-    const card=el('section');card.className='clinic-rescue-card';
-    card.append(el('h3','Current period so far'),el('p',periodLabel(period)));
-    const totals=el('div');totals.className='clinic-rescue-totals';
-    totals.append(el('strong','Paid-period collections from Eden visits · '+money(period.eligible_minor,period.currency)),
-      el('p','Estimated Eden share at '+period.rate_bps/100+'% · '+money(period.estimated_share_minor,period.currency)));
+    const card=el('section');card.className='clinic-panel clinic-rescue-current';
+    card.append(el('h2','Current period so far'),el('p',periodLabel(period)));
     const free=period.collected_minor-period.eligible_minor;
-    countedVisits(totals,period.counted_visits?.filter(line=>!line.free),period.currency,timezone);
-    const freeVisits = period.counted_visits?.filter(line=>line.free);
-    if (free || freeVisits?.length) {
-      totals.append(el('p','Free-pilot collections recorded this period · '+money(free,period.currency)));
-      countedVisits(totals,freeVisits,period.currency,timezone,'Free pilot');
-    }
-    card.append(totals,el('small','Updates as staff record payments. The monthly settlement accounts for credits and rounding.'));
+    const freeVisits=period.counted_visits?.filter(line=>line.free);
+    const values = [
+      ['Paid-period collections',period.eligible_minor],
+      ['Estimated Eden fee at '+period.rate_bps/100+'%',period.estimated_share_minor]
+    ];
+    if (free || freeVisits?.length) values.push(['Free-pilot collections',free]);
+    card.append(metricList(values,period.currency));
+    countedVisits(card,period.counted_visits?.filter(line=>!line.free),period.currency,timezone);
+    if (free || freeVisits?.length) countedVisits(card,freeVisits,period.currency,timezone,'Free pilot');
+    card.append(el('small','The monthly settlement accounts for credits and rounding.'));
     host.append(card);
   }
   let panelSequence=0;
@@ -356,11 +371,16 @@ const ClinicRescue = (() => {
         }
         if(prefs.data && !rows.data.length) box.append(el('p','Your first results report will appear after the seven-day pilot.'));
         let selected;
-        for(const r of rows.data) {
-          const card=reportCard(box,ctx,r,load);
-          if(r.id===wanted){selected=card;card.open=true;if(afterApproval && !r.approved_at)card.append(el('p','The figures changed. Review the updated draft before approving.'));}
+        if (rows.data.length) {
+          const history=el('section'); history.className='clinic-panel clinic-rescue-history';
+          history.append(el('h2','Report history'));
+          box.append(history);
+          for(const r of rows.data) {
+            const card=reportCard(history,ctx,r,load);
+            if(r.id===wanted){selected=card;card.open=true;if(afterApproval && !r.approved_at)card.append(el('p','The figures changed. Review the updated draft before approving.'));}
+          }
         }
-        const settings=el('details');settings.open=!prefs.data;
+        const settings=el('details');settings.className='clinic-panel clinic-rescue-settings';settings.open=!prefs.data;
         settings.append(el('summary',prefs.data?'Reporting settings':'Set up reporting'));
         settingsForm(settings,ctx,prefs.data,()=>load());box.append(settings);host.replaceChildren(box);
         if(selected) selected.scrollIntoView({block:'nearest'});

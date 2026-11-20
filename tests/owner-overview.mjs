@@ -78,9 +78,10 @@ for (const role of roles) {
     await until(()=>clinicStatus.dataset.kind==='success' &&
       (role==='staff' ? !doc.querySelector('#clinic-daily-view').hidden : !overview.hidden));
     assert.equal(overviewNav.hidden,role==='staff');
-    assert.equal(hero.hidden,role!=='staff');
+    assert.equal(hero.hidden,true);
     if (role==='staff') {
       assert.equal(overview.hidden,true);
+      assert.equal(doc.querySelector('.clinic-view-switch a[href*="view=revenue"]').hidden,true);
       assert.ok(!requests.some(([name])=>name==='current_rescue_period'));
       doc.querySelector('.clinic-view-switch a[href*="view=setup"]').click();
       assert.equal(doc.querySelector('#clinic-connect-next').hidden,true);
@@ -116,9 +117,10 @@ for (const role of roles) {
     const report = doc.querySelector('#clinic-overview-open-report');
     assert.equal(new URL(report.href).searchParams.get('location'),cebu);
     report.click();
-    assert.equal(doc.querySelector('#clinic-daily-view').hidden,false);
+    assert.equal(doc.querySelector('#clinic-revenue-view').hidden,false);
+    assert.equal(doc.querySelector('#clinic-daily-view').hidden,true);
     assert.equal(doc.querySelector('#clinic-rescue').open,true);
-    assert.equal(hero.hidden,false);
+    assert.equal(hero.hidden,true);
 
     overviewNav.click();
     delayCebu = true;

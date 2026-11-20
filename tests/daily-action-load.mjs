@@ -22,13 +22,18 @@ for (const requestedLocation of [null, locationId, 'other']) {
   try {
     const win = dom.window;
     const calls = [];
+    const first = {event_key:'urgent',account_id:accountId,location_id:locationId,channel:'website_chat',
+      kind:'booking.requested',summary:'New consultation',occurred_at:'2026-11-19T04:00:00Z',
+      details:{patientName:'Test patient',contact:'555 555 5555',service:'Consultation'}};
+    const second = {event_key:'handled',account_id:accountId,location_id:locationId,channel:'website_chat',
+      kind:'inquiry.followup_needed',summary:'Completed follow-up',occurred_at:'2026-11-20T05:00:00Z',details:{}};
     win.fetch = async raw => {
       const request = new URL(raw);
       const responses = {
         '/clinic/public-config':{supabaseUrl:'https://example.test',publishableKey:'fixture'},
         '/clinic/accounts':[{id:accountId,name:'Demo clinic'}],
         '/clinic/locations':[{id:locationId,name:'Cebu fixture',timezone:'Asia/Manila'}],
-        '/clinic/bookings':[], '/clinic/inbox':[], '/clinic/connections':[{channel:'website_chat',status:'connected'}]
+        '/clinic/bookings':[], '/clinic/inbox':[second,first], '/clinic/connections':[{channel:'website_chat',status:'connected'}]
       };
       assert.ok(Object.hasOwn(responses,request.pathname),request.pathname);
       calls.push(request);
@@ -40,7 +45,7 @@ for (const requestedLocation of [null, locationId, 'other']) {
       from(table){
         const builder = {select:()=>builder,eq:()=>builder,order:()=>builder,
           maybeSingle:async()=>({data:table==='clinic_memberships'?{role:'owner'}:null}),
-          then(resolve){resolve({data:[]});}};
+          then(resolve){resolve({data:table==='clinic_followup_states'?[{event_key:'handled',action:'handled'}]:[]});}};
         return builder;
       }
     })};
@@ -51,6 +56,19 @@ for (const requestedLocation of [null, locationId, 'other']) {
     const reports = win.document.querySelector('#clinic-rescue');
     assert.equal(reports.hidden,false);
     assert.equal(reports.open,requestedLocation===locationId);
+    assert.equal(win.document.querySelector('#clinic-revenue-view').hidden,requestedLocation!==locationId);
+    if (requestedLocation===null) {
+      const cards = [...win.document.querySelectorAll('#clinic-inbox article')];
+      assert.equal(cards[0].dataset.eventKey,'urgent');
+      assert.equal(cards[1].dataset.eventKey,'handled');
+      assert.equal(cards[0].querySelector('.clinic-inbox-controls > button').textContent,'Confirm booking');
+      assert.equal(cards[0].querySelector('.clinic-inbox-more').open,false);
+      const details = cards[0].querySelector('.clinic-inbox-detail');
+      assert.equal(details.open,false);
+      assert.ok(details.textContent.includes('Test patient'));
+      win.document.querySelector('#clinic-daily-attention').click();
+      assert.equal(win.document.querySelectorAll('#clinic-inbox article').length,1);
+    }
     reports.open = true;
     for (let i=0;i<100 && !reports.textContent.includes('Set up reporting');i++) await pause(10);
     assert.match(reports.textContent,/Set up reporting/);
