@@ -636,15 +636,15 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
 #clinic-daily .clinic-inbox-filters button[aria-pressed="true"] {
   border-color: #c5b8f6; background: var(--clinic-work-tint); color: var(--clinic-work-violet);
 }
-#clinic-daily .clinic-inbox-controls > button {
-  width: fit-content; border-color: #c5b8f6; background: var(--clinic-work-tint); color: var(--clinic-work-violet);
+#clinic-daily :is(.clinic-inbox-controls, .clinic-inbox-card) > button:not(.clinic-secondary) {
+  justify-self: start; width: fit-content; border-color: #c5b8f6; background: var(--clinic-work-tint); color: var(--clinic-work-violet);
 }
-#clinic-daily .clinic-inbox-controls > button:hover:enabled { background: #e5defd; color: var(--clinic-work-violet-hover); }
+#clinic-daily :is(.clinic-inbox-controls, .clinic-inbox-card) > button:not(.clinic-secondary):hover:enabled { background: #e5defd; color: var(--clinic-work-violet-hover); }
 #clinic-inbox .clinic-inbox-card { display: grid; gap: .38rem; min-width: 0; padding: .8rem .9rem; border-color: var(--clinic-work-line); overflow-wrap: anywhere; }
 .clinic-inbox-card .clinic-event-heading strong { margin: 0; }
 .clinic-inbox-meta { color: var(--clinic-work-muted); }
 .clinic-inbox-card .clinic-inbox-subject { color: var(--clinic-work-ink); font-weight: 600; }
-#clinic-daily .clinic-event-status { color: var(--clinic-work-muted); background: #eef0f5; }
+:is(#clinic-daily, #clinic-revenue-view) .clinic-event-status { color: var(--clinic-work-muted); background: #eef0f5; }
 #clinic-daily .clinic-event-status[data-status="attention"] { color: var(--clinic-work-violet); background: var(--clinic-work-tint); }
 .clinic-inbox-controls, .clinic-inbox-more > div { display: flex; flex-wrap: wrap; gap: .5rem; align-items: start; }
 .clinic-inbox-controls .clinic-followup-button { margin: 0; }
