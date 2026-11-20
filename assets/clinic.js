@@ -22,7 +22,9 @@
   let initialSelection = {
     accountId: query.get('account'), locationId: query.get('location'), channel: query.get('setup') || hashChannel
   };
-  let workspaceView = query.get('view') === 'daily' ? 'daily' : 'setup';
+  const requestedView = query.get('view');
+  let workspaceView = requestedView === 'daily' ? 'daily' : 'setup';
+  let overviewLocation;
   const testReturnId = query.get('messengerTest');
   const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
     testId: testReturnId, accountId: query.get('account'), locationId: query.get('location')
@@ -630,7 +632,8 @@
     setup.id = 'clinic-setup-view';
     const work = document.createElement('div');
     work.id = 'clinic-daily-view';
-    dashboard.append(setup,work);
+    const overview = byId('clinic-owner-overview');
+    dashboard.append(overview,work,setup);
     setup.append(...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
     work.append(daily);
 
@@ -638,7 +641,7 @@
     views.className = 'clinic-view-switch';
     views.setAttribute('aria-label','Clinic Workspace');
     const links = {};
-    for (const [key,label] of [['setup','Channel setup'],['daily','Daily Action']]) {
+    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['setup','Channel setup']]) {
       const link = document.createElement('a');
       link.href = '/clinic/?view=' + key;
       link.textContent = label;
@@ -651,14 +654,17 @@
       views.append(link);
     }
     dashboard.querySelector('.clinic-selectors').after(views);
-    return {setup,work,links};
+    return {overview,setup,work,links};
   }
 
   function switchWorkspaceView(view, updateUrl = false) {
-    const setup = view === 'setup';
-    workspaceView = setup?'setup':'daily';
+    workspaceView = view === 'overview' && canManageClinic ? 'overview' : view === 'setup' ? 'setup' : 'daily';
+    const setup = workspaceView === 'setup';
     workspaceViews.setup.hidden = !setup;
-    workspaceViews.work.hidden = setup;
+    workspaceViews.work.hidden = workspaceView !== 'daily';
+    workspaceViews.overview.hidden = workspaceView !== 'overview';
+    workspaceViews.links.overview.hidden = !canManageClinic;
+    if (workspaceView === 'overview') loadOwnerRevenue();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
     updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
@@ -678,11 +684,73 @@
     const needsWorkspace = !byId('clinic-create').hidden;
     const channelsReady = !daily.hidden;
     const opensDaily = channelsReady && (!canManageClinic || channelSteps.every(step => step.link.dataset.connected === 'true'));
-    heroAction.hidden = !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
+    heroAction.hidden = workspaceView === 'overview' || !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
     if (heroAction.hidden) return;
     heroAction.setAttribute('href', needsWorkspace ? '#clinic-create' : '/clinic/?view=' + (opensDaily ? 'daily' : 'setup'));
     heroAction.textContent = needsWorkspace ? 'Create your workspace' : opensDaily ? 'Open Daily Action' : 'Channel setup';
   }
+
+  function clearOwnerOverview() {
+    overviewLocation = undefined;
+    workspaceViews.links.overview.href = '/clinic/?view=overview';
+    byId('clinic-overview-location').textContent = '';
+    byId('clinic-overview-connections').replaceChildren();
+    byId('clinic-overview-revenue').textContent = 'Loading clinic…';
+    byId('clinic-overview-open-report').hidden = true;
+  }
+
+  function renderOverviewConnections() {
+    if (!overviewLocation) return;
+    const list = byId('clinic-overview-connections');
+    const focusedChannel = list.contains(document.activeElement) ? document.activeElement.dataset.channel : null;
+    const entries = channelSteps.map(({channel,badge,link}) => {
+      const row = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = setupChannelLabels[channel];
+      const stateLabel = document.createElement('span');
+      stateLabel.className = 'clinic-overview-service-status';
+      stateLabel.dataset.connected = link.dataset.connected;
+      stateLabel.textContent = badge.textContent;
+      const action = document.createElement('a');
+      action.className = 'clinic-overview-link';
+      action.href = '/clinic/?' + new URLSearchParams({view:'setup',account:overviewLocation.accountId,
+        location:overviewLocation.locationId,setup:channel});
+      action.textContent = 'Manage';
+      action.dataset.channel = channel;
+      action.setAttribute('aria-label','Manage ' + title.textContent);
+      action.addEventListener('click', event => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        switchWorkspaceView('setup',true);
+        link.click();
+      });
+      row.append(title,stateLabel,action);
+      return row;
+    });
+    list.replaceChildren(...entries);
+    if (focusedChannel) [...list.querySelectorAll('a')].find(link=>link.dataset.channel===focusedChannel)?.focus({preventScroll:true});
+  }
+
+  function loadOwnerRevenue() {
+    const clinic = overviewLocation;
+    if (!clinic) return;
+    const request = Symbol();
+    clinic.revenueRequest = request;
+    ClinicRescue.overview({
+      client:state.client,
+      locationId:clinic.locationId,
+      valid:()=>overviewLocation===clinic && clinic.revenueRequest===request && canManageClinic && Boolean(state.session)
+    });
+  }
+
+  byId('clinic-overview-open-report').addEventListener('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    switchWorkspaceView('daily',true);
+    const reports = byId('clinic-rescue');
+    reports.open = true;
+    reports.querySelector('summary').focus();
+  });
 
   function renderWorkspaceHero(signedIn) {
     byId('clinic-guest-hero').hidden = signedIn;
@@ -847,6 +915,7 @@
       if (hadFocus) heading.focus({preventScroll:true});
     }
     channelNav.hidden = workspaceView !== 'setup';
+    renderOverviewConnections();
   }
 
   function bookingStatus(event) {
@@ -1870,7 +1939,10 @@
   }
 
   async function refreshActivity(quiet = false) {
-    if (!quiet) commentPilotPanel.hidden = true;
+    if (!quiet) {
+      commentPilotPanel.hidden = true;
+      clearOwnerOverview();
+    }
     const generation = quiet ? state.generation : ++state.generation;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
@@ -1906,6 +1978,18 @@
         timezone,reportId:query.get('location')===locationId ? query.get('report') : null});
       publishedWebsite = false;
       state.connections = connections;
+      if (canManageClinic) {
+        overviewLocation = {accountId,locationId};
+        byId('clinic-overview-location').textContent = state.locations.find(row=>row.id===locationId)?.name || '';
+        const reportLink = byId('clinic-overview-open-report');
+        workspaceViews.links.overview.href = '/clinic/?' + new URLSearchParams({view:'overview',account:accountId,location:locationId});
+        reportLink.href = '/clinic/?' + new URLSearchParams({view:'daily',account:accountId,location:locationId}) + '#clinic-rescue';
+        reportLink.hidden = false;
+      }
+      switchWorkspaceView(workspaceView);
+      if (canManageClinic && query.get('location')===locationId && location.hash==='#clinic-rescue' && workspaceView==='daily') {
+        byId('clinic-rescue').open = true;
+      }
       clinicTeamAvailable = team !== null;
       clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
       pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
@@ -2244,6 +2328,7 @@
 
   async function authenticated(session) {
     state.session = session;
+    clearOwnerOverview();
     daily.hidden = true;
     show('clinic-create', false);
     renderWorkspaceHero(Boolean(session));
@@ -2275,7 +2360,9 @@
         const staffDefault = state.locations.length > 0 && !canManageClinic && !query.has('view') &&
           !selection?.channel && !testReturn;
         if (invitation || staffDefault) openDailyWork();
-        else focusSetupChannel(selection);
+        else if (requestedView === 'overview' && !selection?.channel && !testReturn) {
+          switchWorkspaceView('overview',!canManageClinic);
+        } else focusSetupChannel(selection);
         if (state.locations.length) initialSelection = null;
         if (!invitation && testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
           switchWorkspaceView('setup');
@@ -2373,6 +2460,7 @@
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => {
+    clearOwnerOverview();
     closeManualBooking();
     addBookingResult.hidden = true;
     daily.hidden = true;

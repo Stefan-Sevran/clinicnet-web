@@ -278,11 +278,45 @@ const ClinicRescue = (() => {
     else if(r.approved_at && settlement && s.share_minor>0) card.append(el('p','Payment link pending from Eden.'));
     card.append(feedback);host.append(card);return card;
   }
-  function currentCard(host, period, timezone) {
-    const card=el('section');card.className='clinic-rescue-card';
+  function periodLabel(period) {
     const dateLabel=date=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})
       .format(new Date(date+'T00:00:00Z'));
-    card.append(el('h3','Current period so far'),el('p',period.period_start===period.through ? 'Today · '+dateLabel(period.through) : dateLabel(period.period_start)+' – '+dateLabel(period.through)));
+    return period.period_start===period.through ? 'Today · '+dateLabel(period.through) :
+      dateLabel(period.period_start)+' – '+dateLabel(period.through);
+  }
+  async function overview({client,locationId,valid}) {
+    const host = document.getElementById('clinic-overview-revenue');
+    host.replaceChildren(el('p','Loading current figures…'));
+    try {
+      const {data,error} = await client.rpc('current_rescue_period',{p_location:locationId});
+      if (!valid()) return;
+      if (error) throw error;
+      if (!data) {
+        host.replaceChildren(el('p','Current figures will appear once reporting is configured and the pilot begins.'));
+        return;
+      }
+      const metrics = el('dl');
+      metrics.className = 'clinic-overview-metrics';
+      const values = [
+        ['Paid-period collections',data.eligible_minor],
+        ['Estimated Eden fee',data.estimated_share_minor]
+      ];
+      const free = data.collected_minor-data.eligible_minor;
+      if (free) values.push(['Free-pilot collections',free]);
+      for (const [label,minor] of values) {
+        const metric = el('div');
+        metric.append(el('dt',label),el('dd',money(minor,data.currency)));
+        metrics.append(metric);
+      }
+      host.replaceChildren(el('p',periodLabel(data)),metrics);
+    } catch {
+      if (valid()) host.replaceChildren(el('p','Current figures could not be loaded.'),
+        button('Retry',()=>overview({client,locationId,valid})));
+    }
+  }
+  function currentCard(host, period, timezone) {
+    const card=el('section');card.className='clinic-rescue-card';
+    card.append(el('h3','Current period so far'),el('p',periodLabel(period)));
     const totals=el('div');totals.className='clinic-rescue-totals';
     totals.append(el('strong','Paid-period collections from Eden visits · '+money(period.eligible_minor,period.currency)),
       el('p','Estimated Eden share at '+period.rate_bps/100+'% · '+money(period.estimated_share_minor,period.currency)));
@@ -401,5 +435,5 @@ const ClinicRescue = (() => {
     panel.ontoggle = ()=>{if (panel.open) void load();};
     if (panel.open) void load();
   }
-  return {visitControls,reports,pending,attributionReviews};
+  return {visitControls,reports,pending,attributionReviews,overview};
 })();
