@@ -531,7 +531,7 @@ body[data-page="clinic"] .ecn-site-header::before {
 }
 #clinic-owner-overview { max-width: 76rem; margin: 2rem auto 4rem; color: #231a38; }
 .clinic-overview-header { margin-bottom: 1.3rem; }
-.clinic-overview-header h2 { margin: 0 0 .25rem; font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.035em; }
+.clinic-overview-header h1 { margin: 0 0 .25rem; font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.035em; }
 .clinic-overview-header p, .clinic-overview-panel p { margin: 0; color: #625b74; }
 .clinic-overview-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; }
 .clinic-overview-panel {
@@ -554,3 +554,20 @@ body[data-page="clinic"] .ecn-site-header::before {
 .clinic-overview-link:focus-visible, .clinic-overview-panel button:focus-visible { outline: 2px solid #5130ab; outline-offset: 3px; }
 @media (max-width: 710px) { .clinic-overview-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 440px) { .clinic-view-switch a { padding-inline: .2rem; font-size: .83rem; } }
+body:has(#clinic-authenticated:not([hidden]) #clinic-owner-overview:not([hidden])) #clinic-status[data-kind="success"] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%);
+}
+@media (max-width: 760px) {
+  #clinic-dashboard:has(#clinic-owner-overview:not([hidden])) .clinic-selectors {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .85rem; gap: .65rem;
+  }
+  #clinic-dashboard:has(#clinic-owner-overview:not([hidden])) .clinic-selectors button {
+    grid-column: 2; justify-self: end;
+  }
+}
+@media (max-width: 710px) {
+  .clinic-overview-panel li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .7rem; padding: .55rem 0; }
+  .clinic-overview-service-status { grid-column: 1; justify-self: start; }
+  .clinic-overview-panel li .clinic-overview-link { grid-column: 2; grid-row: 1 / span 2; }
+  #clinic-dashboard:has(#clinic-owner-overview:not([hidden])) .clinic-selectors select { padding-inline: .5rem; font-size: .8rem; }
+}

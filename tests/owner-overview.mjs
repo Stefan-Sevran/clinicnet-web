@@ -65,6 +65,7 @@ for (const role of roles) {
     })};
     win.eval(rescue+'\n'+workspace);
     const overview = doc.querySelector('#clinic-owner-overview');
+    const hero = doc.querySelector('.clinic-hero');
     const overviewNav = doc.querySelector('.clinic-view-switch a[href*="view=overview"]');
     const clinicStatus = doc.querySelector('#clinic-status');
     const revenue = doc.querySelector('#clinic-overview-revenue');
@@ -74,6 +75,7 @@ for (const role of roles) {
     await until(()=>clinicStatus.dataset.kind==='success' &&
       (role==='staff' ? !doc.querySelector('#clinic-daily-view').hidden : !overview.hidden));
     assert.equal(overviewNav.hidden,role==='staff');
+    assert.equal(hero.hidden,role!=='staff');
     if (role==='staff') {
       assert.equal(overview.hidden,true);
       assert.ok(!requests.some(([name])=>name==='current_rescue_period'));
@@ -92,6 +94,7 @@ for (const role of roles) {
     report.click();
     assert.equal(doc.querySelector('#clinic-daily-view').hidden,false);
     assert.equal(doc.querySelector('#clinic-rescue').open,true);
+    assert.equal(hero.hidden,false);
 
     overviewNav.click();
     delayCebu = true;

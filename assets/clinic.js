@@ -663,6 +663,7 @@
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = workspaceView !== 'daily';
     workspaceViews.overview.hidden = workspaceView !== 'overview';
+    workspaceHero.hidden = !workspaceViews.overview.hidden;
     workspaceViews.links.overview.hidden = !canManageClinic;
     if (workspaceView === 'overview') loadOwnerRevenue();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
@@ -753,6 +754,7 @@
   });
 
   function renderWorkspaceHero(signedIn) {
+    workspaceHero.hidden = signedIn && workspaceView === 'overview';
     byId('clinic-guest-hero').hidden = signedIn;
     byId('clinic-member-hero').hidden = !signedIn;
     workspaceHero.classList.toggle('clinic-hero-signed-in', signedIn);
