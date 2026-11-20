@@ -206,6 +206,23 @@ fetchpriority="high"
         <p id="clinic-messenger-guide-status" class="clinic-status" role="status" hidden></p>
       </section>
       <!-- Clinic Daily work -->
+      <section id="clinic-owner-overview" aria-labelledby="clinic-overview-title" hidden>
+        <header class="clinic-overview-header">
+          <h2 id="clinic-overview-title">Owner Overview</h2>
+          <p id="clinic-overview-location"></p>
+        </header>
+        <div class="clinic-overview-grid">
+          <section class="clinic-overview-panel" aria-labelledby="clinic-overview-revenue-title">
+            <h3 id="clinic-overview-revenue-title">Revenue Rescue</h3>
+            <div id="clinic-overview-revenue" aria-live="polite"></div>
+            <a id="clinic-overview-open-report" class="clinic-overview-link" href="/clinic/?view=daily#clinic-rescue">Open Revenue Rescue report <span aria-hidden="true">→</span></a>
+          </section>
+          <section class="clinic-overview-panel" aria-labelledby="clinic-overview-services-title">
+            <h3 id="clinic-overview-services-title">Service connections</h3>
+            <ul id="clinic-overview-connections"></ul>
+          </section>
+        </div>
+      </section>
       <div id="clinic-daily" class="clinic-daily" hidden>
         <section class="clinic-panel clinic-daily-primary" aria-labelledby="clinic-inbox-title">
           <div class="clinic-inbox-heading">

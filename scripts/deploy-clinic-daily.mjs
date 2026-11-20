@@ -114,7 +114,7 @@ if (daily) {
 }
 clinic = clinic.replace(signInSection, () => signIn)
   .replace(scriptTag, 'src="/assets/clinic.js?v=' + version + '-r-' + revision + '"')
-  .replace(styleTag, 'href="/assets/clinic.css?v=' + version + '"');
+  .replace(styleTag, 'href="/assets/clinic.css?v=' + version + '-r-' + revision + '"');
 const icon = reviewedPage.match(iconTag)?.[0];
 if (icon) {
   if (!icon.includes('href="/' + workspaceFaviconAsset + '"')) throw Error('Unexpected Workspace favicon path.');
