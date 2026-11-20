@@ -22,13 +22,18 @@ for (const requestedLocation of [null, locationId, 'other']) {
   try {
     const win = dom.window;
     const calls = [];
+    const first = {event_key:'urgent',account_id:accountId,location_id:locationId,channel:'website_chat',
+      kind:'booking.requested',summary:'New consultation',occurred_at:'2026-11-19T04:00:00Z',
+      details:{patientName:'Test patient',contact:'555 555 5555',service:'Consultation'}};
+    const second = {event_key:'handled',account_id:accountId,location_id:locationId,channel:'website_chat',
+      kind:'inquiry.followup_needed',summary:'Completed follow-up',occurred_at:'2026-11-20T05:00:00Z',details:{}};
     win.fetch = async raw => {
       const request = new URL(raw);
       const responses = {
         '/clinic/public-config':{supabaseUrl:'https://example.test',publishableKey:'fixture'},
         '/clinic/accounts':[{id:accountId,name:'Demo clinic'}],
         '/clinic/locations':[{id:locationId,name:'Cebu fixture',timezone:'Asia/Manila'}],
-        '/clinic/bookings':[], '/clinic/inbox':[], '/clinic/connections':[{channel:'website_chat',status:'connected'}]
+        '/clinic/bookings':[], '/clinic/inbox':[second,first], '/clinic/connections':[{channel:'website_chat',status:'connected'}]
       };
       assert.ok(Object.hasOwn(responses,request.pathname),request.pathname);
       calls.push(request);
@@ -40,7 +45,7 @@ for (const requestedLocation of [null, locationId, 'other']) {
       from(table){
         const builder = {select:()=>builder,eq:()=>builder,order:()=>builder,
           maybeSingle:async()=>({data:table==='clinic_memberships'?{role:'owner'}:null}),
-          then(resolve){resolve({data:[]});}};
+          then(resolve){resolve({data:table==='clinic_followup_states'?[{event_key:'handled',action:'handled'}]:[]});}};
         return builder;
       }
     })};
@@ -51,6 +56,19 @@ for (const requestedLocation of [null, locationId, 'other']) {
     const reports = win.document.querySelector('#clinic-rescue');
     assert.equal(reports.hidden,false);
     assert.equal(reports.open,requestedLocation===locationId);
+    assert.equal(win.document.querySelector('#clinic-revenue-view').hidden,requestedLocation!==locationId);
+    if (requestedLocation===null) {
+      const cards = [...win.document.querySelectorAll('#clinic-inbox article')];
+      assert.equal(cards[0].dataset.eventKey,'urgent');
+      assert.equal(cards[1].dataset.eventKey,'handled');
+      assert.equal(cards[0].querySelector('.clinic-inbox-controls > button').textContent,'Confirm booking');
+      assert.equal(cards[0].querySelector('.clinic-inbox-more').open,false);
+      const details = cards[0].querySelector('.clinic-inbox-detail');
+      assert.equal(details.open,false);
+      assert.ok(details.textContent.includes('Test patient'));
+      win.document.querySelector('#clinic-daily-attention').click();
+      assert.equal(win.document.querySelectorAll('#clinic-inbox article').length,1);
+    }
     reports.open = true;
     for (let i=0;i<100 && !reports.textContent.includes('Set up reporting');i++) await pause(10);
     assert.match(reports.textContent,/Set up reporting/);
@@ -138,7 +156,7 @@ try {
   ];
   const period = {period_start:'2026-11-19',through:'2026-11-19',currency:'PHP',rate_bps:1500,
     eligible_minor:1300000,collected_minor:1400000,estimated_share_minor:195000,counted_visits:counted};
-  const historical = {id:reportId,kind:'settlement',period_start:'2026-11-01',period_end:'2026-12-01',approved_at:early,
+  const historical = {id:reportId,kind:'settlement',period_start:'2026-10-01',period_end:'2026-11-01',approved_at:early,
     snapshot:{...period,share_minor:195000,channels:{},entries:[]}};
   const client = {
     async rpc(name,args) {
@@ -153,7 +171,12 @@ try {
         },
         order:()=>builder,
         maybeSingle:async()=>({data:{currency:'PHP',rate_bps:1500}}),
-        then:resolve=>resolve({data:[historical]})
+        then:resolve=>resolve({data:[
+          {...historical,id:'results',kind:'results',snapshot:{...historical.snapshot,counted_visits:undefined}},
+          historical,
+          {...historical,id:'refund',period_start:'2026-09-01',period_end:'2026-10-01',approved_at:null,
+            snapshot:{...historical.snapshot,collected_minor:-25000,counted_visits:undefined}}
+        ]})
       };
       assert.ok(['clinic_rescue_settings','clinic_rescue_reports'].includes(table));
       return builder;
@@ -177,6 +200,12 @@ try {
   assert.ok(!paid.textContent.includes('request-3'));
   assert.ok(free.textContent.includes('No Eden fee applies'));
   assert.ok(settlement.textContent.includes('request-2'));
+  const timeline=reports.querySelector('.clinic-rescue-chart');
+  assert.equal(timeline.children.length,2);
+  assert.equal(timeline.querySelectorAll('.clinic-rescue-chart-negative').length,1);
+  assert.match(timeline.firstElementChild.textContent,/Draft/);
+  timeline.lastElementChild.querySelector('button').click();
+  assert.equal(reports.querySelectorAll('.clinic-rescue-card[open]').length,1);
   api.attributionReviews(ownerCtx);
   const reviews = document.querySelector('#clinic-attribution-reviews');
   reviews.open = true;

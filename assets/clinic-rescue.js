@@ -207,15 +207,20 @@ const ClinicRescue = (() => {
   function countedVisits(host, lines, currency, timezone, label = '') {
     if (!Array.isArray(lines)) return;
     const details = el('details');
+    details.className = 'clinic-rescue-evidence';
     details.append(el('summary','View counted visits'+(label ? ' · '+label : '')+' ('+lines.length+')'));
     if (!lines.length) details.append(el('p','No qualifying visit payments were recorded for this total.'));
     else {
       const list = el('ul');
+      list.className = 'clinic-rescue-visit-list';
       for (const line of lines) {
         const item = el('li');
         item.append(el('strong',[channels[line.channel] || line.channel,'Inquiry '+line.ref].join(' · ')),
           el('p','Inquiry '+visitTime(line.inquiry_at,timezone)+' · Visit '+visitTime(line.visit_at,timezone)),
-          el('p','Amount collected this period '+money(line.amount_minor,currency)+' · Estimated Eden fee '+money(line.estimated_fee_minor,currency)),
+          metricList([
+            ['Amount collected this period',line.amount_minor],
+            ['Estimated Eden fee',line.estimated_fee_minor]
+          ],currency),
           el('p',line.free ? 'The inquiry or visit was during the free pilot. No Eden fee applies.' :
             'Visit linked to an inquiry received by the appointment time. Both fall in the paid period.'));
         list.append(item);
@@ -224,11 +229,120 @@ const ClinicRescue = (() => {
     }
     host.append(details);
   }
+  function csvDownload(name, rows) {
+    const csv = rows.map(row => row.map(value => '"' + String(value ?? '').replaceAll('"','""') + '"').join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8'}));
+    const link = el('a');
+    link.href=url;
+    link.download=name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  const csvAmount = minor => Number.isSafeInteger(minor) ? (minor/100).toFixed(2) : '';
+  function exportReport(r) {
+    const s=r.snapshot;
+    const settlement=r.kind==='settlement';
+    csvDownload('eden-revenue-'+r.period_start+'-'+r.kind+'.csv',[
+      ['Period start','Period end (inclusive)','Report','Status','Currency','Collections from Eden visits',
+        'Eligible collections','Estimated Eden fee','Settled Eden fee','Credit toward future fees'],
+      [r.period_start,priorDay(r.period_end),settlement?'Monthly settlement':'Results report',
+        r.approved_at?'Approved':'Draft',s.currency,csvAmount(s.collected_minor),csvAmount(s.eligible_minor),
+        csvAmount(s.estimated_share_minor),settlement?csvAmount(s.share_minor):'',settlement?csvAmount(s.credit_minor):'']
+    ]);
+  }
+  function printSummary(card) {
+    const clear = () => card.removeAttribute('data-print-summary');
+    document.querySelector('[data-print-summary]')?.removeAttribute('data-print-summary');
+    card.setAttribute('data-print-summary','');
+    window.addEventListener('afterprint',clear,{once:true});
+    window.print();
+  }
+  function revenueTimeline(host, entries) {
+    const section=el('section');
+    section.className='clinic-panel clinic-rescue-timeline';
+    const header=el('div');
+    header.className='clinic-rescue-timeline-header';
+    const title=el('div');
+    title.append(el('h2','Collections over time'),el('p','Collections from visits linked to Eden, after refunds, for each closed monthly settlement period.'));
+    header.append(title);
+    section.append(header);
+    if (!entries.length) {
+      section.append(el('p','Monthly collections will appear here after your first settlement period closes.'));
+      host.append(section);
+      return;
+    }
+    const toolbar=el('div');
+    toolbar.className='clinic-rescue-export-actions';
+    const available=[...new Set(entries.map(({r})=>r.snapshot.currency))];
+    const unit=select(available.map(currency=>[currency,currency]),available[0]);
+    if (available.length>1) field(toolbar,'Currency',unit);
+    const range=select([['6','Latest 6 periods'],['12','Latest 12 periods'],['all','All periods']],'6');
+    field(toolbar,'Show',range);
+    const chart=el('ol');
+    chart.className='clinic-rescue-chart';
+    chart.setAttribute('aria-label','Monthly collections by settlement period');
+    const visible=()=>entries.filter(({r})=>r.snapshot.currency===unit.value).slice(0,range.value==='all'?undefined:Number(range.value)).reverse();
+    const download=button('Download timeline CSV',()=>csvDownload('eden-collections-timeline-'+unit.value+'.csv',[
+      ['Period start','Period end (inclusive)','Status','Currency','Collections from Eden visits'],
+      ...visible().map(({r})=>[r.period_start,priorDay(r.period_end),r.approved_at?'Approved':'Draft',r.snapshot.currency,csvAmount(r.snapshot.collected_minor)])
+    ]));
+    download.className='clinic-secondary';
+    toolbar.append(download);
+    header.append(toolbar);
+    function draw() {
+      const periods=visible();
+      const amounts=periods.map(({r})=>r.snapshot.collected_minor);
+      const min=Math.min(0,...amounts);
+      const max=Math.max(0,...amounts);
+      const span=max-min || 1;
+      chart.replaceChildren();
+      for (const {r,card} of periods) {
+        const amount=r.snapshot.collected_minor;
+        const item=el('li');
+        const end=priorDay(r.period_end);
+        const month=new Intl.DateTimeFormat(undefined,{month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(end+'T00:00:00Z'));
+        const link=button(month,()=>{
+          card.open=true;
+          card.querySelector('summary').focus();
+        });
+        link.className='clinic-secondary clinic-rescue-chart-link';
+        link.setAttribute('aria-label','View '+month+' settlement');
+        const track=el('span');
+        track.className='clinic-rescue-chart-track';
+        track.setAttribute('aria-hidden','true');
+        track.style.setProperty('--chart-zero',(-min/span)*100+'%');
+        const bar=el('span');
+        bar.style.insetInlineStart=(Math.min(0,amount)-min)/span*100+'%';
+        bar.style.width=Math.abs(amount)/span*100+'%';
+        if (amount<0) bar.className='clinic-rescue-chart-negative';
+        track.append(bar);
+        const total=el('span');
+        total.className='clinic-rescue-chart-total';
+        total.append(el('strong',money(amount,r.snapshot.currency)),el('small',r.approved_at?'Approved':'Draft'));
+        item.append(link,track,total);
+        chart.append(item);
+      }
+    }
+    range.addEventListener('change',draw);
+    unit.addEventListener('change',draw);
+    draw();
+    section.append(chart);
+    host.append(section);
+  }
   function reportCard(host,ctx,r,reload) {
     const s=r.snapshot;
     const card=el('details');card.className='clinic-rescue-card';
     const settlement=r.kind==='settlement';
-    const heading=el('summary',(settlement?'Monthly settlement':'Results report')+' · '+r.period_start+' – '+priorDay(r.period_end)+' · '+(r.approved_at?'Approved':'Draft'));
+    const heading=el('summary');
+    const label=el('span');
+    label.append(el('strong',settlement?'Monthly settlement':'Results report'),
+      el('small',r.period_start+' – '+priorDay(r.period_end)));
+    const badge=el('span',r.approved_at?'Approved':'Draft');
+    badge.className='clinic-event-status';
+    if (r.approved_at) badge.dataset.status='confirmed';
+    heading.append(label,badge);
     card.append(heading);
     const counts=Object.entries(s.channels);
     card.append(el('h3','Revenue Rescue Report'),el('p',ctx.clinicName+' · '+r.period_start+' – '+priorDay(r.period_end)),
@@ -276,13 +390,29 @@ const ClinicRescue = (() => {
     }
     if(r.checkout_url && settlement && r.approved_at && s.share_minor>0) void payment(card,r.checkout_url);
     else if(r.approved_at && settlement && s.share_minor>0) card.append(el('p','Payment link pending from Eden.'));
-    card.append(feedback);host.append(card);return card;
+    const exports=el('div');
+    exports.className='clinic-rescue-export-actions';
+    for (const action of [button('Download report CSV',()=>exportReport(r)),button('Print summary / Save as PDF',()=>printSummary(card))]) {
+      action.className='clinic-secondary';
+      exports.append(action);
+    }
+    card.append(exports,feedback);host.append(card);return card;
   }
   function periodLabel(period) {
     const dateLabel=date=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})
       .format(new Date(date+'T00:00:00Z'));
     return period.period_start===period.through ? 'Today · '+dateLabel(period.through) :
       dateLabel(period.period_start)+' – '+dateLabel(period.through);
+  }
+  function metricList(values,currency) {
+    const metrics = el('dl');
+    metrics.className = 'clinic-overview-metrics';
+    for (const [label,minor] of values) {
+      const metric = el('div');
+      metric.append(el('dt',label),el('dd',money(minor,currency)));
+      metrics.append(metric);
+    }
+    return metrics;
   }
   async function overview({client,locationId,valid}) {
     const host = document.getElementById('clinic-overview-revenue');
@@ -295,39 +425,32 @@ const ClinicRescue = (() => {
         host.replaceChildren(el('p','Current figures will appear once reporting is configured and the pilot begins.'));
         return;
       }
-      const metrics = el('dl');
-      metrics.className = 'clinic-overview-metrics';
       const values = [
         ['Paid-period collections',data.eligible_minor],
         ['Estimated Eden fee',data.estimated_share_minor]
       ];
       const free = data.collected_minor-data.eligible_minor;
       if (free) values.push(['Free-pilot collections',free]);
-      for (const [label,minor] of values) {
-        const metric = el('div');
-        metric.append(el('dt',label),el('dd',money(minor,data.currency)));
-        metrics.append(metric);
-      }
-      host.replaceChildren(el('p',periodLabel(data)),metrics);
+      host.replaceChildren(el('p',periodLabel(data)),metricList(values,data.currency));
     } catch {
       if (valid()) host.replaceChildren(el('p','Current figures could not be loaded.'),
         button('Retry',()=>overview({client,locationId,valid})));
     }
   }
   function currentCard(host, period, timezone) {
-    const card=el('section');card.className='clinic-rescue-card';
-    card.append(el('h3','Current period so far'),el('p',periodLabel(period)));
-    const totals=el('div');totals.className='clinic-rescue-totals';
-    totals.append(el('strong','Paid-period collections from Eden visits · '+money(period.eligible_minor,period.currency)),
-      el('p','Estimated Eden share at '+period.rate_bps/100+'% · '+money(period.estimated_share_minor,period.currency)));
+    const card=el('section');card.className='clinic-panel clinic-rescue-current';
+    card.append(el('h2','Current period so far'),el('p',periodLabel(period)));
     const free=period.collected_minor-period.eligible_minor;
-    countedVisits(totals,period.counted_visits?.filter(line=>!line.free),period.currency,timezone);
-    const freeVisits = period.counted_visits?.filter(line=>line.free);
-    if (free || freeVisits?.length) {
-      totals.append(el('p','Free-pilot collections recorded this period · '+money(free,period.currency)));
-      countedVisits(totals,freeVisits,period.currency,timezone,'Free pilot');
-    }
-    card.append(totals,el('small','Updates as staff record payments. The monthly settlement accounts for credits and rounding.'));
+    const freeVisits=period.counted_visits?.filter(line=>line.free);
+    const values = [
+      ['Paid-period collections',period.eligible_minor],
+      ['Estimated Eden fee at '+period.rate_bps/100+'%',period.estimated_share_minor]
+    ];
+    if (free || freeVisits?.length) values.push(['Free-pilot collections',free]);
+    card.append(metricList(values,period.currency));
+    countedVisits(card,period.counted_visits?.filter(line=>!line.free),period.currency,timezone);
+    if (free || freeVisits?.length) countedVisits(card,freeVisits,period.currency,timezone,'Free pilot');
+    card.append(el('small','The monthly settlement accounts for credits and rounding.'));
     host.append(card);
   }
   let panelSequence=0;
@@ -348,19 +471,33 @@ const ClinicRescue = (() => {
           ctx.client.from('clinic_rescue_reports').select('*').eq('location_id',ctx.locationId).order('period_end',{ascending:false}).order('kind')]);
         if(!valid()) return;
         if(prefs.error || rows.error) throw prefs.error || rows.error;
+        let through;
         if(prefs.data) {
           const currentPeriod=await ctx.client.rpc('current_rescue_period',{p_location:ctx.locationId});
           if(!valid()) return;
           if(currentPeriod.error) box.append(el('p','Current figures could not be loaded.'),button('Retry current figures',()=>load()));
-          else if(currentPeriod.data) currentCard(box,currentPeriod.data,ctx.timezone);
+          else if(currentPeriod.data) {
+            through=currentPeriod.data.through;
+            currentCard(box,currentPeriod.data,ctx.timezone);
+          }
         }
         if(prefs.data && !rows.data.length) box.append(el('p','Your first results report will appear after the seven-day pilot.'));
         let selected;
-        for(const r of rows.data) {
-          const card=reportCard(box,ctx,r,load);
-          if(r.id===wanted){selected=card;card.open=true;if(afterApproval && !r.approved_at)card.append(el('p','The figures changed. Review the updated draft before approving.'));}
+        const timeline=[];
+        const today=through || new Intl.DateTimeFormat('sv-SE',{timeZone:ctx.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+        const history=el('section');history.className='clinic-panel clinic-rescue-history';
+        if (rows.data.length) {
+          history.append(el('h2','Report history'));
+          for(const r of rows.data) {
+            const card=reportCard(history,ctx,r,load);
+            if (r.kind==='settlement' && r.period_end<=today && Number.isSafeInteger(r.snapshot.collected_minor) &&
+                currencies.includes(r.snapshot.currency)) timeline.push({r,card});
+            if(r.id===wanted){selected=card;card.open=true;if(afterApproval && !r.approved_at)card.append(el('p','The figures changed. Review the updated draft before approving.'));}
+          }
         }
-        const settings=el('details');settings.open=!prefs.data;
+        if (prefs.data) revenueTimeline(box,timeline);
+        if (rows.data.length) box.append(history);
+        const settings=el('details');settings.className='clinic-panel clinic-rescue-settings';settings.open=!prefs.data;
         settings.append(el('summary',prefs.data?'Reporting settings':'Set up reporting'));
         settingsForm(settings,ctx,prefs.data,()=>load());box.append(settings);host.replaceChildren(box);
         if(selected) selected.scrollIntoView({block:'nearest'});

@@ -23,7 +23,8 @@
     accountId: query.get('account'), locationId: query.get('location'), channel: query.get('setup') || hashChannel
   };
   const requestedView = query.get('view');
-  let workspaceView = requestedView === 'daily' ? 'daily' : 'setup';
+  let openRequestedReport = requestedView === 'revenue' || query.has('report') || location.hash === '#clinic-rescue';
+  let workspaceView = requestedView === 'daily' || openRequestedReport ? 'daily' : 'setup';
   let overviewLocation;
   const testReturnId = query.get('messengerTest');
   const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
@@ -653,7 +654,8 @@
     const work = document.createElement('div');
     work.id = 'clinic-daily-view';
     const overview = byId('clinic-owner-overview');
-    dashboard.append(overview,work,setup);
+    const revenue = byId('clinic-revenue-view');
+    dashboard.append(overview,work,revenue,setup);
     setup.append(channelNav,...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
     work.append(daily);
 
@@ -661,7 +663,7 @@
     views.className = 'clinic-view-switch';
     views.setAttribute('aria-label','Clinic Workspace');
     const links = {};
-    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['setup','Connect Clinic']]) {
+    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['revenue','Revenue Rescue'],['setup','Connect Clinic']]) {
       const link = document.createElement('a');
       link.href = '/clinic/?view=' + key;
       link.textContent = label;
@@ -674,19 +676,21 @@
       views.append(link);
     }
     dashboard.querySelector('.clinic-selectors').after(views);
-    return {overview,setup,work,links};
+    return {overview,setup,work,revenue,links};
   }
 
   function switchWorkspaceView(view, updateUrl = false) {
-    workspaceView = view === 'overview' && canManageClinic ? 'overview' : view === 'setup' ? 'setup' : 'daily';
+    workspaceView = view === 'setup' || (canManageClinic && ['overview','revenue'].includes(view)) ? view : 'daily';
     const setup = workspaceView === 'setup';
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = workspaceView !== 'daily';
     workspaceViews.overview.hidden = workspaceView !== 'overview';
     workspaceViews.links.overview.hidden = !canManageClinic;
+    workspaceViews.links.revenue.hidden = !canManageClinic;
+    workspaceViews.revenue.hidden = workspaceView !== 'revenue';
+    byId('clinic-rescue').open = workspaceView === 'revenue';
     if (workspaceView === 'overview') loadOwnerRevenue();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
-    workspaceHero.hidden = workspaceView === 'overview' || (setup && !channelNav.hidden);
     updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
       if (key===workspaceView) link.setAttribute('aria-current','page');
@@ -695,7 +699,12 @@
     if (updateUrl) {
       const url = new URL(location.href);
       url.searchParams.set('view',workspaceView);
+      for (const key of ['account','location']) {
+        const value = byId('clinic-'+key).value;
+        if (value) url.searchParams.set(key,value);
+      }
       url.searchParams.delete('setup');
+      url.searchParams.delete('report');
       if (url.hash.startsWith('#clinic-')) url.hash='';
       history.replaceState(null,'',url);
     }
@@ -704,6 +713,8 @@
   function updateHeroAction() {
     const needsWorkspace = !byId('clinic-create').hidden;
     const channelsReady = !daily.hidden;
+    workspaceHero.hidden = Boolean(state.session) && (['overview','revenue'].includes(workspaceView) ||
+      (workspaceView === 'daily' && channelsReady) || (workspaceView === 'setup' && !channelNav.hidden));
     const opensDaily = channelsReady && (!canManageClinic || channelSteps.every(step => step.link.dataset.connected === 'true'));
     heroAction.hidden = workspaceView === 'overview' || !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
     if (heroAction.hidden) return;
@@ -711,9 +722,15 @@
     heroAction.textContent = needsWorkspace ? 'Create your workspace' : opensDaily ? 'Open Daily Action' : 'Channel setup';
   }
 
+  function clearRevenueView() {
+    byId('clinic-revenue-location').textContent = '';
+    ClinicRescue.reports({manager:false});
+  }
+
   function clearOwnerOverview() {
     overviewLocation = undefined;
     workspaceViews.links.overview.href = '/clinic/?view=overview';
+    workspaceViews.links.revenue.href = '/clinic/?view=revenue';
     byId('clinic-overview-location').textContent = '';
     byId('clinic-overview-connections').replaceChildren();
     byId('clinic-overview-revenue').textContent = 'Loading clinic…';
@@ -767,15 +784,11 @@
   byId('clinic-overview-open-report').addEventListener('click', event => {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    switchWorkspaceView('daily',true);
-    const reports = byId('clinic-rescue');
-    reports.open = true;
-    reports.querySelector('summary').focus();
+    switchWorkspaceView('revenue',true);
+    byId('clinic-revenue-title').focus();
   });
 
   function renderWorkspaceHero(signedIn) {
-    workspaceHero.hidden = signedIn && (workspaceView === 'overview' ||
-      (workspaceView === 'setup' && !channelNav.hidden));
     byId('clinic-guest-hero').hidden = signedIn;
     byId('clinic-member-hero').hidden = !signedIn;
     workspaceHero.classList.toggle('clinic-hero-signed-in', signedIn);
@@ -1127,12 +1140,11 @@
   function renderInboxEvents(events, fallback) {
     const container = byId('clinic-inbox');
     if (!events.length) return empty(container, fallback);
-    const previousPanels = new Map([...container.children].map(row => [
-      row.dataset.eventKey, row.querySelector('.clinic-messenger-confirmation')
-    ]));
+    const previousRows = new Map([...container.children].map(row => [row.dataset.eventKey,row]));
     container.replaceChildren();
     for (const event of events) {
-      const row = document.createElement('article'); row.className = 'clinic-event';
+      const row = document.createElement('article'); row.className = 'clinic-event clinic-inbox-card';
+      const previous = previousRows.get(event.event_key);
       if (event.event_key) {
         row.dataset.eventKey = event.event_key;
         row.tabIndex = -1;
@@ -1162,12 +1174,14 @@
       if (statusLabel) {
         const badge = document.createElement('span');
         badge.className = 'clinic-event-status';
-        if (['Booked', 'Confirmed'].includes(statusLabel)) badge.dataset.status = 'confirmed';
+        if (['Booked', 'Confirmed', 'Visit completed'].includes(statusLabel)) badge.dataset.status = 'confirmed';
+        if (statusLabel.startsWith('Needs ')) badge.dataset.status = 'attention';
         if (statusLabel === 'Cancelled') badge.dataset.status = 'cancelled';
         badge.textContent = statusLabel;
         heading.append(badge);
       }
       const meta = document.createElement('small');
+      meta.className = 'clinic-inbox-meta';
       meta.textContent = [bookingSourceLabels[event.channel] || event.channel,
         statusLabel ? null : event.status,
         event.occurred_at && new Date(event.occurred_at).toLocaleString(undefined, {
@@ -1179,11 +1193,18 @@
         note.textContent = 'Fictional setup test · No appointment created';
         row.append(note);
       } else if (needsFollowup) {
+        const details = document.createElement('details');
+        details.className = 'clinic-inbox-detail';
+        details.open = previous?.querySelector('.clinic-inbox-detail')?.open || false;
+        const summary = document.createElement('summary');
+        summary.textContent = 'Inquiry details';
+        details.append(summary);
         const topics = Array.isArray(event.details?.topics)
           ? event.details.topics.filter(topic => typeof topic === 'string' && topic.trim()).slice(0, 3) : [];
         if (event.details?.service && (event.kind !== 'inquiry.followup_needed' || !topics.length)) {
-          const service = document.createElement('small');
-          service.textContent = 'Service · ' + event.details.service;
+          const service = document.createElement('p');
+          service.className = 'clinic-inbox-subject';
+          service.textContent = event.details.service;
           row.append(service);
         }
         const serviceLabel = typeof event.details?.service === 'string' ? event.details.service.toLowerCase() : '';
@@ -1192,14 +1213,14 @@
         if (additionalTopics.length) {
           const line = document.createElement('small');
           line.textContent = 'Topics · ' + additionalTopics.join(', ');
-          row.append(line);
+          details.append(line);
         }
         if (event.details?.requestedTime) {
           const timing = document.createElement('small');
           timing.textContent = 'Requested time · ' + event.details.requestedTime;
           row.append(timing);
         }
-        if (event.details?.demo !== true) appendPatientDetails(row, event.details);
+        if (event.details?.demo !== true) appendPatientDetails(details, event.details);
         const alert = document.createElement('small');
         const alertLabels = {
           sent: 'Email alert: sent to provider',
@@ -1211,13 +1232,13 @@
         };
         alert.textContent = event.details?.demo === true ? 'Fictional sample · No patient or email notification' :
           alertLabels[event.notification_state] || 'Email alert: status unavailable';
-        if (event.channel !== 'staff_booking') row.append(alert);
+        if (event.channel !== 'staff_booking') details.append(alert);
         const messengerLink = event.channel === 'facebook_messenger' && messengerInboxLink(event.details);
-        const confirmation = messengerConfirmation(event, latest, messengerLink, previousPanels.get(event.event_key));
+        const confirmation = messengerConfirmation(event, latest, messengerLink, previous?.querySelector('.clinic-messenger-confirmation'));
         if (messengerLink && !confirmation) {
           const line = document.createElement('small');
           line.append(messengerLink);
-          row.append(line);
+          details.append(line);
         }
         const originalKey = event.details?.relatedRequestKey;
         if (messengerTask && originalKey && dailyEvents.some(item => item.event_key === originalKey)) {
@@ -1228,7 +1249,7 @@
           original.addEventListener('click', () => openBookedActivity(originalKey, false, 'all'));
           const line = document.createElement('small');
           line.append(original);
-          row.append(line);
+          details.append(line);
         }
         if (latest?.appointment_at) {
           const appointment = document.createElement('small');
@@ -1239,8 +1260,9 @@
           });
           row.append(appointment);
         }
-        if (visitRecordsAvailable && latest?.action === 'booked' && event.details?.demo !== true &&
-            latest.appointment_at && Date.parse(latest.appointment_at) <= Date.now()) {
+        const hasVisitControls = visitRecordsAvailable && latest?.action === 'booked' && event.details?.demo !== true &&
+          latest.appointment_at && Date.parse(latest.appointment_at) <= Date.now();
+        if (hasVisitControls) {
           ClinicRescue.visitControls(row, {event, latest, visit, events:dailyEvents, client:state.client,
             currency:state.visitCurrency,timezone:clinicTimeZone(event.location_id),
             refresh:() => refreshActivity()});
@@ -1265,16 +1287,25 @@
           } else if (!clinicTeamAvailable) {
             const note = document.createElement('small');
             note.textContent = 'Team list unavailable. Refresh to try again.';
-            row.append(note);
+            details.append(note);
           }
         }
         if (actions.length) {
           const controls = document.createElement('div');
-          for (const [action, label] of actions) {
+          controls.className = 'clinic-inbox-controls';
+          const more = document.createElement('details');
+          more.className = 'clinic-inbox-more';
+          more.open = previous?.querySelector('.clinic-inbox-more')?.open || false;
+          const moreLabel = document.createElement('summary');
+          moreLabel.textContent = 'More actions';
+          const secondary = document.createElement('div');
+          more.append(moreLabel,secondary);
+          for (const [index,[action,label]] of actions.entries()) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'clinic-followup-button';
-            if (action !== 'booked') button.classList.add('clinic-secondary');
+            const primary = index === 0 && !hasVisitControls;
+            if (!primary) button.classList.add('clinic-secondary');
             button.textContent = label;
             button.addEventListener('click', () => {
               if (['booked', 'rescheduled', 'cancelled', 'restored'].includes(action)) {
@@ -1283,10 +1314,12 @@
               else if (action === 'invite') openTeammateInvite();
               else updateFollowup(event, action, controls);
             });
-            controls.append(button);
+            (primary ? controls : secondary).append(button);
           }
+          if (secondary.childElementCount) controls.append(more);
           row.append(controls);
         }
+        if (details.childElementCount > 1) row.append(details);
         if (confirmation) row.append(confirmation);
       } else if (event.details?.demo !== true && ['booking.updated', 'booking.cancelled'].includes(event.kind)) {
         appendPatientDetails(row, event.details);
@@ -1303,6 +1336,12 @@
       return Intl.DateTimeFormat().resolvedOptions().timeZone;
     }
   }
+
+  byId('clinic-daily-attention').addEventListener('click', () => {
+    const filter = inboxFilters.find(button=>button.dataset.filter==='attention');
+    filter.click();
+    filter.focus();
+  });
 
   function renderDailyInbox(targetKey) {
     const activity = dailyEvents.filter(event => !isMessengerSetupSample(event));
@@ -1321,8 +1360,10 @@
         (followup?.action === 'booked' || bookingStatus(event) === 'Confirmed');
     });
     const latestTest = dailyEvents.find(isMessengerSetupSample);
+    const urgent = new Set(attention);
+    byId('clinic-attention-count').textContent = String(attention.length);
     const views = {
-      all: [activity, 'No activity yet for this location.'],
+      all: [[...attention,...activity.filter(event=>!urgent.has(event))], 'No activity yet for this location.'],
       attention: [attention, 'No unclaimed inquiries need follow-up.'],
       assigned: [assigned, 'No inquiries are assigned to you.'],
       booked: [booked, 'No confirmed bookings in recent activity.'],
@@ -1345,7 +1386,7 @@
 
     const container = byId('clinic-inbox');
     const pager = document.createElement('nav');
-    pager.className = 'clinic-appointment-actions';
+    pager.className = 'clinic-appointment-actions clinic-inbox-pages';
     pager.setAttribute('aria-label', 'Activity inbox pages');
     const range = document.createElement('span');
     range.textContent = (start + 1) + '–' + Math.min(start + inboxPageSize, events.length) + ' of ' + events.length;
@@ -1403,6 +1444,7 @@
       .sort((a, b) => (Date.parse(b.occurred_at) || 0) - (Date.parse(a.occurred_at) || 0));
     renderDailyInbox();
     renderTodayAppointments(locationId);
+    byId('clinic-daily-location').textContent = state.locations.find(row=>row.id===locationId)?.name || '';
     daily.hidden = false;
     updateHeroAction();
   }
@@ -2047,8 +2089,13 @@
       state.visitCurrency = currency;
       ClinicRescue.pending({client:state.client,locationId,timezone,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
       ClinicRescue.attributionReviews({client:state.client,locationId,timezone});
-      ClinicRescue.reports({client:state.client,locationId,clinicName:state.locations.find(l=>l.id===locationId)?.name || "",manager:canManageClinic,email:state.session?.user.email,
-        timezone,reportId:query.get('location')===locationId ? query.get('report') : null});
+      const clinicName = state.locations.find(l=>l.id===locationId)?.name || '';
+      const openReportHere = openRequestedReport && canManageClinic &&
+        (!query.has('location') || query.get('location')===locationId);
+      openRequestedReport = false;
+      byId('clinic-revenue-location').textContent = canManageClinic ? clinicName : '';
+      ClinicRescue.reports({client:state.client,locationId,clinicName,manager:canManageClinic,email:state.session?.user.email,
+        timezone,reportId:openReportHere && query.get('location')===locationId ? query.get('report') : null});
       publishedWebsite = false;
       state.connections = connections;
       if (canManageClinic) {
@@ -2056,13 +2103,11 @@
         byId('clinic-overview-location').textContent = state.locations.find(row=>row.id===locationId)?.name || '';
         const reportLink = byId('clinic-overview-open-report');
         workspaceViews.links.overview.href = '/clinic/?' + new URLSearchParams({view:'overview',account:accountId,location:locationId});
-        reportLink.href = '/clinic/?' + new URLSearchParams({view:'daily',account:accountId,location:locationId}) + '#clinic-rescue';
+        workspaceViews.links.revenue.href = '/clinic/?' + new URLSearchParams({view:'revenue',account:accountId,location:locationId});
+        reportLink.href = workspaceViews.links.revenue.href;
         reportLink.hidden = false;
       }
-      switchWorkspaceView(workspaceView);
-      if (canManageClinic && query.get('location')===locationId && location.hash==='#clinic-rescue' && workspaceView==='daily') {
-        byId('clinic-rescue').open = true;
-      }
+      switchWorkspaceView(openReportHere ? 'revenue' : workspaceView);
       clinicTeamAvailable = team !== null;
       clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
       pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
@@ -2402,6 +2447,7 @@
   async function authenticated(session) {
     state.session = session;
     clearOwnerOverview();
+    clearRevenueView();
     daily.hidden = true;
     show('clinic-create', false);
     renderWorkspaceHero(Boolean(session));
@@ -2534,6 +2580,7 @@
   });
   byId('clinic-account').addEventListener('change', () => {
     clearOwnerOverview();
+    clearRevenueView();
     closeManualBooking();
     addBookingResult.hidden = true;
     daily.hidden = true;
@@ -2542,6 +2589,7 @@
     refreshLocations().catch(error => status(error.message, 'error'));
   });
   byId('clinic-location').addEventListener('change', () => {
+    clearRevenueView();
     closeManualBooking();
     addBookingResult.hidden = true;
     daily.hidden = true;
