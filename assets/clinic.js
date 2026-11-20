@@ -101,9 +101,11 @@
   switchWorkspaceView(workspaceView);
   const followupKinds = ['call.followup_needed', 'booking.requested', 'inquiry.followup_needed'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
-  const status = (message, kind = 'info') => {
-    byId('clinic-status').textContent = message;
-    byId('clinic-status').dataset.kind = kind;
+  const status = (message, kind = 'info', workspaceReady = false) => {
+    const feedback = byId('clinic-status');
+    feedback.textContent = message;
+    feedback.dataset.kind = kind;
+    feedback.dataset.workspaceReady = String(workspaceReady);
   };
   const empty = (container, message) => {
     container.replaceChildren();
@@ -310,6 +312,21 @@
     const authorized = connected || connection?.status === 'verifying';
     byId('clinic-messenger-title').textContent = connected ? 'Manage Messenger' : 'Set up Messenger';
     const ready = factsReady && authorized;
+    const steps = byId('clinic-messenger-steps').children;
+    for (const [step, label, done] of [
+      [steps[0], factsReady ? 'Saved' : 'Required', factsReady],
+      [steps[1], authorized ? 'Authorized' : factsReady ? 'Ready to authorize' : 'After clinic facts', authorized],
+      [steps[2], connected ? 'Connected' : ready ? 'Ready to test' : 'After authorization', connected]
+    ]) {
+      let badge = step.querySelector('.clinic-connect-stage');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'clinic-connect-stage';
+        step.querySelector('h3').after(badge);
+      }
+      badge.textContent = label;
+      badge.dataset.connected = String(done);
+    }
     const test = ready ? receivedSetupTest() : null;
     const complete = connected && Boolean(test);
     const expired = setupTest?.expiresAt && setupTest.expiresAt <= Date.now();
@@ -582,7 +599,7 @@
 
   function createChannelSteps() {
     const list = byId('clinic-channels');
-    const steps = Object.entries(setupChannelLabels).map(([channel, name], index) => {
+    const steps = Object.entries(setupChannelLabels).map(([channel, name]) => {
       const panel = document.createElement('details');
       panel.id = 'clinic-channel-' + channel;
       panel.className = 'clinic-panel clinic-channel-detail';
@@ -606,8 +623,11 @@
       const title = document.createElement('strong');
       title.textContent = name;
       const badge = document.createElement('small');
+      badge.className = 'clinic-connect-stage';
+      const action = document.createElement('span');
+      action.className = 'clinic-connect-link-action';
       copy.append(title, badge);
-      link.append(marker, copy);
+      link.append(marker, copy, action);
       item.append(link);
       list.append(item);
       link.addEventListener('click', event => {
@@ -621,7 +641,7 @@
         if (panel.open) link.setAttribute('aria-current','true');
         else link.removeAttribute('aria-current');
       });
-      return { channel, index, panel, heading, body, link, marker, badge, feedback };
+      return { channel, panel, heading, body, link, marker, badge, action, feedback };
     });
     return steps;
   }
@@ -634,14 +654,14 @@
     work.id = 'clinic-daily-view';
     const overview = byId('clinic-owner-overview');
     dashboard.append(overview,work,setup);
-    setup.append(...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
+    setup.append(channelNav,...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
     work.append(daily);
 
     const views = document.createElement('nav');
     views.className = 'clinic-view-switch';
     views.setAttribute('aria-label','Clinic Workspace');
     const links = {};
-    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['setup','Channel setup']]) {
+    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['setup','Connect Clinic']]) {
       const link = document.createElement('a');
       link.href = '/clinic/?view=' + key;
       link.textContent = label;
@@ -663,10 +683,10 @@
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = workspaceView !== 'daily';
     workspaceViews.overview.hidden = workspaceView !== 'overview';
-    workspaceHero.hidden = !workspaceViews.overview.hidden;
     workspaceViews.links.overview.hidden = !canManageClinic;
     if (workspaceView === 'overview') loadOwnerRevenue();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
+    workspaceHero.hidden = workspaceView === 'overview' || (setup && !channelNav.hidden);
     updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
       if (key===workspaceView) link.setAttribute('aria-current','page');
@@ -754,7 +774,8 @@
   });
 
   function renderWorkspaceHero(signedIn) {
-    workspaceHero.hidden = signedIn && workspaceView === 'overview';
+    workspaceHero.hidden = signedIn && (workspaceView === 'overview' ||
+      (workspaceView === 'setup' && !channelNav.hidden));
     byId('clinic-guest-hero').hidden = signedIn;
     byId('clinic-member-hero').hidden = !signedIn;
     workspaceHero.classList.toggle('clinic-hero-signed-in', signedIn);
@@ -766,6 +787,7 @@
 
   function hideChannelSetup() {
     channelNav.hidden = true;
+    byId('clinic-connect-next').hidden = true;
     for (const { panel, feedback } of channelSteps) {
       panel.hidden = true;
       panel.open = false;
@@ -849,8 +871,49 @@
     }
   }
 
+  function connectClinicAction(channel, status) {
+    if (!canManageClinic) return ['View status','A clinic owner or admin manages service connections.'];
+    if (status === 'connected') return ['Manage','Review this connection and its settings.'];
+    if (status === 'facts') return ['Review clinic details','Confirm the information Eden uses when replying to patients.'];
+    if (status === 'action_required') return ['Review setup','Review the connection and the steps to restore service.'];
+    if (status === 'disconnected') return ['Review reconnection','Open the setup steps to get this service working again.'];
+    if (status === 'requested') return ['View request','Your setup request is still in progress.'];
+    if (status === 'verifying') {
+      return channel==='website_chat' ? ['Check website setup','Send a test inquiry from the clinic website to verify inbox delivery.'] :
+        ['Review test steps',channel==='facebook_messenger' ? 'Send a private Messenger test to verify Eden’s reply.' :
+          'Place a forwarded test call and check that it reaches Daily Action.'];
+    }
+    return ['Set up',channel==='website_chat' ? 'Set up your clinic’s website receptionist.' :
+      channel==='facebook_messenger' ? 'Start connecting your clinic’s Facebook Page.' :
+        'Request a forwarding number for missed calls.'];
+  }
+
+  function renderConnectClinic() {
+    const clinic = state.locations.find(row=>row.id===byId('clinic-location').value);
+    byId('clinic-connect-location').textContent = clinic?.name || '';
+    const connected = channelSteps.filter(step=>step.link.dataset.connected==='true').length;
+    byId('clinic-connect-progress').textContent = connected + ' of ' + channelSteps.length + ' connected';
+
+    const priority = ['action_required','disconnected','facts','verifying','unconfigured'];
+    const next = canManageClinic && priority.map(status=>
+      channelSteps.find(step=>step.link.dataset.connectionStatus===status)).find(Boolean);
+    byId('clinic-connect-next').hidden = !next;
+    if (!next) return;
+    const [label, detail] = connectClinicAction(next.channel,next.link.dataset.connectionStatus);
+    byId('clinic-connect-next-title').textContent = setupChannelLabels[next.channel];
+    byId('clinic-connect-next-detail').textContent = detail;
+    const action = byId('clinic-connect-next-action');
+    action.textContent = label;
+    action.href = next.link.href;
+    action.onclick = event => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      next.link.click();
+    };
+  }
+
   function renderChannels(steps = channelSteps) {
-    for (const { channel, index, panel, heading, body, link, marker, badge } of steps) {
+    for (const { channel, panel, heading, body, link, marker, badge, action } of steps) {
       const connection = state.connections.find(item=>item.channel===channel);
       const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
         setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
@@ -860,7 +923,13 @@
         !hasMessengerFacts(messengerSetup.facts);
       badge.textContent = needsFacts ? 'Facts needed' : channelStatus(channel,connection);
       link.dataset.connected = String(connected && !needsFacts);
-      marker.textContent = connected && !needsFacts?'✓':String(index+1);
+      badge.dataset.connected = link.dataset.connected;
+      marker.textContent = connected && !needsFacts ? '✓' : '○';
+      const websiteNeedsTest = channel==='website_chat' && publishedWebsite &&
+        (!connection || ['requested','verifying'].includes(connection.status));
+      link.dataset.connectionStatus = needsFacts ? 'facts' :
+        websiteNeedsTest ? 'verifying' : connection?.status || 'unconfigured';
+      action.textContent = connectClinicAction(channel,link.dataset.connectionStatus)[0];
       panel.hidden = false;
       if (guided) {
         body.replaceChildren();
@@ -917,6 +986,8 @@
       if (hadFocus) heading.focus({preventScroll:true});
     }
     channelNav.hidden = workspaceView !== 'setup';
+    if (workspaceView === 'setup') workspaceHero.hidden = true;
+    renderConnectClinic();
     renderOverviewConnections();
   }
 
@@ -2007,7 +2078,7 @@
     if (!quiet) renderMessengerGuide();
     inboxSignature = signature;
     loadedGeneration = generation;
-    if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success');
+    if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success', true);
   }
 
   function showAlertEmailStatus(message = '', kind = 'info') {
