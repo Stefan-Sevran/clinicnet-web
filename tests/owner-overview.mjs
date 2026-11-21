@@ -69,7 +69,10 @@ for (const role of roles) {
         '/clinic/accounts':[{id:account,name:'Eden fixture'}],
         '/clinic/locations':[{id:cebu,name:'Cebu fixture',timezone:'Asia/Manila'},
           {id:bangkok,name:'Bangkok fixture',timezone:'Asia/Bangkok'}],
-        '/clinic/bookings':[], '/clinic/inbox':[],
+        '/clinic/bookings':[], '/clinic/inbox':req.searchParams.get('locationId')===cebu ? [{
+          event_key:'morning-callback', channel:'ai_phone', kind:'call.followup_needed', summary:'Call back caller',
+          occurred_at:'2026-11-20T03:00:00Z',details:{}
+        }] : [],
         '/clinic/messenger/setups':role==='staff'?[]:[{locationId:cebu,clinicName:'Cebu fixture',facts}],
         '/clinic/connections':req.searchParams.get('locationId')===cebu ?
           [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:messengerStatus}] : []
@@ -126,6 +129,13 @@ for (const role of roles) {
       (role==='staff' ? !doc.querySelector('#clinic-daily-view').hidden : !overview.hidden));
     assert.equal(configReads,role==='admin'?2:1,'Use the early request once, then fetch fresh on retry');
     assert.equal(overviewNav.hidden,role==='staff');
+    const profileNav = doc.querySelector('.clinic-view-switch a[href*="view=profile"]');
+    assert.equal(profileNav.hidden,role==='staff');
+    assert.ok(doc.body.classList.contains('clinic-workspace-signed-in'));
+    assert.equal(doc.querySelector('#clinic-alert-count').textContent,'1');
+    assert.equal(doc.querySelector('#clinic-support-dialog a').getAttribute('href'),'mailto:team@clinicnet.live');
+    assert.deepEqual([...doc.querySelector('#clinic-send-feedback select').options].slice(1).map(o=>o.value),
+      ['1','2','3','4','5','6','7','8','9','10']);
     assert.equal(hero.hidden,true);
     if (role==='staff') {
       assert.equal(overview.hidden,true);
@@ -140,6 +150,22 @@ for (const role of roles) {
     assert.match(revenue.textContent,/Paid-period collections.*Estimated Eden fee.*Free-pilot collections/s);
     assert.ok(revenue.textContent.includes(amount(195000,'PHP')));
     assert.match(channels.textContent,/Website.*Connected.*Messenger.*Action needed.*Not set up/s);
+    assert.match(doc.querySelector('#clinic-home-attention').textContent,/1 missed call needs a callback/);
+    doc.querySelector('#clinic-home-attention').click();
+    assert.equal(doc.querySelector('[data-filter=attention]').getAttribute('aria-pressed'),'true');
+    overviewNav.click();
+    doc.querySelector('#clinic-alerts-menu').open = true;
+    doc.querySelector('#clinic-workspace-alerts button').click();
+    assert.equal(doc.querySelector('#clinic-daily-view').hidden,false);
+    assert.equal(doc.activeElement.dataset.eventKey,'morning-callback');
+    profileNav.click();
+    assert.equal(doc.querySelector('#clinic-profile-view').hidden,false);
+    assert.match(doc.querySelector('#clinic-profile-location').textContent,/Cebu/);
+    assert.equal(new URL(profileNav.href).searchParams.get('location'),cebu);
+    doc.querySelector('#clinic-open-settings').click();
+    assert.equal(doc.querySelector('#clinic-settings-view').hidden,false);
+    assert.ok(doc.querySelector('#clinic-settings-view #clinic-team-invite'));
+    overviewNav.click();
     channels.querySelector('a').click();
     assert.equal(doc.querySelector('#clinic-setup-view').hidden,false);
     assert.equal(doc.querySelector('#clinic-channel-website_chat').open,true);
@@ -182,6 +208,8 @@ for (const role of roles) {
     assert.ok(!revenue.textContent.includes(amount(1300000,'PHP')));
     assert.ok(revenue.textContent.includes(amount(20000,'THB')));
     assert.ok(!channels.textContent.includes('Connected'));
+    assert.ok(doc.querySelector('#clinic-alert-count').hidden);
+    assert.doesNotMatch(doc.querySelector('#clinic-workspace-alerts').textContent,/Missed call/);
     assert.equal(new URL(report.href).searchParams.get('location'),bangkok);
     if (role !== 'owner') continue;
     delayCebu = false;
@@ -232,4 +260,4 @@ for (const role of roles) {
     assert.equal(doc.querySelector('#clinic-authenticated').hidden,true);
   } finally { dom.window.close(); }
 }
-console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification, location isolation, parallel startup, and overnight session recovery.');
+console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification, workspace navigation, alert routing, location isolation, and session recovery.');
