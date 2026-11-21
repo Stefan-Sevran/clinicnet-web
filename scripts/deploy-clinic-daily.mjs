@@ -36,6 +36,7 @@ const legacyChannelsSection = /<section class="clinic-panel">(?:(?!<\/section>)[
 const nextSection = /<section class="clinic-panel clinic-next"[^>]*>[\s\S]*?<\/section>\s*/;
 const dailySection = /<!-- Clinic Daily work -->[\s\S]*?<!-- \/Clinic Daily work -->/;
 const legacyDailySection = /(?:<div class="clinic-columns">\s*)?<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-bookings"[\s\S]*?<\/section>(?:\s*<\/div>)?\s*<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-inbox"[\s\S]*?<\/section>\s*<section class="clinic-panel">(?:(?!<\/section>)[\s\S])*?id="clinic-booked-outcomes"[\s\S]*?<\/section>/;
+const bootstrapRequest = /<!-- Clinic bootstrap request -->[\s\S]*?<!-- \/Clinic bootstrap request -->\n?/;
 const cssMarker = '/* Eden Messenger setup guide */';
 function isWorkspaceDeployment(folder) {
   if (![clinicPage, clinicScript, clinicStyle, '_worker.js', 'assets/pearlsmile-pilot.js'].every(file => existsSync(join(folder, file)))) return false;
@@ -122,6 +123,13 @@ if (icon) {
   clinic = iconTag.test(clinic)
     ? clinic.replace(iconTag, () => icon)
     : clinic.replace('</head>', icon + '\n</head>');
+}
+const bootstrap = reviewedPage.match(bootstrapRequest)?.[0];
+if (bootstrap) {
+  clinic = clinic.replace(bootstrapRequest, '');
+  const startOfHead = '<meta name="robots" content="noindex,nofollow">';
+  if (!clinic.includes(startOfHead)) throw Error('Could not place the early Workspace configuration request.');
+  clinic = clinic.replace(startOfHead, () => startOfHead + '\n' + bootstrap);
 }
 if (!clinic.includes('<meta name="referrer" content="no-referrer">')) {
   clinic = clinic.replace('</head>', '<meta name="referrer" content="no-referrer">\n</head>');
