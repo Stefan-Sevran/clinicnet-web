@@ -414,11 +414,11 @@ const ClinicRescue = (() => {
     }
     return metrics;
   }
-  async function overview({client,locationId,valid}) {
+  async function overview({client,locationId,valid,read = work => work}) {
     const host = document.getElementById('clinic-overview-revenue');
     host.replaceChildren(el('p','Loading current figures…'));
     try {
-      const {data,error} = await client.rpc('current_rescue_period',{p_location:locationId});
+      const {data,error} = await read(client.rpc('current_rescue_period',{p_location:locationId}));
       if (!valid()) return;
       if (error) throw error;
       if (!data) {
@@ -434,7 +434,7 @@ const ClinicRescue = (() => {
       host.replaceChildren(el('p',periodLabel(data)),metricList(values,data.currency));
     } catch {
       if (valid()) host.replaceChildren(el('p','Current figures could not be loaded.'),
-        button('Retry',()=>overview({client,locationId,valid})));
+        button('Retry',()=>overview({client,locationId,valid,read})));
     }
   }
   function currentCard(host, period, timezone) {
