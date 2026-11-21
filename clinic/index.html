@@ -5,6 +5,15 @@
 <title>Clinic Workspace | Eden Clinic Network</title>
 <meta name="description" content="Set up your clinic account and location, then see connection requests and incoming bookings in one place.">
 <meta name="robots" content="noindex,nofollow">
+<!-- Clinic bootstrap request -->
+<script>
+window.edenClinicConfigRequest = fetch('https://eden-webhook-ixdd.onrender.com/clinic/public-config', {
+  cache: 'no-store',
+  referrerPolicy: 'no-referrer',
+  ...(typeof AbortSignal.timeout === 'function' ? { signal: AbortSignal.timeout(15000) } : {})
+}).catch(() => null);
+</script>
+<!-- /Clinic bootstrap request -->
 <link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">

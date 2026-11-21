@@ -2537,6 +2537,7 @@
       status(pendingInvite ? 'Sign in with the work email that received the invitation.' : 'Sign in to create or open your workspace.');
       return;
     }
+    status('Opening your clinic…');
     byId('clinic-identity').textContent = 'Signed in as ' + (session.user?.email || 'clinic member');
     try {
       if (messengerReturn) await finishMessenger();
@@ -2738,8 +2739,12 @@
 
   async function loadInitialSession() {
     try {
-      const response = await timedRead(fetch(API + '/clinic/public-config', { cache: 'no-store' }));
-      if (!response.ok) throw Error('Workspace configuration is unavailable.');
+      const earlyConfig = window.edenClinicConfigRequest;
+      delete window.edenClinicConfigRequest;
+      const response = await timedRead(earlyConfig ?? fetch(API + '/clinic/public-config', {
+        cache: 'no-store'
+      }));
+      if (!response?.ok) throw Error('Workspace configuration is unavailable.');
       const config = await response.json();
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
@@ -2748,6 +2753,7 @@
       commentPilotPublishAvailable = config.commentPilotPublishAvailable === true;
       legacyMessengerConnect = config.messengerConnect;
       state.client ||= window.supabase.createClient(config.supabaseUrl, config.publishableKey);
+      status('Checking your sign-in…');
       const { data, error } = await timedRead(state.client.auth.getSession());
       if (error) throw error;
       state.client.auth.onAuthStateChange((_event, session) => {

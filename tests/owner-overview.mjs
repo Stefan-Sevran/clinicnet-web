@@ -39,6 +39,7 @@ for (const role of roles) {
     };
     let session = {access_token:'fixture',user:{id:'member',email:'fixture@example.test'}};
     let authChanged;
+    let configReads = 0;
     let sessionChecks = 0;
     let tokenRefreshes = 0;
     let accountReads = 0;
@@ -50,6 +51,11 @@ for (const role of roles) {
     const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
     win.fetch = async (raw, options) => {
       const req = new URL(raw);
+      if (req.pathname==='/clinic/public-config') {
+        configReads++;
+        assert.equal(options.cache,'no-store');
+        if (role==='admin' && configReads===1) throw new TypeError('Failed to fetch');
+      }
       if (req.pathname==='/clinic/accounts') {
         accountReads++;
         accountAuthorization = options.headers.Authorization;
@@ -71,6 +77,13 @@ for (const role of roles) {
       assert.ok(Object.hasOwn(responses,req.pathname),req.pathname);
       return Response.json(responses[req.pathname]);
     };
+    const earlyBootstrap = [...doc.scripts].find(script=>script.textContent.includes('edenClinicConfigRequest'));
+    assert.ok(earlyBootstrap,'The workspace head must start the configuration request');
+    const sdk = [...doc.scripts].find(script=>script.src.includes('supabase.min.js'));
+    assert.ok(earlyBootstrap.compareDocumentPosition(sdk) & win.Node.DOCUMENT_POSITION_FOLLOWING);
+    win.eval(earlyBootstrap.textContent);
+    assert.equal(configReads,1);
+    assert.equal(sessionChecks,0,'Public configuration should start before the sign-in SDK is available');
     win.supabase = {createClient:()=>({
       auth:{
         getSession:async()=>{sessionChecks++;return {data:{session}};},
@@ -105,8 +118,13 @@ for (const role of roles) {
     const channels = doc.querySelector('#clinic-overview-connections');
     const picker = doc.querySelector('#clinic-location');
     const amount = (minor,currency)=>new win.Intl.NumberFormat(undefined,{style:'currency',currency}).format(minor/100);
+    if (role==='admin') {
+      await until(()=>clinicStatus.querySelector('button')?.textContent==='Retry workspace');
+      clinicStatus.querySelector('button').click();
+    }
     await until(()=>clinicStatus.dataset.kind==='success' &&
       (role==='staff' ? !doc.querySelector('#clinic-daily-view').hidden : !overview.hidden));
+    assert.equal(configReads,role==='admin'?2:1,'Use the early request once, then fetch fresh on retry');
     assert.equal(overviewNav.hidden,role==='staff');
     assert.equal(hero.hidden,true);
     if (role==='staff') {
@@ -214,4 +232,4 @@ for (const role of roles) {
     assert.equal(doc.querySelector('#clinic-authenticated').hidden,true);
   } finally { dom.window.close(); }
 }
-console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification, location isolation, and overnight session recovery.');
+console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification, location isolation, parallel startup, and overnight session recovery.');
