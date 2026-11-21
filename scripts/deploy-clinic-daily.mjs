@@ -6,13 +6,13 @@ import { parseArgs } from 'node:util';
 
 const {
   positionals: [revision, ...extra],
-  values: { source: explicitSource, check }
+  values: { source: explicitSource, check, home }
 } = parseArgs({
   allowPositionals: true,
-  options: { source: { type: 'string' }, check: { type: 'boolean' } }
+  options: { source: { type: 'string' }, check: { type: 'boolean' }, home: { type: 'boolean' } }
 });
 if (!/^[a-f0-9]{40}$/.test(revision ?? '') || extra.length || explicitSource === '') {
-  throw Error('Pass the full ClinicNet Git revision, optionally --source <production folder> and --check.');
+  throw Error('Pass the full ClinicNet Git revision, optionally --source <production folder>, --check, and --home.');
 }
 
 const root = tmpdir();
@@ -147,6 +147,40 @@ writeFileSync(join(stage, clinicPage), clinic);
 writeFileSync(join(stage, clinicStyle), css + '\n\n' + reviewedStyle.slice(cssStart));
 writeFileSync(join(stage, clinicScript), fetchText(clinicScript));
 execFileSync(process.execPath, ['--check', join(stage, clinicScript)], { stdio: 'inherit' });
+
+if (home) {
+  const homepage = 'index.html';
+  const homeStyle = 'assets/home.css';
+  const heroPattern = /<!-- Eden homepage demo hero -->[\s\S]*?<!-- \/Eden homepage demo hero -->/;
+  const mobilePattern = /<!-- Eden homepage mobile header -->[\s\S]*?<!-- \/Eden homepage mobile header -->/;
+  const navButtonPattern = /<a class="ecn-desktop-cta(?: eden-home-signin)?"[^>]*>[\s\S]*?<\/a>/;
+  const homeStyleTag = /href="\/assets\/home\.css(?:\?[^"]*)?"/;
+  const oldHeadline = /<h1 class="sr-only">[^<]*<\/h1>/;
+  const storyImage = /<img class="story-image"[^>]*>/;
+  const homeStyleMarker = '/* Eden homepage demo hero */';
+  const reviewedHome = fetchText(homepage);
+  const reviewedHomeCss = fetchText(homeStyle);
+  let page = readFileSync(join(stage, homepage), 'utf8');
+  const hero = reviewedHome.match(heroPattern)?.[0];
+  const mobile = reviewedHome.match(mobilePattern)?.[0];
+  const signIn = reviewedHome.match(navButtonPattern)?.[0];
+  const heroTarget = heroPattern.test(page) ? heroPattern : oldHeadline;
+  const cssOffset = reviewedHomeCss.indexOf(homeStyleMarker);
+  if (!hero || !mobile || !signIn || !heroTarget.test(page) || !page.includes('</header>') ||
+      !navButtonPattern.test(page) || !homeStyleTag.test(page) || cssOffset < 0) {
+    throw Error('Could not safely update the production homepage.');
+  }
+  page = page.replace(heroTarget, () => hero).replace(mobilePattern, '')
+    .replace('</header>', () => mobile + '\n</header>')
+    .replace(navButtonPattern, () => signIn)
+    .replace(homeStyleTag, 'href="/assets/home.css?v=r-' + revision + '"')
+    .replace(storyImage, tag => tag.replace('fetchpriority="high"', '').replace('loading="eager"', 'loading="lazy"'));
+  const currentHomeCss = readFileSync(join(stage, homeStyle), 'utf8').split(homeStyleMarker)[0].trimEnd();
+  writeFileSync(join(stage, homepage), page);
+  writeFileSync(join(stage, homeStyle), currentHomeCss + '\n\n' + reviewedHomeCss.slice(cssOffset));
+  const image = 'assets/eden-owner-eve-demo-wide.webp';
+  writeFileSync(join(stage, image), execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + image]));
+}
 
 if (check) {
   console.log('Staged only. Review ' + stage);

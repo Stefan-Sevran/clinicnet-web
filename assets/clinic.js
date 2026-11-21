@@ -98,6 +98,7 @@
   let alertScope;
   let observedAlerts = new Set();
   let alertAudio;
+  let clinicFactsRequest;
   let loadedGeneration = -1;
   let workspaceLoadFailed = false;
   let reconnecting;
@@ -493,6 +494,7 @@
       if (!isCurrentLocation()) return;
       if (imported && ownerSetup === imported) clearOwnerSetup();
       selectedMessengerGuide().facts = saved.facts;
+      clinicFactsRequest = undefined;
       renderChannels();
       renderMessengerGuide({ resetFacts: true });
       messengerGuideStatus('Clinic facts saved for Messenger.', 'success');
@@ -748,7 +750,7 @@
       <div class="clinic-workspace-popover">
         <div id="clinic-workspace-identity"></div>
         <button type="button" id="clinic-open-settings">Settings</button>
-        <button type="button" id="clinic-open-support">Support &amp; feedback</button>
+        <button type="button" id="clinic-open-support">Ask Eden</button>
         <a href="/">Eden services</a>
       </div>
     </details>`;
@@ -791,7 +793,16 @@
     support.id = 'clinic-support-dialog';
     support.setAttribute('aria-labelledby','clinic-support-title');
     support.innerHTML = `<form method="dialog"><button type="submit" aria-label="Close support">Close</button></form>
-      <h2 id="clinic-support-title">Eden support</h2>
+      <h2 id="clinic-support-title">Ask Eden</h2>
+      <label for="clinic-help-topic">What would you like help with?</label>
+      <select id="clinic-help-topic">
+        <option value="">Choose a topic</option>
+        <option value="daily">Find a booking or callback</option>
+        <option value="setup">Troubleshoot a connection</option>
+        <option value="revenue">Understand Revenue Rescue</option>
+        <option value="profile">Update approved clinic facts</option>
+      </select>
+      <div id="clinic-help-answer" aria-live="polite"></div>
       <p>Email <a href="mailto:team@clinicnet.live">team@clinicnet.live</a> for help with your workspace.</p>
       <form id="clinic-send-feedback" class="clinic-form">
         <label>How is Eden working for your clinic?
@@ -810,6 +821,34 @@
       support.showModal();
     };
     support.addEventListener('close',()=>menu.querySelector('summary').focus());
+    const topic = support.querySelector('#clinic-help-topic');
+    const answer = support.querySelector('#clinic-help-answer');
+    const help = {
+      daily:['Open Daily Action to see bookings and inquiries. Choose Needs attention to find unclaimed callbacks.','Open Daily Action'],
+      setup:['Open Connect and select the channel. Follow the next action shown for that connection.','Open Connect'],
+      revenue:['In Revenue, open a settlement and choose View counted visits to see the payments behind it.','Open Revenue'],
+      profile:['Open Clinic Profile to review and approve your location’s patient-facing facts.','Open Clinic Profile']
+    };
+    topic.onchange = () => {
+      answer.replaceChildren();
+      const destination = topic.value;
+      const entry = help[destination];
+      if (!entry) return;
+      if (['profile','revenue'].includes(destination) && !canManageClinic) {
+        answer.textContent = 'Ask your clinic owner or admin to open this section.';
+        return;
+      }
+      const response = document.createElement('p');
+      response.textContent = entry[0];
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.textContent = entry[1];
+      action.onclick = () => {
+        support.close();
+        switchWorkspaceView(destination,true);
+      };
+      answer.append(response,action);
+    };
     support.querySelector('#clinic-send-feedback').onsubmit = event => {
       event.preventDefault();
       const data = new FormData(event.currentTarget);
@@ -830,6 +869,8 @@
     const support = byId('clinic-support-dialog');
     if (support.open) support.close();
     support.querySelector('#clinic-send-feedback').reset();
+    support.querySelector('#clinic-help-topic').value = '';
+    support.querySelector('#clinic-help-answer').replaceChildren();
     const list = byId('clinic-workspace-alerts');
     const message = document.createElement('li');
     message.textContent = 'Choose a clinic to see its recent activity.';
@@ -916,7 +957,7 @@
     const profile = document.createElement('section');
     profile.id = 'clinic-profile-view';
     profile.className = 'clinic-panel clinic-workspace-admin';
-    profile.innerHTML = '<h1>Clinic profile</h1><p id="clinic-profile-location"></p><div id="clinic-profile-channels"></div>';
+    profile.innerHTML = '<h1>Clinic profile</h1><p id="clinic-profile-location"></p><div id="clinic-approved-facts"></div><div id="clinic-profile-channels"></div>';
     const settings = document.createElement('section');
     settings.id = 'clinic-settings-view';
     settings.className = 'clinic-workspace-admin';
@@ -982,6 +1023,7 @@
     workspaceViews.revenue.hidden = workspaceView !== 'revenue';
     byId('clinic-rescue').open = workspaceView === 'revenue';
     if (workspaceView === 'overview') loadOwnerRevenue();
+    if (workspaceView === 'profile') loadApprovedClinicFacts();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
     updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
@@ -1032,11 +1074,99 @@
     byId('clinic-overview-location').textContent = '';
     byId('clinic-profile-location').textContent = '';
     byId('clinic-profile-channels').replaceChildren();
+    byId('clinic-approved-facts').replaceChildren();
+    clinicFactsRequest = undefined;
     byId('clinic-home-attention').textContent = 'Review Daily Action';
     byId('clinic-home-appointments').textContent = 'Open today’s appointments';
     byId('clinic-overview-connections').replaceChildren();
     byId('clinic-overview-revenue').textContent = 'Loading clinic…';
     byId('clinic-overview-open-report').hidden = true;
+  }
+
+  async function loadApprovedClinicFacts() {
+    const locationId = byId('clinic-location').value;
+    if (!locationId || !canManageClinic || !state.session) return;
+    const host = byId('clinic-approved-facts');
+    const userId = state.session.user.id;
+    const request = {locationId,userId};
+    if (clinicFactsRequest?.locationId===locationId && clinicFactsRequest?.userId===userId) return;
+    clinicFactsRequest = request;
+    const current = () => clinicFactsRequest===request && state.session?.user?.id===userId &&
+      byId('clinic-location').value===locationId && canManageClinic;
+    empty(host,'Loading approved facts…');
+    try {
+      const {data,error} = await timedRead(state.client.rpc('workspace_clinic_facts',{p_location:locationId}));
+      if (!current()) return;
+      if (error) throw error;
+      const form = document.createElement('form');
+      form.className = 'clinic-form clinic-approved-facts-form';
+      form.innerHTML = `<h2>Approved clinic facts</h2>
+        <p>Messenger uses these facts at locations with guided Messenger setup. Website Chat and AI Phone still use their channel settings.</p>
+        <label>Services<textarea name="services" required maxlength="900"></textarea></label>
+        <label>Opening hours<textarea name="hours" required maxlength="900"></textarea></label>
+        <label>Address<textarea name="address" required maxlength="900"></textarea></label>
+        <label>Booking instructions<textarea name="bookingRules" required maxlength="900"></textarea></label>
+        <p>Use information your clinic has approved for patients. Leave out patient details.</p>
+        <label class="clinic-facts-confirm"><input name="approved" type="checkbox" required> I approve these facts for patient-facing use.</label>
+        <button type="submit">Approve and save facts</button>
+        <p role="status"></p>`;
+      let approved = data;
+      for (const area of form.querySelectorAll('textarea')) area.value = data?.[area.name] || '';
+      const note = form.querySelector('[role="status"]');
+      if (data?.profileApprovedAt) note.textContent = 'Approved '+new Date(data.profileApprovedAt).toLocaleDateString()+'.';
+      form.onsubmit = async event => {
+        event.preventDefault();
+        if (!current() || !form.reportValidity()) return;
+        const button = form.querySelector('button');
+        if (button.disabled) return;
+        const facts = Object.fromEntries([...form.querySelectorAll('textarea')].map(area=>[area.name,area.value.trim()]));
+        if (Object.values(facts).some(value=>!value)) {
+          note.textContent = 'Enter all four clinic facts.';
+          return;
+        }
+        button.disabled = true;
+        const approval = form.elements.approved;
+        approval.disabled = true;
+        note.textContent = 'Saving approved clinic facts…';
+        try {
+          const {data,error} = await state.client.rpc('workspace_clinic_facts',{
+            p_location:locationId,p_facts:facts,p_expected:approved
+          });
+          if (!current()) return;
+          if (error) {
+            if (error.code==='40001') {
+              note.textContent = 'Someone changed these facts. Copy any edits you want to keep, then reload.';
+              if (!form.querySelector('[data-reload-facts]')) {
+                const reload = document.createElement('button');
+                reload.type = 'button';
+                reload.dataset.reloadFacts = '';
+                reload.className = 'clinic-secondary';
+                reload.textContent = 'Reload saved facts';
+                reload.onclick = () => { clinicFactsRequest = undefined; void loadApprovedClinicFacts(); };
+                note.after(reload);
+              }
+              return;
+            }
+            throw error;
+          }
+          approved = data;
+          const messenger = selectedMessengerGuide();
+          if (messenger) {
+            messenger.facts = data;
+            renderChannels();
+            renderMessengerGuide({resetFacts:true});
+          }
+          approval.checked = false;
+          note.textContent = 'Approved facts saved for this location.';
+        } catch { if (current()) note.textContent = 'Could not save clinic facts. Try again.'; }
+        finally { button.disabled = false; approval.disabled = false; }
+      };
+      host.replaceChildren(form);
+    } catch {
+      if (!current()) return;
+      clinicFactsRequest = undefined;
+      empty(host,'Approved clinic facts are unavailable right now.');
+    }
   }
 
   function renderClinicProfile() {
