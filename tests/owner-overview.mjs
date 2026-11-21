@@ -29,12 +29,35 @@ for (const role of roles) {
       assert.ok(condition(),'Timed out waiting for the workspace');
     }
     const requests = [];
+    let hidden = false;
+    let clock = win.Date.now();
+    Object.defineProperty(doc,'hidden',{get:()=>hidden});
+    win.Date.now = () => clock;
+    const visibility = value => {
+      hidden = value;
+      doc.dispatchEvent(new win.Event('visibilitychange'));
+    };
+    let session = {access_token:'fixture',user:{id:'member',email:'fixture@example.test'}};
+    let authChanged;
+    let sessionChecks = 0;
+    let tokenRefreshes = 0;
+    let accountReads = 0;
+    let activityFailure;
+    let accountAuthorization;
     let resolveCebu;
     let delayCebu = false;
     let messengerStatus = 'action_required';
     const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
-    win.fetch = async raw => {
+    win.fetch = async (raw, options) => {
       const req = new URL(raw);
+      if (req.pathname==='/clinic/accounts') {
+        accountReads++;
+        accountAuthorization = options.headers.Authorization;
+      }
+      if (req.pathname==='/clinic/connections' && activityFailure==='offline') throw new TypeError('Failed to fetch');
+      if (req.pathname==='/clinic/connections' && activityFailure==='unauthorized') {
+        return new Response(null,{status:401});
+      }
       const responses = {
         '/clinic/public-config':{supabaseUrl:'https://example.test',publishableKey:'fixture',messengerSetupAvailable:true},
         '/clinic/accounts':[{id:account,name:'Eden fixture'}],
@@ -49,8 +72,15 @@ for (const role of roles) {
       return Response.json(responses[req.pathname]);
     };
     win.supabase = {createClient:()=>({
-      auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'member',email:'fixture@example.test'}}}}),
-        onAuthStateChange(){}},
+      auth:{
+        getSession:async()=>{sessionChecks++;return {data:{session}};},
+        refreshSession:async()=>{
+          tokenRefreshes++;
+          session = {...session,access_token:'recovered'};
+          return {data:{session}};
+        },
+        onAuthStateChange(listener){authChanged=listener;}
+      },
       async rpc(name,args) {
         requests.push([name,args]);
         if (name==='current_rescue_period') {
@@ -135,6 +165,53 @@ for (const role of roles) {
     assert.ok(revenue.textContent.includes(amount(20000,'THB')));
     assert.ok(!channels.textContent.includes('Connected'));
     assert.equal(new URL(report.href).searchParams.get('location'),bangkok);
+    if (role !== 'owner') continue;
+    delayCebu = false;
+    await until(()=>!doc.querySelector('#clinic-refresh').disabled);
+    const beforeTokenChange = accountReads;
+    session = {...session,access_token:'rotated'};
+    authChanged('TOKEN_REFRESHED',session);
+    await pause(10);
+    assert.equal(accountReads,beforeTokenChange,'Token rotation must not rebuild the workspace');
+    assert.ok(revenue.textContent.includes(amount(20000,'THB')));
+
+    const beforeWake = sessionChecks;
+    visibility(true);
+    clock += 8 * 60 * 60 * 1000;
+    visibility(false);
+    await until(()=>sessionChecks===beforeWake+1 && !doc.querySelector('#clinic-refresh').disabled);
+    assert.equal(accountReads,beforeTokenChange);
+    assert.equal(picker.value,bangkok);
+
+    activityFailure = 'offline';
+    doc.querySelector('#clinic-refresh').click();
+    await until(()=>clinicStatus.querySelector('button')?.textContent==='Retry workspace');
+    assert.doesNotMatch(revenue.textContent,/Loading clinic/);
+    assert.match(revenue.textContent,/Clinic details are unavailable/);
+    activityFailure = undefined;
+    win.dispatchEvent(new win.Event('online'));
+    await until(()=>clinicStatus.dataset.kind==='success' && revenue.textContent.includes(amount(20000,'THB')));
+    assert.equal(accountAuthorization,'Bearer rotated');
+    assert.equal(picker.value,bangkok);
+
+    await until(()=>!doc.querySelector('#clinic-refresh').disabled);
+    activityFailure = 'unauthorized';
+    doc.querySelector('#clinic-refresh').click();
+    await until(()=>clinicStatus.querySelector('button')?.textContent==='Retry workspace');
+    assert.match(clinicStatus.textContent,/session could not be verified/);
+    activityFailure = undefined;
+    clinicStatus.querySelector('button').click();
+    await until(()=>clinicStatus.dataset.kind==='success' && revenue.textContent.includes(amount(20000,'THB')));
+    assert.equal(tokenRefreshes,1);
+    assert.equal(accountAuthorization,'Bearer recovered');
+
+    await until(()=>!doc.querySelector('#clinic-refresh').disabled);
+    visibility(true);
+    clock += 8 * 60 * 60 * 1000;
+    session = null;
+    visibility(false);
+    await until(()=>!doc.querySelector('#clinic-signin').hidden);
+    assert.equal(doc.querySelector('#clinic-authenticated').hidden,true);
   } finally { dom.window.close(); }
 }
-console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification states, and location isolation.');
+console.log('PASS Owner Overview and Connect Clinic role access, navigation, channel verification, location isolation, and overnight session recovery.');

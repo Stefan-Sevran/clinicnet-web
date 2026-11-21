@@ -88,6 +88,11 @@
   let staffEmailAvailable = false;
   let backgroundRefresh = false;
   let loadedGeneration = -1;
+  let workspaceLoadFailed = false;
+  let reconnecting;
+  let initializing;
+  let rejectedAccessToken;
+  let hiddenAt = document.hidden ? Date.now() : null;
   let inboxSignature;
   let publishedWebsite = false;
   let clinicVisits = new Map();
@@ -121,15 +126,57 @@
     if (rows.some(row => row.id === selected)) select.value = selected;
   };
 
+  function timedRead(work) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Error('The workspace request timed out.')), 15000);
+    });
+    return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  function showWorkspaceLoadError(error, retry = () => recoverWorkspace(true)) {
+    workspaceLoadFailed = true;
+    const message = error.status === 401
+      ? 'Your session could not be verified. Try reconnecting to the workspace.'
+      : 'Could not load the clinic. Check your connection and retry.';
+    status(message, 'error');
+    if (!overviewLocation) byId('clinic-overview-revenue').textContent = 'Clinic details are unavailable.';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'clinic-invite-switch';
+    button.textContent = 'Retry workspace';
+    button.onclick = retry;
+    byId('clinic-status').append(button);
+  }
+
+  async function workspaceLoad(generation, work) {
+    try {
+      await work();
+      if (generation === state.generation) workspaceLoadFailed = false;
+    } catch (error) {
+      if (generation !== state.generation) return;
+      showWorkspaceLoadError(error);
+      throw error;
+    }
+  }
+
   async function request(path, options = {}) {
     if (!state.session?.access_token) throw Error('Please sign in again.');
+    const accessToken = state.session.access_token;
+    const read = !options.method || options.method === 'GET';
     const response = await fetch(API + path, {
+      ...(read && typeof AbortSignal.timeout === 'function' ? { signal: AbortSignal.timeout(15000) } : {}),
       ...options,
-      headers: { Authorization: 'Bearer ' + state.session.access_token,
+      headers: { Authorization: 'Bearer ' + accessToken,
         ...(options.body ? { 'Content-Type': 'application/json' } : {}) }
     });
     if (!response.ok) {
-      if (response.status === 401) throw Error('Your session has expired. Please sign in again.');
+      if (response.status === 401) {
+        if (read && state.session?.access_token === accessToken) rejectedAccessToken = accessToken;
+        const error = Error('Your session could not be verified. Refresh the workspace and try again.');
+        error.status = 401;
+        throw error;
+      }
       if (response.status === 403) throw Error('This account does not permit that action.');
       if (path === '/clinic/messenger/finish' && response.status === 422) {
         throw Error('Facebook did not grant access to the Page for this location. Sign in with a profile that manages the Page, then select it under Edit settings.');
@@ -154,9 +201,13 @@
     return response.json();
   }
 
-  async function refreshAccounts(preferred, preferredLocation) {
+  function refreshAccounts(preferred, preferredLocation) {
     const generation = ++state.generation;
-    const accounts = await request('/clinic/accounts');
+    return workspaceLoad(generation, () => loadAccounts(preferred, preferredLocation, generation));
+  }
+
+  async function loadAccounts(preferred, preferredLocation, generation) {
+    const accounts = await timedRead(request('/clinic/accounts'));
     if (generation !== state.generation) return;
     state.accounts = accounts;
     show('clinic-create', accounts.length === 0);
@@ -164,24 +215,29 @@
     updateHeroAction();
     if (!accounts.length) return status('You are signed in. Create your first workspace.');
     selectOptions(byId('clinic-account'), accounts, preferred || byId('clinic-account').value, 'name');
-    await refreshLocations(preferredLocation);
+    await loadLocations(preferredLocation, generation);
   }
 
-  async function refreshLocations(preferredLocation) {
+  function refreshLocations(preferredLocation) {
     const generation = ++state.generation;
+    return workspaceLoad(generation, () => loadLocations(preferredLocation, generation));
+  }
+
+  async function loadLocations(preferredLocation, generation) {
     const accountId = byId('clinic-account').value;
     if (!accountId) return;
     guide.hidden = true;
     hideChannelSetup();
     if (alertEmailForm) alertEmailForm.hidden = true;
-    const [locations, membership, setups] = await Promise.all([
+    const [locations, membership, setups] = await timedRead(Promise.all([
       request('/clinic/locations?accountId=' + encodeURIComponent(accountId)),
       state.client.from('clinic_memberships').select('role')
         .eq('account_id', accountId).eq('user_id', state.session.user.id).maybeSingle(),
       messengerSetupAvailable ? request('/clinic/messenger/setups?accountId=' + encodeURIComponent(accountId))
         .catch(() => []) : []
-    ]);
+    ]));
     if (generation !== state.generation) return;
+    if (membership.error) throw membership.error;
     state.locations = locations;
     canManageClinic = ['owner', 'admin'].includes(membership?.data?.role);
     isClinicOwner = membership?.data?.role === 'owner';
@@ -194,7 +250,7 @@
     }
     selectOptions(byId('clinic-location'), locations, preferredLocation || byId('clinic-location').value, 'name');
     loadAlertEmail();
-    await refreshActivity();
+    await loadActivity(false, generation);
   }
 
   function selectedMessengerGuide() {
@@ -777,6 +833,7 @@
     ClinicRescue.overview({
       client:state.client,
       locationId:clinic.locationId,
+      read:timedRead,
       valid:()=>overviewLocation===clinic && clinic.revenueRequest===request && canManageClinic && Boolean(state.session)
     });
   }
@@ -2053,17 +2110,25 @@
     return data;
   }
 
-  async function refreshActivity(quiet = false) {
+  function refreshActivity(quiet = false) {
+    if (quiet) return loadActivity(true, state.generation);
+    const generation = ++state.generation;
+    return workspaceLoad(generation, () => loadActivity(false, generation));
+  }
+
+  async function loadActivity(quiet, generation) {
     if (!quiet) {
       commentPilotPanel.hidden = true;
       clearOwnerOverview();
     }
-    const generation = quiet ? state.generation : ++state.generation;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
-    if (!accountId || !locationId) return;
+    if (!accountId || !locationId) {
+      byId('clinic-overview-revenue').textContent = 'No clinic location is available.';
+      return;
+    }
     const activityQuery = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
-    const [bookings, inbox, followups, connections, team, currency] = await Promise.all([
+    const [bookings, inbox, followups, connections, team, currency] = await timedRead(Promise.all([
       request('/clinic/bookings' + activityQuery), request('/clinic/inbox' + activityQuery + '&limit=100'),
       getFollowups(accountId, locationId),
       quiet ? null : request('/clinic/connections' + activityQuery),
@@ -2071,11 +2136,12 @@
         .then(({ data, error }) => error ? null : data || [], () => null),
       quiet ? null : state.client.rpc('clinic_visit_currency', {p_location: locationId})
         .then(({data,error}) => error ? '' : data, () => '')
-    ]);
+    ]));
+    if (generation !== state.generation) return;
     const keys = [...new Set([...inbox, ...bookings].map(item => item.event_key).filter(key => key && followups.some(f => f.event_key === key && f.action === 'booked')))];
-    const visitPages = await Promise.all(Array.from({length:Math.ceil(keys.length / 25)}, (_, i) =>
+    const visitPages = await timedRead(Promise.all(Array.from({length:Math.ceil(keys.length / 25)}, (_, i) =>
       state.client.from('clinic_visit_completions').select('event_key,eden_event_key,amount_minor,currency,revision,receipt_ref')
-        .eq('location_id',locationId).in('event_key',keys.slice(i*25,i*25+25))));
+        .eq('location_id',locationId).in('event_key',keys.slice(i*25,i*25+25)))));
     if (generation !== state.generation || (quiet && !canRefreshInbox())) return;
     visitRecordsAvailable = visitPages.every(page => !page.error);
     const visits = visitPages.flatMap(page => page.data || []);
@@ -2456,6 +2522,11 @@
     show('clinic-authenticated', Boolean(session));
     if (!session) {
       ++state.generation;
+      workspaceLoadFailed = false;
+      rejectedAccessToken = undefined;
+      state.accounts = [];
+      state.locations = [];
+      show('clinic-dashboard', false);
       inboxSignature = undefined;
       publishedWebsite = false;
       guide.hidden = true;
@@ -2491,10 +2562,11 @@
         }
       }
     } catch (error) {
-      if (!state.accounts.length) await refreshAccounts().catch(() => {});
       if (state.session?.user?.id !== session.user?.id) return;
-      if (error.inviteRejected) showInviteAccountError(session.user?.email);
-      else status(error.message, 'error');
+      if (error.inviteRejected) {
+        if (!state.accounts.length) await refreshAccounts().catch(() => {});
+        showInviteAccountError(session.user?.email);
+      } else if (!workspaceLoadFailed) status(error.message, 'error');
     }
   }
 
@@ -2586,7 +2658,7 @@
     daily.hidden = true;
     updateHeroAction();
     commentPilotPanel.hidden = true;
-    refreshLocations().catch(error => status(error.message, 'error'));
+    refreshLocations().catch(() => {});
   });
   byId('clinic-location').addEventListener('change', () => {
     clearRevenueView();
@@ -2600,13 +2672,73 @@
     byId('clinic-invite-url').value = '';
     byId('clinic-invite-status').textContent = '';
     loadAlertEmail();
-    refreshActivity().catch(error => status(error.message, 'error'));
+    refreshActivity().catch(() => {});
   });
-  byId('clinic-refresh').addEventListener('click', () => refreshAccounts().catch(error => status(error.message, 'error')));
+  function recoverWorkspace(force = false) {
+    if (reconnecting || initializing) return reconnecting || initializing;
+    if (!state.session) return workspaceLoadFailed ? initializeWorkspace() : undefined;
+    const user = state.session.user?.id;
+    const generation = state.generation;
+    const current = () => state.session?.user?.id === user && state.generation === generation;
+    const refreshButton = byId('clinic-refresh');
+    refreshButton.disabled = true;
+    reconnecting = (async () => {
+      try {
+        const auth = state.client.auth;
+        let {data, error} = await timedRead(auth.getSession());
+        if (!current()) return;
+        if (error) throw error;
+        if (data.session?.user?.id === user && data.session.access_token === rejectedAccessToken) {
+          ({data, error} = await timedRead(auth.refreshSession()));
+          if (!current()) return;
+          if (error) throw error;
+        }
+        const session = data.session;
+        if (!session || session.user?.id !== user) {
+          await authenticated(session);
+          return;
+        }
+        state.session = session;
+        rejectedAccessToken = undefined;
+        if (initialSelection && workspaceLoadFailed) await authenticated(session);
+        else if (force || workspaceLoadFailed) await refreshAccounts().catch(() => {});
+        else if (workspaceView === 'overview') loadOwnerRevenue();
+        else void pollInbox();
+      } catch (error) {
+        if (current()) showWorkspaceLoadError(error);
+      } finally {
+        refreshButton.disabled = false;
+        reconnecting = undefined;
+      }
+    })();
+    return reconnecting;
+  }
 
-  (async () => {
+  byId('clinic-refresh').addEventListener('click', () => recoverWorkspace(true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      return;
+    }
+    const wasIdle = hiddenAt !== null && Date.now() - hiddenAt >= 60000;
+    hiddenAt = null;
+    if (wasIdle || workspaceLoadFailed) void recoverWorkspace();
+  });
+  window.addEventListener('online', () => {
+    if (!document.hidden && workspaceLoadFailed) void recoverWorkspace();
+  });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) void recoverWorkspace();
+  });
+
+  function initializeWorkspace() {
+    if (!initializing) initializing = loadInitialSession().finally(() => { initializing = undefined; });
+    return initializing;
+  }
+
+  async function loadInitialSession() {
     try {
-      const response = await fetch(API + '/clinic/public-config', { cache: 'no-store' });
+      const response = await timedRead(fetch(API + '/clinic/public-config', { cache: 'no-store' }));
       if (!response.ok) throw Error('Workspace configuration is unavailable.');
       const config = await response.json();
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
@@ -2615,15 +2747,21 @@
       messengerSetupAvailable = config.messengerSetupAvailable === true;
       commentPilotPublishAvailable = config.commentPilotPublishAvailable === true;
       legacyMessengerConnect = config.messengerConnect;
-      state.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey);
-      const { data, error } = await state.client.auth.getSession();
+      state.client ||= window.supabase.createClient(config.supabaseUrl, config.publishableKey);
+      const { data, error } = await timedRead(state.client.auth.getSession());
       if (error) throw error;
-      await authenticated(data.session);
       state.client.auth.onAuthStateChange((_event, session) => {
         setTimeout(() => {
-          if (session?.access_token !== state.session?.access_token) authenticated(session);
+          if (session?.access_token === state.session?.access_token) return;
+          if (session && state.session && session.user?.id === state.session.user?.id) {
+            state.session = session;
+            if (workspaceLoadFailed && !document.hidden) void recoverWorkspace();
+          } else void authenticated(session);
         }, 0);
       });
-    } catch (error) { status(error.message, 'error'); }
-  })();
+      await authenticated(data.session);
+    } catch (error) { showWorkspaceLoadError(error, () => initializeWorkspace()); }
+  }
+
+  void initializeWorkspace();
 })();
