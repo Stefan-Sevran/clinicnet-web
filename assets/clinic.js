@@ -24,7 +24,7 @@
   };
   const requestedView = query.get('view');
   let openRequestedReport = requestedView === 'revenue' || query.has('report') || location.hash === '#clinic-rescue';
-  let workspaceView = requestedView === 'daily' || openRequestedReport ? 'daily' : 'setup';
+  let workspaceView = ['daily','profile','settings'].includes(requestedView) ? requestedView : openRequestedReport ? 'daily' : 'setup';
   let overviewLocation;
   const testReturnId = query.get('messengerTest');
   const testReturn = /^[a-zA-Z0-9_-]{16}$/.test(testReturnId || '') ? {
@@ -48,7 +48,14 @@
   const factsForm = byId('clinic-messenger-facts');
   const workspaceHero = document.querySelector('.clinic-hero');
   const heroAction = byId('clinic-hero-action');
-  const alertEmailForm = byId('clinic-alert-email-form');
+  const alertEmailForm = byId('clinic-alert-email-form') || document.createElement('form');
+  if (!alertEmailForm.id) {
+    alertEmailForm.id = 'clinic-alert-email-form';
+    alertEmailForm.className = 'clinic-form';
+    alertEmailForm.hidden = true;
+    alertEmailForm.innerHTML = '<label>Staff alert email<input id="clinic-alert-email" type="email" placeholder="frontdesk@example.com"></label><button type="submit">Save email</button><p id="clinic-alert-email-status" role="status"></p>';
+    byId('clinic-dashboard').append(alertEmailForm);
+  }
   const alertEmailInput = byId('clinic-alert-email');
   const alertEmailStatus = byId('clinic-alert-email-status');
   const pearlPilotLink = document.createElement('a');
@@ -87,6 +94,10 @@
   let acceptingInvite;
   let staffEmailAvailable = false;
   let backgroundRefresh = false;
+  let lastInboxPoll = 0;
+  let alertScope;
+  let observedAlerts = new Set();
+  let alertAudio;
   let loadedGeneration = -1;
   let workspaceLoadFailed = false;
   let reconnecting;
@@ -212,6 +223,8 @@
     state.accounts = accounts;
     show('clinic-create', accounts.length === 0);
     show('clinic-dashboard', accounts.length > 0);
+    document.querySelector('.clinic-view-switch').hidden = !accounts.length;
+    byId('clinic-open-settings').hidden = !accounts.length;
     updateHeroAction();
     if (!accounts.length) return status('You are signed in. Create your first workspace.');
     selectOptions(byId('clinic-account'), accounts, preferred || byId('clinic-account').value, 'name');
@@ -683,7 +696,10 @@
       badge.className = 'clinic-connect-stage';
       const action = document.createElement('span');
       action.className = 'clinic-connect-link-action';
-      copy.append(title, badge);
+      const updated = document.createElement('small');
+      updated.className = 'clinic-connection-updated';
+      updated.hidden = true;
+      copy.append(title, badge, updated);
       link.append(marker, copy, action);
       item.append(link);
       list.append(item);
@@ -698,9 +714,195 @@
         if (panel.open) link.setAttribute('aria-current','true');
         else link.removeAttribute('aria-current');
       });
-      return { channel, panel, heading, body, link, marker, badge, action, feedback };
+      return { channel, panel, heading, body, link, marker, badge, action, feedback, updated };
     });
     return steps;
+  }
+
+  function workspaceIcon(name) {
+    const paths = {
+      overview:'<path d="M3 11l9-7 9 7M6 10v10h12V10M10 20v-6h4v6"/>',
+      daily:'<rect x="5" y="4" width="14" height="16" rx="2"/><path d="m8 9 1 1 2-2m2 2h3m-8 5 1 1 2-2m2 2h3"/>',
+      setup:'<path d="m10 14 4-4m-6 6-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m2-1 4-4a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0"/>',
+      revenue:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 16v-3m4 3V8m4 8v-5"/>',
+      profile:'<path d="M5 20V6h14v14M3 20h18M9 10h6m-6 4h6"/>',
+      settings:'<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',
+      bell:'<path d="M5 17h14l-2-3v-4a5 5 0 0 0-10 0v4l-2 3Zm5 3a2 2 0 0 0 4 0"/>'
+    };
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths[name] + '</svg>';
+  }
+
+  function createWorkspaceControls() {
+    const controls = document.createElement('div');
+    controls.className = 'clinic-workspace-controls';
+    controls.innerHTML = `<details id="clinic-alerts-menu">
+      <summary>${workspaceIcon('bell')}<span>Alerts</span><span id="clinic-alert-count" hidden></span></summary>
+      <section class="clinic-workspace-popover" aria-label="Recent clinic activity">
+        <h2>Recent clinic activity</h2>
+        <button type="button" id="clinic-alert-sound" aria-pressed="false">Enable alert sound</button>
+        <ul id="clinic-workspace-alerts" aria-label="Recent activity"></ul>
+      </section>
+    </details>
+    <details id="clinic-account-menu">
+      <summary>${workspaceIcon('settings')}<span>Account</span></summary>
+      <div class="clinic-workspace-popover">
+        <div id="clinic-workspace-identity"></div>
+        <button type="button" id="clinic-open-settings">Settings</button>
+        <button type="button" id="clinic-open-support">Support &amp; feedback</button>
+        <a href="/">Eden services</a>
+      </div>
+    </details>`;
+    const menu = controls.querySelector('#clinic-account-menu');
+    const alerts = controls.querySelector('#clinic-alerts-menu');
+    const sound = controls.querySelector('#clinic-alert-sound');
+    sound.hidden = !window.AudioContext;
+    sound.onclick = async () => {
+      const enabled = sound.getAttribute('aria-pressed') !== 'true';
+      try {
+        if (!alertAudio) alertAudio = new AudioContext();
+        if (enabled) await alertAudio.resume();
+        else await alertAudio.suspend();
+        sound.setAttribute('aria-pressed',String(enabled));
+        sound.textContent = enabled ? 'Mute alert sound' : 'Enable alert sound';
+      } catch { sound.textContent = 'Sound unavailable'; }
+    };
+    const toolbar = byId('clinic-identity').closest('.clinic-toolbar');
+    menu.querySelector('#clinic-workspace-identity').append(toolbar);
+    menu.querySelector('.clinic-workspace-popover').append(byId('clinic-signout'));
+    menu.querySelector('#clinic-open-settings').onclick = () => {
+      menu.open = false;
+      switchWorkspaceView('settings',true);
+      byId('clinic-settings-view').querySelector('h1').focus();
+    };
+    for (const [details, other] of [[menu,alerts],[alerts,menu]]) {
+      details.addEventListener('toggle',()=>{ if (details.open) other.open = false; });
+      details.addEventListener('keydown',event=>{
+        if (event.key==='Escape' && details.open) {
+          details.open = false;
+          details.querySelector('summary').focus();
+        }
+      });
+    }
+    document.addEventListener('click',event=>{
+      for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
+    });
+    const support = document.createElement('dialog');
+    support.className = 'clinic-support-dialog';
+    support.id = 'clinic-support-dialog';
+    support.setAttribute('aria-labelledby','clinic-support-title');
+    support.innerHTML = `<form method="dialog"><button type="submit" aria-label="Close support">Close</button></form>
+      <h2 id="clinic-support-title">Eden support</h2>
+      <p>Email <a href="mailto:team@clinicnet.live">team@clinicnet.live</a> for help with your workspace.</p>
+      <form id="clinic-send-feedback" class="clinic-form">
+        <label>How is Eden working for your clinic?
+          <select name="rating" required>
+            <option value="">Choose a rating from 1 to 10</option>
+            ${Array.from({length:10},(_,index)=>'<option>'+(index+1)+'</option>').join('')}
+          </select>
+        </label>
+        <label>Suggestions or feedback (optional)<textarea name="feedback" rows="4" maxlength="1200"></textarea></label>
+        <p>Please leave patient information out of your feedback.</p>
+        <button type="submit">Open feedback email</button>
+      </form>`;
+    document.body.append(support);
+    menu.querySelector('#clinic-open-support').onclick = () => {
+      menu.open = false;
+      support.showModal();
+    };
+    support.addEventListener('close',()=>menu.querySelector('summary').focus());
+    support.querySelector('#clinic-send-feedback').onsubmit = event => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const rating = data.get('rating');
+      if (!/^(?:[1-9]|10)$/.test(rating)) return;
+      const subject = encodeURIComponent('Eden workspace feedback');
+      const body = encodeURIComponent('Rating: '+rating+'/10\n\n'+data.get('feedback').trim());
+      const link = document.createElement('a');
+      link.href = 'mailto:team@clinicnet.live?subject='+subject+'&body='+body;
+      link.click();
+    };
+    return controls;
+  }
+
+  function clearWorkspaceAlerts() {
+    byId('clinic-alerts-menu').open = false;
+    byId('clinic-account-menu').open = false;
+    const support = byId('clinic-support-dialog');
+    if (support.open) support.close();
+    support.querySelector('#clinic-send-feedback').reset();
+    const list = byId('clinic-workspace-alerts');
+    const message = document.createElement('li');
+    message.textContent = 'Choose a clinic to see its recent activity.';
+    list.replaceChildren(message);
+    byId('clinic-alert-count').hidden = true;
+    observedAlerts.clear();
+    alertScope = undefined;
+  }
+
+  function renderWorkspaceAlerts(activity, attention, booked) {
+    const list = byId('clinic-workspace-alerts');
+    const count = byId('clinic-alert-count');
+    const needsAction = new Set(attention);
+    const confirmed = new Set(booked);
+    const recent = activity.filter(event=>event.event_key && !event.details?.demo &&
+      (followupKinds.includes(event.kind) || confirmed.has(event))).slice(0,12);
+    const attentionCount = attention.filter(event=>!event.details?.demo).length;
+    count.hidden = attentionCount===0;
+    count.textContent = String(attentionCount);
+    const scope = byId('clinic-account').value + '/' + byId('clinic-location').value;
+    if (scope !== alertScope) observedAlerts.clear();
+    const keys = recent.map(event=>event.event_key + (confirmed.has(event) ? ':booked' : ':received'));
+    if (scope===alertScope && keys.some(key=>!observedAlerts.has(key)) && alertAudio?.state==='running') {
+      const note = alertAudio.createOscillator();
+      const volume = alertAudio.createGain();
+      const now = alertAudio.currentTime;
+      note.frequency.value = 660;
+      volume.gain.setValueAtTime(.07,now);
+      volume.gain.exponentialRampToValueAtTime(.001,now+.16);
+      note.connect(volume).connect(alertAudio.destination);
+      note.start(now);
+      note.stop(now+.17);
+    }
+    alertScope = scope;
+    keys.forEach(key=>observedAlerts.add(key));
+    const rows = recent.map(event => {
+      const item = document.createElement('li');
+      const action = document.createElement('button');
+      action.type = 'button';
+      const label = document.createElement('strong');
+      label.textContent = event.kind==='call.followup_needed' ? 'Missed call' : confirmed.has(event) ? 'Confirmed booking' :
+        event.kind==='booking.requested' ? 'Booking request' : 'Clinic inquiry';
+      const detail = document.createElement('span');
+      detail.textContent = (bookingSourceLabels[event.channel] || 'Clinic activity') + (needsAction.has(event) ? ' · Needs attention' : '');
+      action.append(label,detail);
+      action.onclick = () => {
+        byId('clinic-alerts-menu').open = false;
+        switchWorkspaceView('daily',true);
+        if (!openBookedActivity(event.event_key,false,'all')) byId('clinic-daily-attention').focus();
+      };
+      item.append(action);
+      return item;
+    });
+    for (const step of channelSteps.filter(step=>step.link.dataset.connectionStatus==='action_required')) {
+      const item = document.createElement('li');
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.textContent = setupChannelLabels[step.channel] + ' needs attention';
+      action.onclick = () => {
+        byId('clinic-alerts-menu').open = false;
+        switchWorkspaceView('setup',true);
+        step.link.click();
+      };
+      item.append(action);
+      rows.push(item);
+    }
+    if (list.contains(document.activeElement)) byId('clinic-alerts-menu').querySelector('summary').focus();
+    list.replaceChildren(...rows);
+    if (!rows.length) {
+      const message = document.createElement('li');
+      message.textContent = 'No recent booking or inquiry activity.';
+      list.append(message);
+    }
   }
 
   function createWorkspaceViews() {
@@ -711,18 +913,29 @@
     work.id = 'clinic-daily-view';
     const overview = byId('clinic-owner-overview');
     const revenue = byId('clinic-revenue-view');
-    dashboard.append(overview,work,revenue,setup);
-    setup.append(channelNav,...channelSteps.map(step=>step.panel),byId('clinic-team-invite'));
+    const profile = document.createElement('section');
+    profile.id = 'clinic-profile-view';
+    profile.className = 'clinic-panel clinic-workspace-admin';
+    profile.innerHTML = '<h1>Clinic profile</h1><p id="clinic-profile-location"></p><div id="clinic-profile-channels"></div>';
+    const settings = document.createElement('section');
+    settings.id = 'clinic-settings-view';
+    settings.className = 'clinic-workspace-admin';
+    settings.innerHTML = '<h1 tabindex="-1">Settings</h1><section class="clinic-panel"><h2>Account</h2><p id="clinic-settings-identity"></p><p>Workspace sign-in uses a code sent to your email.</p><button type="button" id="clinic-settings-signout" class="clinic-secondary">Sign out</button></section><section class="clinic-panel" id="clinic-settings-alerts"><h2>Staff alerts</h2><p id="clinic-settings-alert-note">Staff alert email is unavailable for this clinic.</p></section>';
+    settings.querySelector('#clinic-settings-alerts').append(alertEmailForm);
+    settings.append(byId('clinic-team-invite'));
+    settings.querySelector('#clinic-settings-signout').onclick = () => byId('clinic-signout').click();
+    dashboard.append(overview,work,revenue,setup,profile,settings);
+    setup.append(channelNav,...channelSteps.map(step=>step.panel));
     work.append(daily);
 
     const views = document.createElement('nav');
     views.className = 'clinic-view-switch';
     views.setAttribute('aria-label','Clinic Workspace');
     const links = {};
-    for (const [key,label] of [['overview','Overview'],['daily','Daily Action'],['revenue','Revenue Rescue'],['setup','Connect Clinic']]) {
+    for (const [key,label] of [['overview','Home'],['daily','Daily Action'],['setup','Connect'],['revenue','Revenue'],['profile','Clinic profile']]) {
       const link = document.createElement('a');
       link.href = '/clinic/?view=' + key;
-      link.textContent = label;
+      link.innerHTML = workspaceIcon(key) + '<span>' + label + '</span>';
       link.addEventListener('click',event=>{
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -731,24 +944,53 @@
       links[key] = link;
       views.append(link);
     }
-    dashboard.querySelector('.clinic-selectors').after(views);
-    return {overview,setup,work,revenue,links};
+    const rail = document.createElement('aside');
+    rail.className = 'clinic-workspace-rail';
+    rail.innerHTML = '<a class="clinic-workspace-brand" href="/clinic/?view=overview" aria-label="Eden Clinic Workspace home"><img src="/assets/clinicnet-favicon.svg" alt="" width="36" height="36"></a>';
+    rail.append(views);
+    const controls = createWorkspaceControls();
+    rail.append(controls);
+    byId('clinic-authenticated').prepend(rail);
+    const today = document.createElement('div');
+    today.className = 'clinic-overview-today';
+    today.innerHTML = '<h2>Today at your clinic</h2><div class="clinic-overview-today-actions"><button type="button" id="clinic-home-attention"></button><button type="button" id="clinic-home-appointments"></button></div>';
+    today.querySelector('#clinic-home-attention').onclick = () => {
+      switchWorkspaceView('daily',true);
+      byId('clinic-daily-attention').click();
+    };
+    today.querySelector('#clinic-home-appointments').onclick = () => {
+      switchWorkspaceView('daily',true);
+      const target = byId('clinic-today-title');
+      target.focus();
+      target.scrollIntoView({block:'nearest'});
+    };
+    overview.querySelector('.clinic-overview-header').after(today);
+    return {overview,setup,work,revenue,profile,settings,links};
   }
 
   function switchWorkspaceView(view, updateUrl = false) {
-    workspaceView = view === 'setup' || (canManageClinic && ['overview','revenue'].includes(view)) ? view : 'daily';
+    workspaceView = ['setup','settings'].includes(view) || (canManageClinic && ['overview','revenue','profile'].includes(view)) ? view : 'daily';
     const setup = workspaceView === 'setup';
     workspaceViews.setup.hidden = !setup;
     workspaceViews.work.hidden = workspaceView !== 'daily';
     workspaceViews.overview.hidden = workspaceView !== 'overview';
     workspaceViews.links.overview.hidden = !canManageClinic;
     workspaceViews.links.revenue.hidden = !canManageClinic;
+    workspaceViews.links.profile.hidden = !canManageClinic;
+    workspaceViews.profile.hidden = workspaceView !== 'profile';
+    workspaceViews.settings.hidden = workspaceView !== 'settings';
     workspaceViews.revenue.hidden = workspaceView !== 'revenue';
     byId('clinic-rescue').open = workspaceView === 'revenue';
     if (workspaceView === 'overview') loadOwnerRevenue();
     channelNav.hidden = !setup || channelSteps.every(({ panel }) => panel.hidden);
     updateHeroAction();
     for (const [key, link] of Object.entries(workspaceViews.links)) {
+      const parameters = new URLSearchParams({view:key});
+      for (const field of ['account','location']) {
+        const value = byId('clinic-'+field).value;
+        if (value) parameters.set(field,value);
+      }
+      link.href = '/clinic/?' + parameters;
       if (key===workspaceView) link.setAttribute('aria-current','page');
       else link.removeAttribute('aria-current');
     }
@@ -769,7 +1011,7 @@
   function updateHeroAction() {
     const needsWorkspace = !byId('clinic-create').hidden;
     const channelsReady = !daily.hidden;
-    workspaceHero.hidden = Boolean(state.session) && (['overview','revenue'].includes(workspaceView) ||
+    workspaceHero.hidden = Boolean(state.session) && (['overview','revenue','profile','settings'].includes(workspaceView) ||
       (workspaceView === 'daily' && channelsReady) || (workspaceView === 'setup' && !channelNav.hidden));
     const opensDaily = channelsReady && (!canManageClinic || channelSteps.every(step => step.link.dataset.connected === 'true'));
     heroAction.hidden = workspaceView === 'overview' || !state.session || (!needsWorkspace && (!channelsReady || (opensDaily && workspaceView === 'daily')));
@@ -788,9 +1030,46 @@
     workspaceViews.links.overview.href = '/clinic/?view=overview';
     workspaceViews.links.revenue.href = '/clinic/?view=revenue';
     byId('clinic-overview-location').textContent = '';
+    byId('clinic-profile-location').textContent = '';
+    byId('clinic-profile-channels').replaceChildren();
+    byId('clinic-home-attention').textContent = 'Review Daily Action';
+    byId('clinic-home-appointments').textContent = 'Open today’s appointments';
     byId('clinic-overview-connections').replaceChildren();
     byId('clinic-overview-revenue').textContent = 'Loading clinic…';
     byId('clinic-overview-open-report').hidden = true;
+  }
+
+  function renderClinicProfile() {
+    const locationId = byId('clinic-location').value;
+    const location = state.locations.find(row=>row.id===locationId);
+    if (!location || !canManageClinic) return;
+    byId('clinic-profile-location').textContent = location.name;
+    const rows = channelSteps.map(({channel, link, badge}) => {
+      const row = document.createElement('section');
+      row.className = 'clinic-profile-row';
+      const title = document.createElement('h2');
+      title.textContent = setupChannelLabels[channel];
+      const stateLabel = document.createElement('p');
+      stateLabel.textContent = [badge.textContent,badge.title].filter(Boolean).join(' · ');
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'clinic-secondary';
+      action.textContent = channel==='website_chat' ? 'Edit receptionist' :
+        channel==='facebook_messenger' && selectedMessengerGuide() ? 'Edit Messenger facts' : 'Review phone setup';
+      if (channel==='facebook_messenger' && !selectedMessengerGuide()) action.textContent = 'Review Messenger setup';
+      action.onclick = () => {
+        switchWorkspaceView('setup',true);
+        link.click();
+        if (channel==='website_chat') void openWebsiteSetup(action);
+        else if (channel==='facebook_messenger' && selectedMessengerGuide()) {
+          const edit = byId('clinic-messenger-edit-facts');
+          if (!edit.hidden && factsForm.hidden) edit.click();
+        }
+      };
+      row.append(title,stateLabel,action);
+      return row;
+    });
+    byId('clinic-profile-channels').replaceChildren(...rows);
   }
 
   function renderOverviewConnections() {
@@ -983,7 +1262,7 @@
   }
 
   function renderChannels(steps = channelSteps) {
-    for (const { channel, panel, heading, body, link, marker, badge, action } of steps) {
+    for (const { channel, panel, heading, body, link, marker, badge, action, updated } of steps) {
       const connection = state.connections.find(item=>item.channel===channel);
       const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
         setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
@@ -992,6 +1271,11 @@
       const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
         !hasMessengerFacts(messengerSetup.facts);
       badge.textContent = needsFacts ? 'Facts needed' : channelStatus(channel,connection);
+      const updatedAt = new Date(connection?.updated_at || '');
+      updated.hidden = !Number.isFinite(updatedAt.getTime());
+      updated.textContent = updated.hidden ? '' : 'Updated '+updatedAt.toLocaleDateString(undefined,{timeZone:clinicTimeZone(byId('clinic-location').value)});
+      badge.title = updated.textContent;
+
       link.dataset.connected = String(connected && !needsFacts);
       badge.dataset.connected = link.dataset.connected;
       marker.textContent = connected && !needsFacts ? '✓' : '○';
@@ -1059,6 +1343,7 @@
     if (workspaceView === 'setup') workspaceHero.hidden = true;
     renderConnectClinic();
     renderOverviewConnections();
+    renderClinicProfile();
   }
 
   function bookingStatus(event) {
@@ -1419,6 +1704,12 @@
     const latestTest = dailyEvents.find(isMessengerSetupSample);
     const urgent = new Set(attention);
     byId('clinic-attention-count').textContent = String(attention.length);
+    const missedCalls = attention.filter(event=>event.kind==='call.followup_needed').length;
+    byId('clinic-home-attention').textContent = missedCalls===attention.length && missedCalls
+      ? missedCalls + (missedCalls===1 ? ' missed call needs a callback' : ' missed calls need a callback')
+      : attention.length ? attention.length + (attention.length===1 ? ' inquiry needs attention' : ' inquiries need attention')
+      : 'No inquiries need attention';
+    renderWorkspaceAlerts(activity, attention, booked);
     const views = {
       all: [[...attention,...activity.filter(event=>!urgent.has(event))], 'No activity yet for this location.'],
       attention: [attention, 'No unclaimed inquiries need follow-up.'],
@@ -1522,6 +1813,7 @@
     }
     appointments.sort((a, b) => a.date - b.date);
     byId('clinic-today-count').textContent = String(appointments.length);
+    byId('clinic-home-appointments').textContent = appointments.length + (appointments.length===1 ? ' appointment today' : ' appointments today');
     byId('clinic-today-date').textContent = today;
     const list = byId('clinic-today');
     if (appointments.length) {
@@ -1831,7 +2123,7 @@
   }
 
   function openTeammateInvite() {
-    switchWorkspaceView('setup', true);
+    switchWorkspaceView('settings', true);
     const invite = byId('clinic-team-invite');
     const details = invite.querySelector('details');
     details.open = true;
@@ -2206,6 +2498,9 @@
     if (!alertEmailForm) return;
     const location = state.locations.find(row => row.id === byId('clinic-location').value);
     alertEmailForm.hidden = !staffEmailAvailable || !canManageClinic || !location;
+    const note = byId('clinic-settings-alert-note');
+    note.hidden = !canManageClinic || !alertEmailForm.hidden;
+    byId('clinic-settings-alerts').hidden = !canManageClinic;
     alertEmailInput.value = location?.alert_email || '';
     showAlertEmailStatus();
   }
@@ -2244,12 +2539,14 @@
   });
 
   function canRefreshInbox() {
-    return state.session && !document.hidden && workspaceView === 'daily' && !daily.hidden &&
+    return state.session && !document.hidden && !daily.hidden &&
       loadedGeneration === state.generation && !document.querySelector('.clinic-appointment-editor:not([hidden])');
   }
 
   async function pollInbox() {
     if (backgroundRefresh || !canRefreshInbox()) return;
+    if (workspaceView!=='daily' && Date.now()-lastInboxPoll<30000) return;
+    lastInboxPoll = Date.now();
     backgroundRefresh = true;
     try {
       await refreshActivity(true);
@@ -2520,6 +2817,15 @@
     if (session) codeForm.reset();
     show('clinic-signin', !session);
     show('clinic-authenticated', Boolean(session));
+    document.body.classList.toggle('clinic-workspace-signed-in', Boolean(session));
+    if (!session && alertAudio?.state==='running') void alertAudio.suspend().catch(()=>{});
+    if (!session) {
+      const sound = byId('clinic-alert-sound');
+      sound.setAttribute('aria-pressed','false');
+      sound.textContent = 'Enable alert sound';
+    }
+    byId('clinic-settings-identity').textContent = session ? 'Signed in as ' + (session.user?.email || 'clinic member') : '';
+    clearWorkspaceAlerts();
     if (!session) {
       ++state.generation;
       workspaceLoadFailed = false;
@@ -2551,8 +2857,8 @@
         const staffDefault = state.locations.length > 0 && !canManageClinic && !query.has('view') &&
           !selection?.channel && !testReturn;
         if (invitation || staffDefault) openDailyWork();
-        else if (requestedView === 'overview' && !selection?.channel && !testReturn) {
-          switchWorkspaceView('overview',!canManageClinic);
+        else if (['overview','profile','settings'].includes(requestedView) && !selection?.channel && !testReturn) {
+          switchWorkspaceView(requestedView,!canManageClinic);
         } else focusSetupChannel(selection);
         if (state.locations.length) initialSelection = null;
         if (!invitation && testReturn && setupTest?.testId === testReturn.testId && !guide.hidden) {
@@ -2652,6 +2958,7 @@
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => {
+    clearWorkspaceAlerts();
     clearOwnerOverview();
     clearRevenueView();
     closeManualBooking();
@@ -2662,6 +2969,7 @@
     refreshLocations().catch(() => {});
   });
   byId('clinic-location').addEventListener('change', () => {
+    clearWorkspaceAlerts();
     clearRevenueView();
     closeManualBooking();
     addBookingResult.hidden = true;
