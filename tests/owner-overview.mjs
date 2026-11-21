@@ -39,6 +39,8 @@ for (const role of roles) {
     };
     let session = {access_token:'fixture',user:{id:'member',email:'fixture@example.test'}};
     let authChanged;
+    let approvedFacts = null;
+    let factsWrites = 0;
     let configReads = 0;
     let sessionChecks = 0;
     let tokenRefreshes = 0;
@@ -99,6 +101,15 @@ for (const role of roles) {
       },
       async rpc(name,args) {
         requests.push([name,args]);
+        if (name==='workspace_clinic_facts') {
+          if (args.p_facts) {
+            factsWrites++;
+            assert.equal(args.p_location,cebu);
+            assert.equal(args.p_expected,approvedFacts);
+            approvedFacts = {...args.p_facts,profileApprovedAt:'2026-11-21T04:00:00Z'};
+          }
+          return {data:approvedFacts};
+        }
         if (name==='current_rescue_period') {
           if (args.p_location===cebu && delayCebu) return new Promise(resolve=>{ resolveCebu=resolve; });
           return {data:{...dates,...data[args.p_location]}};
@@ -140,7 +151,7 @@ for (const role of roles) {
     if (role==='staff') {
       assert.equal(overview.hidden,true);
       assert.equal(doc.querySelector('.clinic-view-switch a[href*="view=revenue"]').hidden,true);
-      assert.ok(!requests.some(([name])=>name==='current_rescue_period'));
+      assert.ok(!requests.some(([name])=>['current_rescue_period','workspace_clinic_facts'].includes(name)));
       doc.querySelector('.clinic-view-switch a[href*="view=setup"]').click();
       assert.equal(doc.querySelector('#clinic-connect-next').hidden,true);
       assert.match(doc.querySelector('#clinic-channels').textContent,/View status/);
@@ -162,6 +173,18 @@ for (const role of roles) {
     assert.equal(doc.querySelector('#clinic-profile-view').hidden,false);
     assert.match(doc.querySelector('#clinic-profile-location').textContent,/Cebu/);
     assert.equal(new URL(profileNav.href).searchParams.get('location'),cebu);
+    await until(()=>Boolean(doc.querySelector('.clinic-approved-facts-form')));
+    const approvedForm = doc.querySelector('.clinic-approved-facts-form');
+    for (const area of approvedForm.querySelectorAll('textarea')) area.value = 'Fixture '+area.name;
+    approvedForm.elements.approved.checked = true;
+    approvedForm.dispatchEvent(new win.Event('submit',{cancelable:true}));
+    await until(()=>approvedForm.textContent.includes('Approved facts saved'));
+    assert.equal(factsWrites,1);
+    assert.equal(approvedFacts.hours,'Fixture hours');
+    const helpPicker = doc.querySelector('#clinic-help-topic');
+    helpPicker.value = 'revenue';
+    helpPicker.dispatchEvent(new win.Event('change'));
+    assert.match(doc.querySelector('#clinic-help-answer').textContent,/View counted visits/);
     doc.querySelector('#clinic-open-settings').click();
     assert.equal(doc.querySelector('#clinic-settings-view').hidden,false);
     assert.ok(doc.querySelector('#clinic-settings-view #clinic-team-invite'));

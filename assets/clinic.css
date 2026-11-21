@@ -939,3 +939,20 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
   .clinic-connect .clinic-connection-updated { margin-top: .2rem; font-size: .73rem; }
   .clinic-workspace-admin .clinic-panel :is(h2,p), .clinic-profile-row :is(h2,p) { color: var(--eden-workspace-ink); }
 }
+
+.clinic-approved-facts-form { display: grid; gap: .8rem; max-width: 46rem; padding: 1rem 0; }
+.clinic-approved-facts-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 4.5rem;
+  padding: .65rem;
+  border: 1px solid #dedfe8;
+  border-radius: .5rem;
+  color: #24243c;
+  font: inherit;
+}
+.clinic-approved-facts-form .clinic-facts-confirm { display: flex; align-items: center; column-gap: .6rem; }
+.clinic-facts-confirm input { width: 1rem; min-height: 1rem; }
+.clinic-approved-facts-form button { justify-self: start; }
+.clinic-support-dialog #clinic-help-topic { width: 100%; margin: .35rem 0; }
+.clinic-support-dialog #clinic-help-answer button { margin-top: .5rem; color: #5339c8; }

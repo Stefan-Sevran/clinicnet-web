@@ -351,10 +351,12 @@ const ClinicRescue = (() => {
       el('p',s.completed+' visits recorded as completed · '+s.attributed+' linked to Eden · '+s.amount_pending+' awaiting an amount'));
     if(s.other_currency) card.append(el('p',s.other_currency+' visits recorded in another currency. Review separately.'));
     const totals=el('div');totals.className='clinic-rescue-totals';
-    totals.append(el('strong','Collections recorded from Eden visits · '+money(s.collected_minor,s.currency)));
-    if(settlement) totals.append(el('p','Eligible collections this period · '+money(s.eligible_minor,s.currency)),
-      el('p','Eden’s share at '+(s.rate_bps/100)+'% after credits and rounding · '+money(s.share_minor,s.currency)),
-      el('strong','Collections after Eden’s share · '+money(s.collected_minor-s.share_minor,s.currency)));
+    if (!settlement) totals.append(el('strong','Collections recorded from Eden visits · '+money(s.collected_minor,s.currency)));
+    if(settlement) totals.append(metricList([
+        ['Patient payments attributed to Eden',s.collected_minor],
+        ['Eden fee after credits and rounding',s.share_minor],
+        ['Collections after Eden’s share',s.collected_minor-s.share_minor]
+      ],s.currency),el('p','Eligible collections this period · '+money(s.eligible_minor,s.currency)));
     if(settlement && s.credit_minor>0) totals.append(el('p','Credit toward future Eden shares · '+money(s.credit_minor,s.currency)));
     if (!settlement && s.estimated_share_minor != null) totals.append(el('p','Estimated Eden share at '+s.rate_bps/100+'% · '+money(s.estimated_share_minor,s.currency)));
     if (!settlement) totals.append(el('p','Payment is reviewed in the monthly settlement.'));
@@ -443,8 +445,10 @@ const ClinicRescue = (() => {
     const free=period.collected_minor-period.eligible_minor;
     const freeVisits=period.counted_visits?.filter(line=>line.free);
     const values = [
-      ['Paid-period collections',period.eligible_minor],
-      ['Estimated Eden fee at '+period.rate_bps/100+'%',period.estimated_share_minor]
+      ['Patient payments attributed to Eden',period.collected_minor],
+      ['Estimated Eden fee at '+period.rate_bps/100+'%',period.estimated_share_minor],
+      ['Estimated net to clinic',period.collected_minor-period.estimated_share_minor],
+      ['Paid-period collections',period.eligible_minor]
     ];
     if (free || freeVisits?.length) values.push(['Free-pilot collections',free]);
     card.append(metricList(values,period.currency));
