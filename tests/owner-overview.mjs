@@ -41,6 +41,7 @@ for (const role of roles) {
     let authChanged;
     let approvedFacts = null;
     let factsWrites = 0;
+    let editorRequests = 0;
     let configReads = 0;
     let sessionChecks = 0;
     let tokenRefreshes = 0;
@@ -53,6 +54,12 @@ for (const role of roles) {
     const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
     win.fetch = async (raw, options) => {
       const req = new URL(raw);
+      if (req.pathname==='/api/assistants/workspace-link') {
+        editorRequests++;
+        assert.deepEqual(JSON.parse(options.body),{accountId:account,locationId:cebu});
+        assert.equal(options.headers.Authorization,'Bearer fixture');
+        return new Response(null,{status:503});
+      }
       if (req.pathname==='/clinic/public-config') {
         configReads++;
         assert.equal(options.cache,'no-store');
@@ -148,6 +155,9 @@ for (const role of roles) {
     assert.deepEqual([...doc.querySelector('#clinic-send-feedback select').options].slice(1).map(o=>o.value),
       ['1','2','3','4','5','6','7','8','9','10']);
     assert.equal(hero.hidden,true);
+    const accountMenu = doc.querySelector('#clinic-account-menu');
+    assert.ok(accountMenu.querySelector('#clinic-signout'));
+    assert.doesNotMatch(accountMenu.textContent,/\bnull\b/);
     if (role==='staff') {
       assert.equal(overview.hidden,true);
       assert.equal(doc.querySelector('.clinic-view-switch a[href*="view=revenue"]').hidden,true);
@@ -177,6 +187,24 @@ for (const role of roles) {
     assert.equal(new URL(profileNav.href).searchParams.get('location'),cebu);
     await until(()=>Boolean(doc.querySelector('.clinic-approved-facts-form')));
     const approvedForm = doc.querySelector('.clinic-approved-facts-form');
+    assert.match(approvedForm.textContent,/I approve these facts for patient-facing use on Messenger/);
+    const editor = doc.querySelector('#clinic-profile-website_chat');
+    assert.equal(editor.textContent,'Edit AI receptionist');
+    approvedForm.querySelector('a[href="#clinic-profile-website_chat"]').click();
+    assert.equal(doc.activeElement,editor);
+    assert.equal(editorRequests,0);
+    approvedForm.querySelector('a[href="#clinic-profile-ai_phone"]').click();
+    assert.equal(doc.activeElement,doc.querySelector('#clinic-profile-ai_phone'));
+    editor.click();
+    assert.equal(doc.querySelector('#clinic-setup-view').hidden,true);
+    assert.equal(new URL(win.location.href).searchParams.get('view'),'profile');
+    const editorStatus = doc.querySelector('#clinic-profile-editor-status');
+    await until(()=>editorStatus.dataset.kind==='error');
+    assert.match(editorStatus.textContent,/AI receptionist editor is temporarily unavailable/);
+    assert.equal(editorRequests,1);
+    assert.equal(editor.disabled,false);
+    doc.querySelector('#clinic-profile-facebook_messenger').click();
+    assert.equal(doc.activeElement,approvedForm.elements.services);
     for (const area of approvedForm.querySelectorAll('textarea')) area.value = 'Fixture '+area.name;
     approvedForm.elements.approved.checked = true;
     approvedForm.dispatchEvent(new win.Event('submit',{cancelable:true}));
@@ -200,6 +228,10 @@ for (const role of roles) {
     assert.equal(doc.querySelector('#clinic-channel-facebook_messenger').open,true);
     assert.deepEqual([...doc.querySelectorAll('#clinic-messenger-steps .clinic-connect-stage')].map(x=>x.textContent),
       ['Saved','Ready to authorize','After authorization']);
+    doc.querySelector('#clinic-messenger-profile-facts').click();
+    assert.equal(doc.querySelector('#clinic-profile-view').hidden,false);
+    assert.equal(doc.activeElement,approvedForm.elements.services);
+    channels.querySelector('[data-channel="facebook_messenger"]').click();
     messengerStatus = 'verifying';
     doc.querySelector('#clinic-refresh').click();
     await until(()=>doc.querySelector('#clinic-connect-next-action').textContent==='Review test steps');
@@ -211,7 +243,7 @@ for (const role of roles) {
     await until(()=>doc.querySelector('#clinic-connect-progress').textContent==='2 of 3 connected');
     assert.deepEqual([...doc.querySelectorAll('#clinic-messenger-steps .clinic-connect-stage')].map(x=>x.textContent),
       ['Saved','Authorized','Connected']);
-    assert.equal(doc.querySelector('#clinic-connect-next-title').textContent,'AI phone');
+    assert.equal(doc.querySelector('#clinic-connect-next-title').textContent,'AI Phone');
     overviewNav.click();
     const report = doc.querySelector('#clinic-overview-open-report');
     assert.equal(new URL(report.href).searchParams.get('location'),cebu);

@@ -10,13 +10,23 @@ export async function renderPage(page) {
   const tokens={AUDIT_CTA:page.id==='audit'?'#clinic-audit-chat-2026':'/audit/',AUDIT_ACTIVE:page.id==='audit'?'class="active" aria-current="page"':'',HOME_ACTIVE:page.id==='home'?'class="active" aria-current="page"':'',AI_ACTIVE:page.id==='ai-receptionist'?'class="active" aria-current="page"':'',MISSED_ACTIVE:page.id==='missed-call-booking'?'class="active" aria-current="page"':'',STANDARD_ACTIVE:page.id==='eden-standard'?'class="active" aria-current="page"':''};
   const noindex=page.id==='clinic'||!page.header;
   const component=async name=>(await read('site/components/'+name+'.html')).replace(/{{(\w+)}}/g,(_,key)=>{if(!(key in tokens))throw Error('Unknown token '+key);return tokens[key]});
+  let header=page.header?await component('header'):'';
+  if (page.header && page.id==='home') {
+    const mobile=await component('home-mobile-header');
+    header=header.replace(/<a class="ecn-desktop-cta"[^>]*>[\s\S]*?<\/a>/,
+      '<a class="ecn-desktop-cta eden-home-signin" href="/clinic/">Sign in</a>')
+      .replace('</header>',()=>mobile+'</header>');
+  }
+  const clinicBootstrap=page.id==='clinic'?await component('clinic-bootstrap'):'';
+  const icon=['home','clinic'].includes(page.id)
+    ? '<link rel="icon" type="image/png" href="/assets/clinicnet-favicon.png?v=brand-3">\n' : '';
   return '<!doctype html>\n<html lang="en"><head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>'+escape(page.title)+'</title>\n<meta name="description" content="'+escape(page.description)+'">\n'+
   (noindex?'<meta name="robots" content="noindex,nofollow">\n':'')+
-  (page.id==='clinic'?'<link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg">\n':'')+
+  clinicBootstrap+icon+
   ['/assets/site.css',...(page.header?['/assets/desktop-navigation.css']:[]),...page.styles].map(p=>'<link rel="stylesheet" href="'+escape(p)+'">').join('\n')+
   '\n<script src="/assets/navigation.js?v=2"></script>\n'+(page.id==='clinic'?'<meta name="referrer" content="no-referrer">\n':'')+page.scripts.map(p=>'<script defer src="'+escape(p)+'"></script>').join('\n')+
   '\n</head><body data-page="'+page.id+'" data-header="'+(page.header?'visible':'hidden')+'" data-footer="'+(page.footer?'visible':'hidden')+'">\n<a class="skip-link" href="#main-content">Skip to content</a>\n'+
-  (page.header?await component('header'):'')+'\n'+await read('site/pages/'+page.id+'.html')+'\n'+(page.footer?await component('footer'):'')+'\n</body></html>\n';
+  header+'\n'+await read('site/pages/'+page.id+'.html')+'\n'+(page.footer?await component('footer'):'')+'\n</body></html>\n';
 }
 export async function build() {
   const pages=JSON.parse(await read('site/pages.json'));

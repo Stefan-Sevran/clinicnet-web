@@ -7,7 +7,7 @@
     "header": true,
     "footer": true,
     "styles": [
-      "/assets/home.css"
+      "/assets/home.css?v=eden-demo-hero-2"
     ],
     "scripts": []
   },
