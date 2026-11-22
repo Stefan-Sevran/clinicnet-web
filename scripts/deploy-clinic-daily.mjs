@@ -151,6 +151,14 @@ if (guideNumber >= 44) {
   else clinic = clinic.replace(/<script defer src="\/assets\/clinic\.js/, rescue + '\n<script defer src="/assets/clinic.js');
   if (!clinic.includes(rescue)) throw Error('Could not add the report interface');
 }
+const operationsTag = /<script defer src="\/assets\/clinic-operations\.js(?:\?[^"]*)?"><\/script>/;
+if (operationsTag.test(reviewedPage)) {
+  const path = 'assets/clinic-operations.js';
+  writeFileSync(join(stage,path),fetchAsset(path));
+  execFileSync(process.execPath,['--check',join(stage,path)],{stdio:'inherit'});
+  const tag = '<script defer src="/'+path+'?v=r-'+revision+'"></script>';
+  clinic = clinic.replace(operationsTag,'').replace(/<script defer src="\/assets\/clinic\.js/,tag+'\n<script defer src="/assets/clinic.js');
+}
 writeFileSync(join(stage, clinicPage), clinic);
 writeFileSync(join(stage, clinicStyle), css + '\n\n' + reviewedStyle.slice(cssStart));
 writeFileSync(join(stage, clinicScript), fetchText(clinicScript));

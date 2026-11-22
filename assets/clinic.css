@@ -968,3 +968,9 @@ body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button[a
 }
 
 #clinic-alert-email-form button[type="submit"] { margin-block: .75rem .25rem; }
+
+.clinic-ops-operator > details + details { margin-top: .85rem; }
+.clinic-ops-form { display: grid; gap: .65rem; max-width: 42rem; margin-block: .85rem; }
+.clinic-ops-form :is(select, textarea) { width: 100%; box-sizing: border-box; }
+.clinic-ops-form textarea { min-height: 4rem; }
+.clinic-ops-form button { justify-self: start; }

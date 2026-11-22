@@ -157,17 +157,22 @@ const ClinicRescue = (() => {
     });
     row.append(opener);
   }
-  function settingsForm(host,ctx,settings,reload) {
+  function settingsForm(host,ctx,settings,reload,initial) {
+    if (!settings && initial && !initial.accepted_at) {
+      host.append(el('p','Confirm the terms from Eden above before starting reporting.'));
+      return;
+    }
     const form=el('form'); form.className='clinic-rescue-form';
     const start=field(form,'First day of the free pilot',el('input'));
     start.type='date'; start.required=true;
-    start.value=settings?.pilot_start || new Intl.DateTimeFormat('en-CA',{timeZone:ctx.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    start.value=settings?.pilot_start || initial?.effective_on || new Intl.DateTimeFormat('en-CA',{timeZone:ctx.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     const cadence=field(form,'Results report frequency',select([['weekly','Weekly'],['fortnightly','Every two weeks'],['monthly','Monthly']],settings?.cadence || 'weekly'));
     const currency=field(form,'Clinic currency',select([['','Select currency'],...currencies.map(x=>[x,x])],settings?.currency || ''));
     currency.required=true;
     const rate=field(form,'Agreed Eden share (%)',el('input'));
-    Object.assign(rate,{type:'number',step:'0.01',min:'0',max:'100',required:true,value:settings ? settings.rate_bps/100 : ''});
-    for (const input of [start,cadence,currency,rate]) input.disabled=Boolean(settings);
+    Object.assign(rate,{type:'number',step:'0.01',min:'0',max:'100',required:true,value:settings ? settings.rate_bps/100 : initial ? initial.rate_bps/100 : ''});
+    start.disabled=rate.disabled=Boolean(settings || initial);
+    cadence.disabled=currency.disabled=Boolean(settings);
     form.append(el('p','The first seven days are free. Monthly settlement uses recorded collections for linked requests and appointments after the free week. Refunds reduce the total.'));
     const opt=field(form,'Email approved reports to '+ctx.email,el('input')); opt.type='checkbox';
     opt.checked=settings?.recipient===ctx.email;
@@ -219,7 +224,7 @@ const ClinicRescue = (() => {
         el('strong','Visit'),el('span',visitTime(line.visit_at,timezone)));
       const fee = line.estimated_fee_minor;
       item.append(el('strong',channels[line.channel] || line.channel),dates,
-        metricList(revenueValues(line.amount_minor,fee,line.free?'Eden fee (0%)':'Eden fee (est.)'),currency));
+        metricList(revenueValues(line.amount_minor,fee,Number.isInteger(line.rate_bps)?'Eden fee ('+line.rate_bps/100+'%)':line.free?'Eden fee (0%)':'Eden fee (est.)'),currency));
       if (line.ref) item.append(el('small','Reference '+line.ref));
       list.append(item);
     }
@@ -525,7 +530,16 @@ const ClinicRescue = (() => {
         if (rows.data.length) box.append(history);
         const settings=el('details');settings.className='clinic-panel clinic-rescue-settings';settings.open=!prefs.data;
         settings.append(el('summary',prefs.data?'Reporting settings':'Set up reporting'));
-        settingsForm(settings,ctx,prefs.data,()=>load());box.append(settings);host.replaceChildren(box);
+        try {
+          const terms=ctx.operationsAvailable ? await ClinicOperations.reportTerms(settings,ctx,()=>load()) : [];
+          if(!valid()) return;
+          if (terms.some(term=>!term.accepted_at && term.effective_on>today)) settings.open=true;
+          settingsForm(settings,ctx,prefs.data,()=>load(),terms.find(term=>term.kind==='initial'));
+        } catch {
+          if(!valid()) return;
+          settings.append(el('p','Reporting terms could not be loaded.'),button('Retry reporting settings',()=>load()));
+        }
+        box.append(settings);host.replaceChildren(box);
         if(selected) selected.scrollIntoView({block:'nearest'});
       } catch(err){if(valid())host.replaceChildren(el('p',err.message || 'Reports unavailable.'),button('Retry',()=>load()));}
     }
