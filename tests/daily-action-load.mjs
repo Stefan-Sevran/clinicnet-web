@@ -190,20 +190,26 @@ try {
   api.reports({...ownerCtx,manager:true});
   reports.open = true;
   for (let i=0;i<100 && !reports.textContent.includes('Current period so far');i++) await pause(10);
-  const [paid,free,settlement] = [...reports.querySelectorAll('details')].filter(d=>d.firstChild.textContent.startsWith('View counted visits'));
-  paid.open = true;
+  const [visits,settlement] = [...reports.querySelectorAll('details')].filter(d=>d.firstChild.textContent.startsWith('View counted visits'));
+  visits.open = true;
   for (const minor of [195000,75000,120000]) {
-    assert.ok((minor===195000 ? reports : paid).textContent.includes(coin(minor,'PHP')));
+    assert.ok((minor===195000 ? reports : visits).textContent.includes(coin(minor,'PHP')));
   }
-  assert.ok(paid.textContent.includes('request-1'));
-  assert.ok(paid.textContent.includes('Facebook Messenger'));
-  assert.ok(!paid.textContent.includes('request-3'));
-  assert.ok(free.textContent.includes('No Eden fee applies'));
+  assert.ok(visits.textContent.includes('request-1'));
+  assert.ok(visits.textContent.includes('Facebook Messenger'));
+  assert.ok(visits.textContent.includes('request-3'));
+  assert.ok(visits.textContent.includes('Eden fee (0%)'));
+  assert.match(visits.textContent,/View counted visits \(3\)/);
   assert.ok(settlement.textContent.includes('request-2'));
   const timeline=reports.querySelector('.clinic-rescue-chart');
   assert.equal(timeline.children.length,2);
-  assert.equal(timeline.querySelectorAll('.clinic-rescue-chart-negative').length,1);
-  assert.match(timeline.firstElementChild.textContent,/Draft/);
+  assert.equal(timeline.querySelectorAll('.clinic-rescue-chart-track span').length,4);
+  const monthly = reports.querySelector('.clinic-revenue-table');
+  assert.match(monthly.tBodies[0].rows[0].textContent,/Draft/);
+  assert.match(monthly.tHead.textContent,/Booking revenue.*Eden fee.*Net revenue/);
+  assert.ok(monthly.textContent.includes(coin(-25000,'PHP')));
+  assert.ok(reports.querySelector('.clinic-report-brand img'));
+  assert.ok(reports.querySelector('.clinic-report-actions .clinic-report-approve'));
   timeline.lastElementChild.querySelector('button').click();
   assert.equal(reports.querySelectorAll('.clinic-rescue-card[open]').length,1);
   api.attributionReviews(ownerCtx);

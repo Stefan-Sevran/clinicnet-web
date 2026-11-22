@@ -118,8 +118,10 @@ clinic = clinic.replace(signInSection, () => signIn)
   .replace(styleTag, 'href="/assets/clinic.css?v=' + version + '-r-' + revision + '"');
 const icon = reviewedPage.match(iconTag)?.[0];
 if (icon) {
-  if (!icon.includes('href="/' + workspaceFaviconAsset + '"')) throw Error('Unexpected Workspace favicon path.');
-  writeFileSync(join(stage, workspaceFaviconAsset), fetchText(workspaceFaviconAsset));
+  if (!new RegExp('href="/'+workspaceFaviconAsset.replace('.','\\.')+'(?:\\?[^"]*)?"').test(icon)) throw Error('Unexpected Workspace favicon path.');
+  const brand = fetchText(workspaceFaviconAsset);
+  writeFileSync(join(stage, workspaceFaviconAsset), brand);
+  if (existsSync(join(stage,'favicon.svg'))) writeFileSync(join(stage,'favicon.svg'),brand);
   clinic = iconTag.test(clinic)
     ? clinic.replace(iconTag, () => icon)
     : clinic.replace('</head>', icon + '\n</head>');

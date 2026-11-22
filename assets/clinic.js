@@ -948,6 +948,12 @@
 
   function createWorkspaceViews() {
     const dashboard = byId('clinic-dashboard');
+    const selectors = dashboard.querySelector('.clinic-selectors');
+    const switcher = document.createElement('details');
+    switcher.className = 'clinic-location-switcher';
+    switcher.innerHTML = '<summary><span id="clinic-switcher-name">Clinic location</span><span>Switch location</span></summary>';
+    selectors.before(switcher);
+    switcher.append(selectors);
     const setup = document.createElement('div');
     setup.id = 'clinic-setup-view';
     const work = document.createElement('div');
@@ -987,7 +993,7 @@
     }
     const rail = document.createElement('aside');
     rail.className = 'clinic-workspace-rail';
-    rail.innerHTML = '<a class="clinic-workspace-brand" href="/clinic/?view=overview" aria-label="Eden Clinic Workspace home"><img src="/assets/clinicnet-favicon.svg" alt="" width="36" height="36"></a>';
+    rail.innerHTML = '<a class="clinic-workspace-brand" href="/clinic/?view=overview" aria-label="Eden Clinic Workspace home"><img src="/assets/clinicnet-favicon.svg?v=brand-2" alt="" width="36" height="36"></a>';
     rail.append(views);
     const controls = createWorkspaceControls();
     rail.append(controls);
@@ -1010,6 +1016,9 @@
   }
 
   function switchWorkspaceView(view, updateUrl = false) {
+    document.querySelector('.clinic-location-switcher').open = view==='settings';
+    const clinicLabel = byId('clinic-location').selectedOptions[0]?.textContent;
+    byId('clinic-switcher-name').textContent = clinicLabel || 'Clinic workspace';
     workspaceView = ['setup','settings'].includes(view) || (canManageClinic && ['overview','revenue','profile'].includes(view)) ? view : 'daily';
     const setup = workspaceView === 'setup';
     workspaceViews.setup.hidden = !setup;
@@ -1101,7 +1110,7 @@
       const form = document.createElement('form');
       form.className = 'clinic-form clinic-approved-facts-form';
       form.innerHTML = `<h2>Approved clinic facts</h2>
-        <p>Messenger uses these facts at locations with guided Messenger setup. Website Chat and AI Phone still use their channel settings.</p>
+        <p>Update your Messenger replies here. To change Website chat, open the receptionist editor below. AI Phone has its own setup.</p>
         <label>Services<textarea name="services" required maxlength="900"></textarea></label>
         <label>Opening hours<textarea name="hours" required maxlength="900"></textarea></label>
         <label>Address<textarea name="address" required maxlength="900"></textarea></label>
@@ -1185,7 +1194,7 @@
       action.type = 'button';
       action.className = 'clinic-secondary';
       action.textContent = channel==='website_chat' ? 'Edit receptionist' :
-        channel==='facebook_messenger' && selectedMessengerGuide() ? 'Edit Messenger facts' : 'Review phone setup';
+        channel==='facebook_messenger' && selectedMessengerGuide() ? 'Edit Messenger facts' : 'Open AI Phone setup';
       if (channel==='facebook_messenger' && !selectedMessengerGuide()) action.textContent = 'Review Messenger setup';
       action.onclick = () => {
         switchWorkspaceView('setup',true);
@@ -2729,6 +2738,7 @@
         body:JSON.stringify({accountId,locationId})
       });
       const data = await response.json().catch(()=>null);
+      if (response.status===503) throw Error('The receptionist editor is temporarily unavailable. Try again in a moment. If it keeps happening, contact Eden Support.');
       if (!response.ok) throw Error(data?.error || 'The setup service did not respond. Try again.');
       const destination = new URL(data?.url || '',setupOrigin);
       if (destination.origin!==setupOrigin || destination.pathname!=='/assistant-setup/' ||

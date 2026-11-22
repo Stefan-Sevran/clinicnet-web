@@ -157,9 +157,11 @@ for (const role of roles) {
       assert.match(doc.querySelector('#clinic-channels').textContent,/View status/);
       continue;
     }
-    await until(()=>revenue.textContent.includes(amount(1300000,'PHP')));
-    assert.match(revenue.textContent,/Paid-period collections.*Estimated Eden fee.*Free-pilot collections/s);
+    await until(()=>revenue.textContent.includes(amount(1800000,'PHP')));
+    assert.match(revenue.textContent,/Booking revenue.*Eden fee.*Net revenue/s);
     assert.ok(revenue.textContent.includes(amount(195000,'PHP')));
+    assert.ok(revenue.textContent.includes(amount(1605000,'PHP')));
+    assert.equal(doc.querySelector('.clinic-location-switcher').open,false);
     assert.match(channels.textContent,/Website.*Connected.*Messenger.*Action needed.*Not set up/s);
     assert.match(doc.querySelector('#clinic-home-attention').textContent,/1 missed call needs a callback/);
     doc.querySelector('#clinic-home-attention').click();
