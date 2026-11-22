@@ -492,7 +492,7 @@ const ClinicRescue = (() => {
     panel.hidden=!ctx.manager;host.replaceChildren();
     if(!ctx.manager){panel.open=false;panel.ontoggle=null;return;}
     let request=0;
-    async function load(wanted=ctx.reportId,afterApproval=false) {
+    async function load(wanted=ctx.reportId,afterApproval=false,keepSettingsOpen=false) {
       const current=++request;
       const valid=()=>seq===panelSequence && request===current;
       const box=el('div');host.replaceChildren(el('p','Loading reports…'));
@@ -528,10 +528,10 @@ const ClinicRescue = (() => {
         }
         if (prefs.data) revenueTimeline(box,timeline);
         if (rows.data.length) box.append(history);
-        const settings=el('details');settings.className='clinic-panel clinic-rescue-settings';settings.open=!prefs.data;
+        const settings=el('details');settings.className='clinic-panel clinic-rescue-settings';settings.open=keepSettingsOpen || !prefs.data;
         settings.append(el('summary',prefs.data?'Reporting settings':'Set up reporting'));
         try {
-          const terms=ctx.operationsAvailable ? await ClinicOperations.reportTerms(settings,ctx,()=>load()) : [];
+          const terms=ctx.operationsAvailable ? await ClinicOperations.reportTerms(settings,ctx,()=>load(wanted,false,true)) : [];
           if(!valid()) return;
           if (terms.some(term=>!term.accepted_at && term.effective_on>today)) settings.open=true;
           settingsForm(settings,ctx,prefs.data,()=>load(),terms.find(term=>term.kind==='initial'));
