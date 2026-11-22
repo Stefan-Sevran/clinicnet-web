@@ -14,7 +14,7 @@ window.edenClinicConfigRequest = fetch('https://eden-webhook-ixdd.onrender.com/c
 }).catch(() => null);
 </script>
 <!-- /Clinic bootstrap request -->
-<link rel="icon" type="image/svg+xml" href="/assets/clinicnet-favicon.svg?v=brand-2">
+<link rel="icon" type="image/png" href="/assets/clinicnet-favicon.png?v=brand-3">
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/desktop-navigation.css">
 <link rel="stylesheet" href="/assets/clinic.css?v=messenger-guide-44">
@@ -78,7 +78,7 @@ fetchpriority="high"
       <div class="clinic-hero-copy">
         <span class="clinic-kicker">EDEN CLINIC WORKSPACE</span>
         <h1 id="clinic-workspace-title">Every booking starts with a Hello.</h1>
-        <p>Connect your AI receptionist to website chat, Messenger, and AI phone so patients can request appointments 24/7.</p>
+        <p>Connect your AI receptionist to Website Chat, Messenger, and AI Phone so patients can request appointments 24/7.</p>
       </div>
     </div>
     <div class="clinic-member-hero" id="clinic-member-hero" hidden>
@@ -168,7 +168,8 @@ fetchpriority="high"
           <li>
             <h3>Confirm clinic facts</h3>
             <p id="clinic-messenger-facts-help">Use the information you already give to patients. Eden uses these details when it replies on Messenger.</p>
-            <button id="clinic-messenger-edit-facts" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false" class="clinic-secondary" hidden>Edit clinic facts</button>
+            <button id="clinic-messenger-profile-facts" type="button" class="clinic-secondary" hidden>Edit Messenger facts in Clinic Profile</button>
+            <button id="clinic-messenger-edit-facts" type="button" aria-controls="clinic-messenger-facts" aria-expanded="false" class="clinic-secondary" hidden>Review Messenger setup details</button>
             <form id="clinic-messenger-facts" class="clinic-form clinic-messenger-facts" hidden>
               <label>Services <textarea name="services" maxlength="900" required placeholder="e.g. Checkups, cleanings, and braces consultations"></textarea></label>
               <label>Opening hours <textarea name="hours" maxlength="900" required placeholder="e.g. Monday to Saturday, 9 AM to 5 PM"></textarea></label>

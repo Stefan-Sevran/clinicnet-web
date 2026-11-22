@@ -819,6 +819,7 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
     inset-inline-start: calc(100% + .65rem);
     bottom: 0;
     width: min(19rem, calc(100vw - 2rem));
+    box-sizing: border-box;
     max-height: 60vh;
     overflow: auto;
     padding: .85rem;
@@ -832,6 +833,7 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
   .clinic-workspace-popover ul { list-style: none; padding: 0; margin: 0; }
   .clinic-workspace-popover li { border-top: 1px solid var(--eden-workspace-border); }
   .clinic-workspace-popover button, .clinic-workspace-popover > a {
+    box-sizing: border-box;
     display: block;
     width: 100%;
     min-height: 44px;
@@ -964,3 +966,5 @@ body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button[a
 @media print {
   .clinic-rescue-card[data-print-summary] .clinic-report-brand img { display: block !important; }
 }
+
+#clinic-alert-email-form button[type="submit"] { margin-block: .75rem .25rem; }

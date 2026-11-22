@@ -24,6 +24,8 @@ const styleTag = /href="\/assets\/clinic\.css(?:\?[^"\s]*)?"/;
 const heroSection = /<section class="clinic-hero"[^>]*>[\s\S]*?<\/section>/;
 const legacyHero = /<div class="clinic-hero"[^>]*>[\s\S]*?<\/div>/;
 const workspaceFaviconAsset = 'assets/clinicnet-favicon.svg';
+const pngFaviconAsset = 'assets/clinicnet-favicon.png';
+const wordmarkAsset = 'assets/clinicnet-wordmark.png';
 const iconTag = /<link rel="icon"[^>]*>/;
 const workspaceHeroAsset = 'assets/eden-owner-eve-welcome-sign.webp';
 const workspaceMemberHeroAsset = /data-src="\/(assets\/eden-workspace-team(?:-eve|-courtyard)?\.webp)"/;
@@ -64,7 +66,11 @@ console.log('Using production source ' + source);
 const stage = mkdtempSync(join(root, 'tmp.'));
 cpSync(source, stage, { recursive: true });
 const sourceRoot = 'https://raw.githubusercontent.com/Stefan-Sevran/clinicnet-web/' + revision + '/';
-const fetchText = path => execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + path], { encoding: 'utf8' });
+const fetchAsset = path => execFileSync('curl', ['-fsSL', '--max-time', '45', sourceRoot + path]);
+const fetchText = path => fetchAsset(path).toString('utf8');
+const withIcon = (page, icon) => iconTag.test(page)
+  ? page.replace(iconTag, () => icon)
+  : page.replace('</head>', () => icon + '\n</head>');
 const reviewedPage = fetchText(clinicPage);
 const reviewedStyle = fetchText(clinicStyle);
 const guide = reviewedPage.match(guideSection)?.[0];
@@ -118,13 +124,13 @@ clinic = clinic.replace(signInSection, () => signIn)
   .replace(styleTag, 'href="/assets/clinic.css?v=' + version + '-r-' + revision + '"');
 const icon = reviewedPage.match(iconTag)?.[0];
 if (icon) {
-  if (!new RegExp('href="/'+workspaceFaviconAsset.replace('.','\\.')+'(?:\\?[^"]*)?"').test(icon)) throw Error('Unexpected Workspace favicon path.');
-  const brand = fetchText(workspaceFaviconAsset);
+  const iconPath = icon.match(/href="\/([^"?]+)/)?.[1];
+  if (![workspaceFaviconAsset, pngFaviconAsset].includes(iconPath)) throw Error('Unexpected Workspace favicon path.');
+  const brand = fetchAsset(workspaceFaviconAsset);
   writeFileSync(join(stage, workspaceFaviconAsset), brand);
+  if (iconPath === pngFaviconAsset) writeFileSync(join(stage, pngFaviconAsset), fetchAsset(pngFaviconAsset));
   if (existsSync(join(stage,'favicon.svg'))) writeFileSync(join(stage,'favicon.svg'),brand);
-  clinic = iconTag.test(clinic)
-    ? clinic.replace(iconTag, () => icon)
-    : clinic.replace('</head>', icon + '\n</head>');
+  clinic = withIcon(clinic, icon);
 }
 const bootstrap = reviewedPage.match(bootstrapRequest)?.[0];
 if (bootstrap) {
@@ -177,6 +183,9 @@ if (home) {
     .replace(navButtonPattern, () => signIn)
     .replace(homeStyleTag, 'href="/assets/home.css?v=r-' + revision + '"')
     .replace(storyImage, tag => tag.replace('fetchpriority="high"', '').replace('loading="eager"', 'loading="lazy"'));
+  const homeIcon = reviewedHome.match(iconTag)?.[0];
+  if (homeIcon) page = withIcon(page, homeIcon);
+  if (mobile.includes('/' + wordmarkAsset)) writeFileSync(join(stage, wordmarkAsset), fetchAsset(wordmarkAsset));
   const currentHomeCss = readFileSync(join(stage, homeStyle), 'utf8').split(homeStyleMarker)[0].trimEnd();
   writeFileSync(join(stage, homepage), page);
   writeFileSync(join(stage, homeStyle), currentHomeCss + '\n\n' + reviewedHomeCss.slice(cssOffset));

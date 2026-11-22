@@ -28,8 +28,8 @@ for(const page of pages) {
   }
 }
 const home=await read('site/pages/home.html');
-assert.equal((home.match(/<img /g)||[]).length,10);
-assert.equal((home.match(/loading="lazy"/g)||[]).length,9);
+assert.equal((home.match(/class="story-image\b/g)||[]).length,10);
+assert.equal((home.match(/loading="lazy"/g)||[]).length,10);
 assert(home.includes('No more</span> late replies:'));
 assert(home.includes('No more</span> lost revenue:'));
 const navigation=await read('assets/navigation.js');

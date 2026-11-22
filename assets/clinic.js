@@ -110,7 +110,7 @@
   let clinicVisits = new Map();
   let visitRecordsAvailable = false;
 
-  const setupChannelLabels = { website_chat: 'Website chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI phone' };
+  const setupChannelLabels = { website_chat: 'Website Chat', facebook_messenger: 'Facebook Messenger', ai_phone: 'AI Phone' };
   const bookingSourceLabels = { ...setupChannelLabels, staff_booking: 'Booked by staff' };
   const channelNav = byId('clinic-channel-setup');
   workspaceHero.after(channelNav);
@@ -410,9 +410,11 @@
       byId('clinic-messenger-import-help').textContent = 'Review the details from ' + draft.clinic +
         ' before saving them for Messenger.';
     }
+    show('clinic-messenger-profile-facts', factsReady && factsForm.hidden);
     show('clinic-messenger-edit-facts', factsReady && factsForm.hidden);
     byId('clinic-messenger-facts-help').textContent = importedLocation ?
       'These details come from your website receptionist setup. Review or edit them before saving for Messenger.' :
+      factsReady ? 'Manage replies in Clinic Profile. Set the preferred language and how Messenger handles appointment requests here.' :
       'Use the information you already give to patients. Eden uses these details when it replies on Messenger.';
     byId('clinic-messenger-edit-facts').setAttribute('aria-expanded', String(!factsForm.hidden && !importedLocation));
     byId('clinic-messenger-use-import').setAttribute('aria-expanded', String(!factsForm.hidden && Boolean(importedLocation)));
@@ -530,10 +532,15 @@
     renderMessengerGuide();
   });
 
+  byId('clinic-messenger-profile-facts').addEventListener('click', () => {
+    switchWorkspaceView('profile',true);
+    focusProfileControl(byId('clinic-approved-facts').querySelector('textarea') || byId('clinic-profile-title'));
+  });
+
   byId('clinic-messenger-edit-facts').addEventListener('click', () => {
     factsForm.hidden = false;
     renderMessengerGuide();
-    factsForm.querySelector('textarea').focus();
+    factsForm.elements.language.focus();
   });
   byId('clinic-messenger-cancel-facts').addEventListener('click', () => {
     importedLocation = null;
@@ -770,7 +777,6 @@
     };
     const toolbar = byId('clinic-identity').closest('.clinic-toolbar');
     menu.querySelector('#clinic-workspace-identity').append(toolbar);
-    menu.querySelector('.clinic-workspace-popover').append(byId('clinic-signout'));
     menu.querySelector('#clinic-open-settings').onclick = () => {
       menu.open = false;
       switchWorkspaceView('settings',true);
@@ -963,7 +969,7 @@
     const profile = document.createElement('section');
     profile.id = 'clinic-profile-view';
     profile.className = 'clinic-panel clinic-workspace-admin';
-    profile.innerHTML = '<h1>Clinic profile</h1><p id="clinic-profile-location"></p><div id="clinic-approved-facts"></div><div id="clinic-profile-channels"></div>';
+    profile.innerHTML = '<h1 id="clinic-profile-title" tabindex="-1">Clinic profile</h1><p id="clinic-profile-location"></p><div id="clinic-approved-facts"></div><div id="clinic-profile-channels"></div><p id="clinic-profile-editor-status" class="clinic-channel-feedback" role="status"></p>';
     const settings = document.createElement('section');
     settings.id = 'clinic-settings-view';
     settings.className = 'clinic-workspace-admin';
@@ -993,7 +999,7 @@
     }
     const rail = document.createElement('aside');
     rail.className = 'clinic-workspace-rail';
-    rail.innerHTML = '<a class="clinic-workspace-brand" href="/clinic/?view=overview" aria-label="Eden Clinic Workspace home"><img src="/assets/clinicnet-favicon.svg?v=brand-2" alt="" width="36" height="36"></a>';
+    rail.innerHTML = '<a class="clinic-workspace-brand" href="/clinic/?view=overview" aria-label="Eden Clinic Workspace home"><img src="/assets/clinicnet-favicon.png?v=brand-3" alt="" width="36" height="36"></a>';
     rail.append(views);
     const controls = createWorkspaceControls();
     rail.append(controls);
@@ -1083,6 +1089,7 @@
     byId('clinic-overview-location').textContent = '';
     byId('clinic-profile-location').textContent = '';
     byId('clinic-profile-channels').replaceChildren();
+    byId('clinic-profile-editor-status').textContent = '';
     byId('clinic-approved-facts').replaceChildren();
     clinicFactsRequest = undefined;
     byId('clinic-home-attention').textContent = 'Review Daily Action';
@@ -1110,15 +1117,23 @@
       const form = document.createElement('form');
       form.className = 'clinic-form clinic-approved-facts-form';
       form.innerHTML = `<h2>Approved clinic facts</h2>
-        <p>Update your Messenger replies here. To change Website chat, open the receptionist editor below. AI Phone has its own setup.</p>
+        <p>Update your Messenger replies here. To change Website Chat, open the <a href="#clinic-profile-website_chat">AI receptionist editor</a> below. <a href="#clinic-profile-ai_phone">AI Phone</a> has its own setup.</p>
         <label>Services<textarea name="services" required maxlength="900"></textarea></label>
         <label>Opening hours<textarea name="hours" required maxlength="900"></textarea></label>
         <label>Address<textarea name="address" required maxlength="900"></textarea></label>
         <label>Booking instructions<textarea name="bookingRules" required maxlength="900"></textarea></label>
         <p>Use information your clinic has approved for patients. Leave out patient details.</p>
-        <label class="clinic-facts-confirm"><input name="approved" type="checkbox" required> I approve these facts for patient-facing use.</label>
+        <label class="clinic-facts-confirm"><input name="approved" type="checkbox" required> I approve these facts for patient-facing use on Messenger.</label>
         <button type="submit">Approve and save facts</button>
         <p role="status"></p>`;
+      for (const link of form.querySelectorAll('a[href^="#clinic-profile-"]')) {
+        link.onclick = event => {
+          const action = byId(link.hash.slice(1));
+          if (!action) return;
+          event.preventDefault();
+          focusProfileControl(action);
+        };
+      }
       let approved = data;
       for (const area of form.querySelectorAll('textarea')) area.value = data?.[area.name] || '';
       const note = form.querySelector('[role="status"]');
@@ -1178,6 +1193,13 @@
     }
   }
 
+  function focusProfileControl(control) {
+    control.focus({preventScroll:true});
+    control.scrollIntoView({
+      block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'
+    });
+  }
+
   function renderClinicProfile() {
     const locationId = byId('clinic-location').value;
     const location = state.locations.find(row=>row.id===locationId);
@@ -1193,16 +1215,27 @@
       const action = document.createElement('button');
       action.type = 'button';
       action.className = 'clinic-secondary';
-      action.textContent = channel==='website_chat' ? 'Edit receptionist' :
-        channel==='facebook_messenger' && selectedMessengerGuide() ? 'Edit Messenger facts' : 'Open AI Phone setup';
-      if (channel==='facebook_messenger' && !selectedMessengerGuide()) action.textContent = 'Review Messenger setup';
+      action.id = 'clinic-profile-' + channel;
+      action.textContent = {
+        website_chat:'Edit AI receptionist', facebook_messenger:'Edit Messenger facts', ai_phone:'Open AI Phone setup'
+      }[channel];
       action.onclick = () => {
-        switchWorkspaceView('setup',true);
-        link.click();
-        if (channel==='website_chat') void openWebsiteSetup(action);
-        else if (channel==='facebook_messenger' && selectedMessengerGuide()) {
-          const edit = byId('clinic-messenger-edit-facts');
-          if (!edit.hidden && factsForm.hidden) edit.click();
+        if (channel==='website_chat') {
+          void openWebsiteSetup(action, (message, kind = 'info') => {
+            const status = byId('clinic-profile-editor-status');
+            status.textContent = message;
+            status.dataset.kind = kind;
+          });
+        } else if (channel==='facebook_messenger') {
+          const field = byId('clinic-approved-facts').querySelector('textarea');
+          if (field) focusProfileControl(field);
+          else {
+            byId('clinic-approved-facts').scrollIntoView({block:'start'});
+            void loadApprovedClinicFacts();
+          }
+        } else {
+          switchWorkspaceView('setup',true);
+          link.click();
         }
       };
       row.append(title,stateLabel,action);
@@ -2714,18 +2747,18 @@
     } catch { /* Keep the saved inbox status when publication cannot be verified. */ }
   }
 
-  async function openWebsiteSetup(button) {
+  async function openWebsiteSetup(button, feedback = (message, kind) => channelFeedback('website_chat',message,kind)) {
     const userId = state.session?.user?.id;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
     const current = () => state.session?.user?.id === userId &&
       byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
     if (!userId || !canManageClinic || !accountId || !locationId) {
-      channelFeedback('website_chat','Sign in as an owner or admin and choose a clinic location.','error');
+      feedback('Sign in as an owner or admin and choose a clinic location.','error');
       return;
     }
     button.disabled = true;
-    channelFeedback('website_chat','Opening the private setup for this location…');
+    feedback('Opening the AI receptionist editor…');
     try {
       const {data:auth, error} = await state.client.auth.getSession();
       if (error || !auth?.session?.access_token || auth.session.user?.id !== userId) {
@@ -2738,7 +2771,7 @@
         body:JSON.stringify({accountId,locationId})
       });
       const data = await response.json().catch(()=>null);
-      if (response.status===503) throw Error('The receptionist editor is temporarily unavailable. Try again in a moment. If it keeps happening, contact Eden Support.');
+      if (response.status===503) throw Error('The AI receptionist editor is temporarily unavailable. Try again in a moment. If it keeps happening, contact Eden Support.');
       if (!response.ok) throw Error(data?.error || 'The setup service did not respond. Try again.');
       const destination = new URL(data?.url || '',setupOrigin);
       if (destination.origin!==setupOrigin || destination.pathname!=='/assistant-setup/' ||
@@ -2747,13 +2780,13 @@
         throw Error('The private setup link could not be verified. Try again.');
       }
       if (current()) {
-        channelFeedback('website_chat','Taking you to your receptionist setup…');
+        feedback('Taking you to the AI receptionist editor…');
         window.location.assign(destination.href);
       }
     } catch (error) {
-      if (current()) channelFeedback('website_chat',
-        error.name==='TimeoutError'?'Setup took too long to open. Select Set up AI receptionist to retry.':
-          error instanceof TypeError?'Could not reach private setup. Select Set up AI receptionist to retry.':error.message,'error');
+      if (current()) feedback(
+        error.name==='TimeoutError'?'Setup took too long to open. Try again.':
+          error instanceof TypeError?'Could not reach private setup. Try again.':error.message,'error');
     } finally { button.disabled = false; }
   }
 

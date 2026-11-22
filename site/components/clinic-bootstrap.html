@@ -1,0 +1,9 @@
+<!-- Clinic bootstrap request -->
+<script>
+window.edenClinicConfigRequest = fetch('https://eden-webhook-ixdd.onrender.com/clinic/public-config', {
+  cache: 'no-store',
+  referrerPolicy: 'no-referrer',
+  ...(typeof AbortSignal.timeout === 'function' ? { signal: AbortSignal.timeout(15000) } : {})
+}).catch(() => null);
+</script>
+<!-- /Clinic bootstrap request -->
