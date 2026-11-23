@@ -81,7 +81,13 @@ try {
   await tick(10);
   const proposal=owner.querySelector('.clinic-ops-review');
   assert.equal(proposal.open,true);
-  assert.match(proposal.textContent,/Before 9–5Proposed 10–5/);
+  const excerpt=proposal.querySelector('.clinic-ops-comparison');
+  assert.deepEqual([...excerpt.querySelectorAll('mark')].map(mark=>mark.textContent),['9','10']);
+  const full=proposal.querySelector('.clinic-ops-full-comparison');
+  assert.equal(full.open,false);
+  assert.match(full.textContent,/Before9–5Proposed10–5/);
+  await owner.openReview('change-1');
+  assert.equal(win.document.activeElement,owner.querySelector('#eden-review-change-1 > summary'));
   [...proposal.querySelectorAll('button')].find(item=>item.textContent==='Approve changes').click();
   await tick(0);
   assert.equal(liveFacts.hours,'10–5');
