@@ -828,8 +828,9 @@
         <label for="clinic-help-question">What can I help you with?</label>
         <textarea id="clinic-help-question" rows="2" maxlength="400" required placeholder="I can’t find a support request"></textarea>
         <small>Leave out patient details and sign-in codes.</small>
-        <button type="submit">Ask Eden</button>
+        <button type="submit">Send question</button>
       </form>
+      <div id="clinic-help-answer" aria-live="polite" aria-atomic="true"></div>
       <label for="clinic-help-topic">Or choose a topic</label>
       <select id="clinic-help-topic">
         <option value="">Choose a topic</option>
@@ -838,7 +839,6 @@
         <option value="revenue">Understand Revenue Rescue</option>
         <option value="profile">Update approved clinic facts</option>
       </select>
-      <div id="clinic-help-answer" aria-live="polite"></div>
       <p>Email <a href="mailto:team@clinicnet.live">team@clinicnet.live</a> for help with your workspace.</p>
       <form id="clinic-send-feedback" class="clinic-form">
         <label>How is Eden working for your clinic?
@@ -885,7 +885,9 @@
     function showHelp(message, label, navigate) {
       const response = document.createElement('p');
       response.textContent = message;
-      answer.replaceChildren(response);
+      const labelElement = document.createElement('strong');
+      labelElement.textContent = 'Eden’s reply';
+      answer.replaceChildren(labelElement,response);
       if (!navigate) return;
       const action = document.createElement('button');
       action.type = 'button';

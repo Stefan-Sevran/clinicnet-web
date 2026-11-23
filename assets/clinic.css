@@ -921,6 +921,25 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
 .clinic-support-dialog #clinic-ask-eden { margin-block: .75rem 1.25rem; }
 .clinic-support-dialog #clinic-help-question { width: 100%; box-sizing: border-box; resize: vertical; }
 .clinic-support-dialog #clinic-help-topic { width: 100%; margin: .35rem 0; }
+.clinic-support-dialog #clinic-ask-eden button[type="submit"] {
+  justify-self: start;
+  padding-inline: 1rem;
+  border-color: #175044;
+  background: #175044;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.clinic-support-dialog #clinic-ask-eden button[type="submit"]:hover { background: #103b32; }
+.clinic-support-dialog #clinic-help-answer:not(:empty) {
+  margin-block: 0 1rem;
+  padding: .85rem;
+  border: 1px solid #ddd4f9;
+  border-radius: .6rem;
+  background: #f3efff;
+  color: #282044;
+}
+.clinic-support-dialog #clinic-help-answer p { margin: .3rem 0 0; }
 .clinic-support-dialog #clinic-help-answer button { margin-top: .5rem; color: #5339c8; }
 
 /* Signed-in Workspace refinements */
