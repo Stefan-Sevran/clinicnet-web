@@ -270,6 +270,17 @@ try {
   assert.deepEqual(await notify(cebu),[]);
   assert.equal((await get('select * from eden_support_inbox($1)',[cebu])).find(item=>item.id===websiteDraft).decision,'approved');
   const alertGrant=await grant('staff_alert');
+  const phoneGrant=await grant('ai_phone');
+  await roles(agent);
+  await assert.rejects(sendDraft(phoneGrant,{forwarding_code:'123456'},{}),{code:'22023'});
+  await assert.rejects(sendDraft(phoneGrant,{forwarding_carrier:'Test carrier',forwarding_code:'tel:123456'},{}),{code:'22023'});
+  const phoneDraft=await sendDraft(phoneGrant,{forwarding_carrier:'Test carrier',forwarding_code:'123456'},{});
+  await roles(owner);
+  assert.deepEqual(await notify(cebu),[{id:phoneDraft,kind:'change',target:'ai_phone'}]);
+  await reviewDraft(phoneDraft,true);
+  assert.deepEqual(await notify(cebu),[]);
+  const [retainedPhoneDraft]=(await get('select * from eden_support_inbox($1)',[cebu])).filter(item=>item.id===phoneDraft);
+  assert.equal(retainedPhoneDraft.proposed_values.forwarding_code,'123456');
   await roles(agent);
   assert.equal((await open(readGrant)).hours,'1–9');
   const alertContext=await value('select eden_support_draft_context($1) as value',[alertGrant]);

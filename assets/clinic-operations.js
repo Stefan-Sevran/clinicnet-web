@@ -23,9 +23,12 @@ const ClinicOperations = (() => {
   const targets={read:'Connection status and Messenger facts',messenger_facts:'Messenger',website_chat:'Website Chat',
     ai_phone:'AI Phone',staff_alert:'Staff alerts'};
   const factLabels = {services:'Services',hours:'Opening hours',address:'Address and directions',bookingRules:'Booking instructions',
-    common_answers:'Common answers',handoff:'Staff handoff and after-hours instructions',alert_email:'Staff alert email'};
+    common_answers:'Common answers',handoff:'Staff handoff and after-hours instructions',
+    forwarding_carrier:'Phone carrier',forwarding_code:'Tentative forwarding code',alert_email:'Staff alert email'};
   const messengerFields=['services','hours','address','bookingRules'];
   const draftFields=['services','hours','address','common_answers','bookingRules','handoff'];
+  const forwardingFields=['forwarding_carrier','forwarding_code'];
+  const forwardingNotice='Confirm the code with the carrier and verify the destination with a test call before the clinic uses it.';
   const isDraft=target=>['website_chat','ai_phone','staff_alert'].includes(target);
   const notificationTitle=item=>item.kind==='access'?'Eden requested support access':'Eden changes ready for review';
   const targetLabel=target=>targets[target] || 'Eden support';
@@ -114,10 +117,12 @@ const ClinicOperations = (() => {
             editor.append(el('h3',draft?targetLabel(grant.scope)+' draft':'Messenger facts'),
               el('p',draft?'Fill only the fields you want to propose. The owner reviews and applies the draft in the relevant settings.':
                 'The clinic owner reviews your proposal before it goes live. Use clinic information meant for patients.'));
-            const fields=grant.scope==='staff_alert'?['alert_email']:draft?draftFields:messengerFields;
+            if (grant.scope==='ai_phone') editor.append(el('p','For a forwarding draft, enter both the carrier and the proposed code. '+forwardingNotice));
+            const fields=grant.scope==='ai_phone'?[...draftFields,...forwardingFields]:grant.scope==='staff_alert'?['alert_email']:draft?draftFields:messengerFields;
             for (const key of fields) {
               const input=key==='alert_email'?Object.assign(el('input'),{type:'email',required:true,maxLength:254}):
                 Object.assign(el('textarea'),{maxLength:900});
+              if (forwardingFields.includes(key)) input.maxLength=key==='forwarding_code'?80:100;
               input.value=expected[key] ?? '';
               inputs[key]=field(editor,factLabels[key],input);
             }
@@ -131,6 +136,10 @@ const ClinicOperations = (() => {
                 input.value.trim()!==(expected[key] ?? '').trim() ? [[key,input.value.trim()]] : []));
               if (!Object.keys(p_changes).length) {
                 result.textContent='Change at least one field before sending.';
+                return;
+              }
+              if (grant.scope==='ai_phone' && forwardingFields.filter(key=>Object.hasOwn(p_changes,key)).length===1) {
+                result.textContent='Enter both the carrier and the proposed forwarding code.';
                 return;
               }
               void action(save,result,async()=>{
@@ -287,6 +296,9 @@ const ClinicOperations = (() => {
           if (draft) card.append(el('p',target==='staff_alert'?
             'Confirm the new address with your team before saving it under Staff alerts.':
             'Apply the approved wording in the channel’s own setup. This draft does not publish it.'));
+          if (target==='ai_phone' && Object.hasOwn(change.proposed_values,'forwarding_code')) {
+            card.append(el('p','Forwarding draft only. '+forwardingNotice));
+          }
           for (const [key,proposed] of Object.entries(change.proposed_values)) {
             fields.append(el('h4',factLabels[key] || key));
             if (Object.hasOwn(change.before_values,key)) {

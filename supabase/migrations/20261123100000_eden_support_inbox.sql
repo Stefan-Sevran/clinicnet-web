@@ -215,7 +215,7 @@ declare g clinic_operations_private.support_grants; allowed text[]; old jsonb; r
 begin
   g:=clinic_operations_private.active_support_grant(p_grant);
   allowed:=case g.scope when 'website_chat' then array['services','hours','address','common_answers','bookingRules','handoff']
-    when 'ai_phone' then array['services','hours','address','common_answers','bookingRules','handoff']
+    when 'ai_phone' then array['services','hours','address','common_answers','bookingRules','handoff','forwarding_carrier','forwarding_code']
     when 'staff_alert' then array['alert_email'] else null end;
   if allowed is null then raise exception 'This grant does not permit channel drafts' using errcode='42501'; end if;
   if p_draft is null or jsonb_typeof(p_draft)<>'object' or p_draft='{}'::jsonb or p_draft-allowed<>'{}'::jsonb then
@@ -226,6 +226,14 @@ begin
     raise exception 'Enter 1–900 characters for each proposed field' using errcode='22023';
   end if;
   select jsonb_object_agg(f.key,btrim(f.value)) into p_draft from jsonb_each_text(p_draft) f;
+  if g.scope='ai_phone' and (p_draft ?| array['forwarding_carrier','forwarding_code']) then
+    if not (p_draft ?& array['forwarding_carrier','forwarding_code'])
+      or length(p_draft->>'forwarding_carrier')>100
+      or (p_draft->>'forwarding_code') !~ '^[0-9*#+ ()-]{1,80}$'
+      or (p_draft->>'forwarding_code') !~ '[0-9]' then
+      raise exception 'Enter the carrier and a forwarding code using dial characters' using errcode='22023';
+    end if;
+  end if;
   select l.alert_email into recipient from public.clinic_locations l where l.id=g.location_id for update;
   if g.expires_at<=clock_timestamp() then raise exception 'Support grant expired' using errcode='42501'; end if;
   if g.scope='staff_alert' then
