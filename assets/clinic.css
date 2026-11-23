@@ -993,3 +993,44 @@ body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button[a
 .clinic-ops-review { padding: .85rem; margin-block: .65rem; border: 1px solid #ded8ed; border-radius: .55rem; }
 .clinic-ops-review summary { overflow-wrap: anywhere; }
 .clinic-ops-review-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+
+.clinic-ops-review {
+  min-width: 0;
+  padding: clamp(.85rem, 2vw, 1.2rem);
+  background: #fff;
+}
+.clinic-ops-review > summary > strong { margin-inline: .35rem .75rem; }
+.clinic-ops-review > summary > span {
+  display: inline-block;
+  border-radius: 1rem;
+  padding: .15rem .55rem;
+  color: #49347e;
+  background: #f1ebfa;
+  font-size: .85em;
+}
+.clinic-ops-review > p { margin: .55rem 0; }
+.clinic-ops-review-fields h4 { margin: .85rem 0 .35rem; }
+.clinic-ops-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+.clinic-ops-comparison > div, .clinic-ops-draft-text {
+  border-radius: .45rem;
+  padding: .65rem .75rem;
+  background: #f6f5fa;
+}
+.clinic-ops-comparison p, .clinic-ops-draft-text {
+  margin: .25rem 0 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.clinic-ops-comparison mark { background: #f6dedf; color: #5c2634; }
+.clinic-ops-comparison > div:nth-child(2) mark { background: #dbefe5; color: #124937; }
+.clinic-ops-full-comparison { margin-top: .65rem; }
+.clinic-ops-full-comparison > summary { width: fit-content; margin-bottom: .35rem; }
+#clinic-support-alerts:not([hidden]) { border-bottom: 1px solid #ded8ed; padding-bottom: .45rem; }
+@media (max-width: 600px) {
+  .clinic-ops-comparison { grid-template-columns: minmax(0, 1fr); }
+}

@@ -97,6 +97,9 @@
   let lastInboxPoll = 0;
   let alertScope;
   let observedAlerts = new Set();
+  let workspaceAttentionCount = 0;
+  let supportAlertCount = 0;
+  let supportAlertRequest = 0;
   let alertAudio;
   let clinicFactsRequest;
   let loadedGeneration = -1;
@@ -765,6 +768,7 @@
       <section class="clinic-workspace-popover" aria-label="Recent clinic activity">
         <h2>Recent clinic activity</h2>
         <button type="button" id="clinic-alert-sound" aria-pressed="false">Enable alert sound</button>
+        <ul id="clinic-support-alerts" aria-label="Eden support" hidden></ul>
         <ul id="clinic-workspace-alerts" aria-label="Recent activity"></ul>
       </section>
     </details>
@@ -779,6 +783,9 @@
     </details>`;
     const menu = controls.querySelector('#clinic-account-menu');
     const alerts = controls.querySelector('#clinic-alerts-menu');
+    alerts.addEventListener('toggle', () => {
+      if (alerts.open) void refreshSupportAlerts();
+    });
     const sound = controls.querySelector('#clinic-alert-sound');
     sound.hidden = !window.AudioContext;
     sound.onclick = async () => {
@@ -897,21 +904,72 @@
     const message = document.createElement('li');
     message.textContent = 'Choose a clinic to see its recent activity.';
     list.replaceChildren(message);
-    byId('clinic-alert-count').hidden = true;
+    ++supportAlertRequest;
+    workspaceAttentionCount = 0;
+    supportAlertCount = 0;
+    const supportList = byId('clinic-support-alerts');
+    supportList.replaceChildren();
+    supportList.hidden = true;
+    updateWorkspaceAlertCount();
     observedAlerts.clear();
     alertScope = undefined;
   }
 
+  function updateWorkspaceAlertCount() {
+    const count = byId('clinic-alert-count');
+    const total = workspaceAttentionCount + supportAlertCount;
+    count.hidden = total === 0;
+    count.textContent = String(total);
+  }
+
+  async function refreshSupportAlerts(locationId = byId('clinic-location').value, generation = state.generation) {
+    if (!operationsAvailable || !isClinicOwner || !locationId) return;
+    const requestId = ++supportAlertRequest;
+    try {
+      const {data, error} = await state.client.rpc('eden_support_notifications', {p_location: locationId});
+      if (error || !Array.isArray(data) || requestId !== supportAlertRequest || generation !== state.generation ||
+          locationId !== byId('clinic-location').value) return;
+      const list = byId('clinic-support-alerts');
+      const rows = data.map(item => {
+        const row = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.reviewId = item.id;
+        const title = document.createElement('strong');
+        title.textContent = ClinicOperations.notificationTitle(item);
+        const detail = document.createElement('span');
+        detail.textContent = ClinicOperations.targetLabel(item.target);
+        button.append(title, detail);
+        button.onclick = () => {
+          byId('clinic-alerts-menu').open = false;
+          switchWorkspaceView('settings', true);
+          void workspaceViews.ownerSupport.firstElementChild?.openReview(item.id);
+        };
+        row.append(button);
+        return row;
+      });
+      const focusedReview = list.contains(document.activeElement) ? document.activeElement.dataset.reviewId : null;
+      list.replaceChildren(...rows);
+      list.hidden = !rows.length;
+      if (focusedReview) {
+        const replacement = rows.find(row => row.firstElementChild.dataset.reviewId === focusedReview);
+        (replacement?.firstElementChild || byId('clinic-alerts-menu').querySelector('summary')).focus();
+      }
+      supportAlertCount = rows.length;
+      updateWorkspaceAlertCount();
+    } catch {
+      // Leave the current alerts visible if a refresh fails.
+    }
+  }
+
   function renderWorkspaceAlerts(activity, attention, booked) {
     const list = byId('clinic-workspace-alerts');
-    const count = byId('clinic-alert-count');
     const needsAction = new Set(attention);
     const confirmed = new Set(booked);
     const recent = activity.filter(event=>event.event_key && !event.details?.demo &&
       (followupKinds.includes(event.kind) || confirmed.has(event))).slice(0,12);
-    const attentionCount = attention.filter(event=>!event.details?.demo).length;
-    count.hidden = attentionCount===0;
-    count.textContent = String(attentionCount);
+    workspaceAttentionCount = attention.filter(event=>!event.details?.demo).length;
+    updateWorkspaceAlertCount();
     const scope = byId('clinic-account').value + '/' + byId('clinic-location').value;
     if (scope !== alertScope) observedAlerts.clear();
     const keys = recent.map(event=>event.event_key + (confirmed.has(event) ? ':booked' : ':received'));
@@ -2612,6 +2670,7 @@
       byId('clinic-overview-revenue').textContent = 'No clinic location is available.';
       return;
     }
+    if (quiet) void refreshSupportAlerts(locationId, generation);
     const activityQuery = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
     const [bookings, inbox, followups, connections, team, currency] = await timedRead(Promise.all([
       request('/clinic/bookings' + activityQuery), request('/clinic/inbox' + activityQuery + '&limit=100'),
@@ -2640,7 +2699,7 @@
       state.visitCurrency = currency;
       if (operationsAvailable && isClinicOwner && workspaceViews.ownerSupport.dataset.location !== locationId) {
         workspaceViews.ownerSupport.dataset.location = locationId;
-        workspaceViews.ownerSupport.replaceChildren(ClinicOperations.owner(state.client,locationId,facts=>{
+        const panel = ClinicOperations.owner(state.client,locationId,facts=>{
           if (byId('clinic-location').value!==locationId) return;
           clinicFactsRequest=undefined;
           const messenger=selectedMessengerGuide();
@@ -2649,11 +2708,22 @@
             renderChannels();
             renderMessengerGuide({resetFacts:true});
           }
-        }));
+        }, target => {
+          if (target === 'staff_alert') {
+            switchWorkspaceView('settings',true);
+            focusProfileControl(alertEmailInput);
+          } else {
+            switchWorkspaceView('profile',true);
+            byId('clinic-profile-'+target)?.click();
+          }
+        });
+        panel.addEventListener('eden-support-reviewed', () => void refreshSupportAlerts());
+        workspaceViews.ownerSupport.replaceChildren(panel);
       } else if (!operationsAvailable || !isClinicOwner) {
         delete workspaceViews.ownerSupport.dataset.location;
         workspaceViews.ownerSupport.replaceChildren();
       }
+      void refreshSupportAlerts(locationId, generation);
       ClinicRescue.pending({client:state.client,locationId,timezone,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
       ClinicRescue.attributionReviews({client:state.client,locationId,timezone});
       const clinicName = state.locations.find(l=>l.id===locationId)?.name || '';

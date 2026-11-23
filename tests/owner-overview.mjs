@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { setTimeout as pause } from 'node:timers/promises';
 
 const { JSDOM } = createRequire(import.meta.url)(process.env.EDEN_JSDOM_MODULE || 'jsdom');
-const [html, rescue, workspace] = await Promise.all(['clinic/index.html','assets/clinic-rescue.js','assets/clinic.js']
+const [html, rescue, operations, workspace] = await Promise.all(['clinic/index.html','assets/clinic-rescue.js','assets/clinic-operations.js','assets/clinic.js']
   .map(path=>readFile(new URL('../'+path,import.meta.url),'utf8')));
 const account = '10000000-0000-4000-8000-000000000001';
 const cebu = '20000000-0000-4000-8000-000000000001';
@@ -40,6 +40,7 @@ for (const role of roles) {
     let session = {access_token:'fixture',user:{id:'member',email:'fixture@example.test'}};
     let authChanged;
     let approvedFacts = null;
+    let supportPending = true;
     let factsWrites = 0;
     let editorRequests = 0;
     let configReads = 0;
@@ -117,6 +118,15 @@ for (const role of roles) {
           }
           return {data:approvedFacts};
         }
+        if (name==='eden_support_notifications') return {data:args.p_location===cebu && supportPending ?
+          [{id:'access-1',kind:'access',target:'website_chat'}] : []};
+        if (name==='eden_support_inbox') return {data:[{id:'access-1',kind:'access',target:'website_chat',
+          operator_email:'agent@example.test',created_at:'2026-11-22T10:00:00Z',decision:supportPending?'pending':'dismissed'}]};
+        if (name==='eden_review_support_request') {
+          assert.equal(args.p_request,'access-1');
+          assert.equal(args.p_approve,false);
+          supportPending=false;
+        }
         if (name==='current_rescue_period') {
           if (args.p_location===cebu && delayCebu) return new Promise(resolve=>{ resolveCebu=resolve; });
           return {data:{...dates,...data[args.p_location]}};
@@ -130,7 +140,7 @@ for (const role of roles) {
         return builder;
       }
     })};
-    win.eval(rescue+'\n'+workspace);
+    win.eval(rescue+'\n'+operations+'\n'+workspace);
     const overview = doc.querySelector('#clinic-owner-overview');
     const hero = doc.querySelector('.clinic-hero');
     const overviewNav = doc.querySelector('.clinic-view-switch a[href*="view=overview"]');
@@ -150,7 +160,24 @@ for (const role of roles) {
     const profileNav = doc.querySelector('.clinic-view-switch a[href*="view=profile"]');
     assert.equal(profileNav.hidden,role==='staff');
     assert.ok(doc.body.classList.contains('clinic-workspace-signed-in'));
-    assert.equal(doc.querySelector('#clinic-alert-count').textContent,'1');
+    const alertCount=doc.querySelector('#clinic-alert-count');
+    if (role==='owner') {
+      await until(()=>alertCount.textContent==='2');
+      doc.querySelector('#clinic-alerts-menu').open=true;
+      const notice=doc.querySelector('#clinic-support-alerts button');
+      assert.match(notice.textContent,/Eden requested support access.*Website Chat/);
+      notice.click();
+      await until(()=>doc.activeElement===doc.querySelector('#eden-review-access-1 > summary'));
+      assert.equal(new URL(win.location.href).searchParams.get('view'),'settings');
+      assert.equal(doc.querySelector('#clinic-alerts-menu').open,false);
+      [...doc.querySelectorAll('#eden-review-access-1 button')].find(button=>button.textContent==='Dismiss').click();
+      await until(()=>alertCount.textContent==='1');
+      assert.equal(doc.querySelector('#clinic-support-alerts').hidden,true);
+      overviewNav.click();
+    } else {
+      assert.equal(alertCount.textContent,'1');
+      assert.ok(!requests.some(([name])=>name==='eden_support_notifications'));
+    }
     assert.equal(doc.querySelector('#clinic-support-dialog a').getAttribute('href'),'mailto:team@clinicnet.live');
     assert.deepEqual([...doc.querySelector('#clinic-send-feedback select').options].slice(1).map(o=>o.value),
       ['1','2','3','4','5','6','7','8','9','10']);
