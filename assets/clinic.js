@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  const API = 'https://eden-webhook-ixdd.onrender.com';
-  const setupOrigin = 'https://voice-demo.clinicnet-web.pages.dev';
+  const API = 'https://eden-webhook-staging.onrender.com';
+  const setupOrigin = location.origin;
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
   const messengerStorageKey = 'eden-messenger-oauth';
@@ -823,7 +823,13 @@
     support.setAttribute('aria-labelledby','clinic-support-title');
     support.innerHTML = `<form method="dialog"><button type="submit" aria-label="Close support">Close</button></form>
       <h2 id="clinic-support-title">Ask Eden</h2>
-      <label for="clinic-help-topic">What would you like help with?</label>
+      <form id="clinic-ask-eden" class="clinic-form">
+        <label for="clinic-help-question">What can I help you with?</label>
+        <textarea id="clinic-help-question" rows="2" maxlength="400" required placeholder="I can’t find a support request"></textarea>
+        <small>Leave out patient details and sign-in codes.</small>
+        <button type="submit">Ask Eden</button>
+      </form>
+      <label for="clinic-help-topic">Or choose a topic</label>
       <select id="clinic-help-topic">
         <option value="">Choose a topic</option>
         <option value="daily">Find a booking or callback</option>
@@ -849,7 +855,9 @@
       menu.open = false;
       support.showModal();
     };
-    support.addEventListener('close',()=>menu.querySelector('summary').focus());
+    support.addEventListener('close',()=>{
+      if (!alerts.open) menu.querySelector('summary').focus();
+    });
     const topic = support.querySelector('#clinic-help-topic');
     const answer = support.querySelector('#clinic-help-answer');
     const help = {
@@ -858,25 +866,67 @@
       revenue:['In Revenue, open a settlement and choose View counted visits to see the payments behind it.','Open Revenue'],
       profile:['Open Clinic Profile to review and approve your location’s patient-facing facts.','Open Clinic Profile']
     };
-    topic.onchange = () => {
-      answer.replaceChildren();
-      const destination = topic.value;
-      const entry = help[destination];
-      if (!entry) return;
-      if (['profile','revenue'].includes(destination) && !canManageClinic) {
-        answer.textContent = 'Ask your clinic owner or admin to open this section.';
-        return;
-      }
+    function showHelp(message, label, navigate) {
       const response = document.createElement('p');
-      response.textContent = entry[0];
+      response.textContent = message;
+      answer.replaceChildren(response);
+      if (!navigate) return;
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = entry[1];
-      action.onclick = () => {
+      action.textContent = label;
+      action.onclick = event => {
+        event.stopPropagation();
         support.close();
-        switchWorkspaceView(destination,true);
+        navigate();
       };
-      answer.append(response,action);
+      answer.append(action);
+    }
+    function showTopic(destination) {
+      const entry = help[destination];
+      if (!entry) {
+        answer.replaceChildren();
+        return;
+      }
+      if (['profile','revenue'].includes(destination) && !canManageClinic) {
+        showHelp('Ask your clinic owner or admin to open this section.');
+        return;
+      }
+      showHelp(entry[0],entry[1],()=>switchWorkspaceView(destination,true));
+    }
+    topic.onchange = () => showTopic(topic.value);
+    support.querySelector('#clinic-ask-eden').onsubmit = event => {
+      event.preventDefault();
+      topic.value = '';
+      const question = support.querySelector('#clinic-help-question').value.trim().toLowerCase();
+      if (/\blocalhost\b|wrong (site|workspace)|staging/.test(question)) {
+        showHelp('Open the workspace where you requested the email and ask for a fresh sign-in link. If it sends you to localhost again, tell Eden Support which workspace you opened.');
+      } else if (/\b(sign[ -]?in|log[ -]?in|login|otp|magic link|rate limit)\b/.test(question)) {
+        showHelp(/rate limit|too many/.test(question)
+          ? 'Your sign-in email limit has been reached. If you already received an unused link for this workspace, open it. Otherwise, wait before requesting a new email.'
+          : 'You’re signed in to this workspace. To use a different account, open the intended workspace in a separate browser profile and request a fresh sign-in email there.');
+      } else if (/\b(support request|access request|(?:find|see|approve) the request|request.*access|approv.*forwarding|missing alert|alerts?)\b/.test(question)) {
+        if (!isClinicOwner) {
+          showHelp('Ask the clinic owner to open Alerts for the location you requested. Only the owner can review a support access request.');
+          return;
+        }
+        showHelp(supportAlertCount
+          ? 'Eden support items are waiting for review in Alerts for this location.'
+          : 'Check that you selected the clinic location the request was sent to. Then open Alerts and look for an Eden support request.',
+        'Open Alerts',()=>{
+          alerts.open = true;
+          alerts.querySelector('summary').focus();
+        });
+      } else if (/\b(connect\w*|messenger|website chat|ai phone|forwarding)\b/.test(question)) {
+        showTopic('setup');
+      } else if (/\b(bookings?|callbacks?|inquir(?:y|ies))\b/.test(question)) {
+        showTopic('daily');
+      } else if (/\b(revenue|settlement|payments?)\b/.test(question)) {
+        showTopic('revenue');
+      } else if (/\b(profile|clinic facts|opening hours)\b/.test(question)) {
+        showTopic('profile');
+      } else {
+        showHelp('I can help with sign-in, access requests, and connections. Try one of those topics or email Eden Support below.');
+      }
     };
     support.querySelector('#clinic-send-feedback').onsubmit = event => {
       event.preventDefault();
@@ -898,6 +948,7 @@
     const support = byId('clinic-support-dialog');
     if (support.open) support.close();
     support.querySelector('#clinic-send-feedback').reset();
+    support.querySelector('#clinic-ask-eden').reset();
     support.querySelector('#clinic-help-topic').value = '';
     support.querySelector('#clinic-help-answer').replaceChildren();
     const list = byId('clinic-workspace-alerts');
@@ -2838,6 +2889,7 @@
   document.addEventListener('visibilitychange', pollInbox);
 
   async function checkWebsitePublication(accountId, locationId, generation) {
+    if (setupOrigin === location.origin) return;
     try {
       const {data} = await state.client.auth.getSession();
       if (!data?.session || generation !== state.generation) return;
@@ -2855,6 +2907,10 @@
   }
 
   async function openWebsiteSetup(button, feedback = (message, kind) => channelFeedback('website_chat',message,kind)) {
+    if (setupOrigin === location.origin) {
+      feedback('The AI receptionist editor is available in the live workspace only.','info');
+      return;
+    }
     const userId = state.session?.user?.id;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
@@ -3197,7 +3253,7 @@
     setSignInBusy(true);
     try {
       const { error } = await state.client.auth.signInWithOtp({ email,
-        options: { emailRedirectTo: location.origin + '/clinic/' + (testReturn ? location.search : '') } });
+        options: { shouldCreateUser: false, emailRedirectTo: location.origin + '/clinic/' + (testReturn ? location.search : '') } });
       if (error) throw error;
       codeForm.reset();
       status('Sign-in email sent to ' + email + '. Enter the code below.', 'success');
@@ -3344,6 +3400,7 @@
       if (!response?.ok) throw Error('Workspace configuration is unavailable.');
       const config = await response.json();
       if (!config.supabaseUrl || !config.publishableKey) throw Error('Clinic sign-in is not activated yet. Please check back soon.');
+      if (config.supabaseUrl !== 'https://cjnwvkzqdejozlfswoxp.supabase.co') throw Error('This preview requires the isolated staging database.');
       if (!window.supabase?.createClient) throw Error('Sign-in could not load. Please refresh the page.');
       staffEmailAvailable = config.staffEmailAvailable === true;
       messengerSetupAvailable = config.messengerSetupAvailable === true;

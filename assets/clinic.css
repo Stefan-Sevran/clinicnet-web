@@ -918,6 +918,8 @@ body[data-page="clinic"]:has(:is(#clinic-daily, #clinic-revenue-view):not([hidde
 .clinic-approved-facts-form .clinic-facts-confirm { display: flex; align-items: center; column-gap: .6rem; }
 .clinic-facts-confirm input { width: 1rem; min-height: 1rem; }
 .clinic-approved-facts-form button { justify-self: start; }
+.clinic-support-dialog #clinic-ask-eden { margin-block: .75rem 1.25rem; }
+.clinic-support-dialog #clinic-help-question { width: 100%; box-sizing: border-box; resize: vertical; }
 .clinic-support-dialog #clinic-help-topic { width: 100%; margin: .35rem 0; }
 .clinic-support-dialog #clinic-help-answer button { margin-top: .5rem; color: #5339c8; }
 

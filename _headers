@@ -1,11 +1,7 @@
 /*
+  X-Robots-Tag: noindex, nofollow
   X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), geolocation=(), microphone=(self)
-  X-Frame-Options: SAMEORIGIN
-
-/*.html
-  Cache-Control: no-cache
-
-/*.js
-  Cache-Control: public, max-age=300, must-revalidate
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+  Content-Security-Policy: connect-src 'self' https://eden-webhook-staging.onrender.com https://cjnwvkzqdejozlfswoxp.supabase.co wss://cjnwvkzqdejozlfswoxp.supabase.co; frame-ancestors 'none'
