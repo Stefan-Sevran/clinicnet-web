@@ -23,7 +23,7 @@ window.edenClinicConfigRequest = fetch('https://eden-webhook-staging.onrender.co
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script defer src="/assets/clinic-rescue.js?v=1"></script>
 <script defer src="/assets/clinic-operations.js?v=3"></script>
-<script defer src="/assets/clinic.js?v=messenger-guide-47"></script>
+<script defer src="/assets/clinic.js?v=ask-eden-demo-1"></script>
 </head><body data-page="clinic" data-header="visible" data-footer="visible">
 <div role="note" style="padding:.6rem;text-align:center;background:#ede9fe;color:#31205b;font-weight:700">Staging preview · Test accounts only</div>
 <a class="skip-link" href="#main-content">Skip to content</a>
@@ -95,9 +95,10 @@ fetchpriority="high"
     </div>
   </section>
   <p id="clinic-status" class="clinic-status" role="status" aria-live="polite">Checking workspace availability…</p>
+  <p><button type="button" id="clinic-try-eden" class="clinic-secondary">Try Ask Eden without signing in</button></p>
 
   <section id="clinic-signin" class="clinic-panel" hidden>
-    <div class="clinic-panel-head"><div><h2>Sign in to your workspace</h2><p>Request a sign-in email, then enter your code below.</p></div></div>
+    <div class="clinic-panel-head"><div><h2>Sign in to your workspace</h2><p>Request a sign-in email and open its link.</p></div></div>
     <form id="clinic-signin-form" class="clinic-form">
       <label for="clinic-email">Work email</label>
       <div class="clinic-form-row"><input id="clinic-email" type="email" autocomplete="email" placeholder="you@yourclinic.com" required><button type="submit">Send sign-in email</button></div>

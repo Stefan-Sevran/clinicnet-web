@@ -823,6 +823,7 @@
     support.setAttribute('aria-labelledby','clinic-support-title');
     support.innerHTML = `<form method="dialog"><button type="submit" aria-label="Close support">Close</button></form>
       <h2 id="clinic-support-title">Ask Eden</h2>
+      <p id="clinic-eden-demo-note" hidden>Demo with a sample clinic. No workspace data is loaded.</p>
       <form id="clinic-ask-eden" class="clinic-form">
         <label for="clinic-help-question">What can I help you with?</label>
         <textarea id="clinic-help-question" rows="2" maxlength="400" required placeholder="I can’t find a support request"></textarea>
@@ -851,12 +852,27 @@
         <button type="submit">Open feedback email</button>
       </form>`;
     document.body.append(support);
+    const tryEden = byId('clinic-try-eden');
+    let demoMode = false;
+    function openSupport(demo) {
+      demoMode = demo;
+      support.querySelector('#clinic-eden-demo-note').hidden = !demo;
+      support.querySelector('#clinic-send-feedback').hidden = demo;
+      support.querySelector('#clinic-send-feedback').style.display = demo ? 'none' : '';
+      support.querySelector('#clinic-ask-eden').reset();
+      topic.value = '';
+      answer.replaceChildren();
+      support.showModal();
+      support.querySelector('#clinic-help-question').focus();
+    }
+    tryEden.onclick = () => openSupport(true);
     menu.querySelector('#clinic-open-support').onclick = () => {
       menu.open = false;
-      support.showModal();
+      openSupport(false);
     };
     support.addEventListener('close',()=>{
-      if (!alerts.open) menu.querySelector('summary').focus();
+      if (demoMode) tryEden.focus();
+      else if (!alerts.open) menu.querySelector('summary').focus();
     });
     const topic = support.querySelector('#clinic-help-topic');
     const answer = support.querySelector('#clinic-help-answer');
@@ -887,6 +903,10 @@
         answer.replaceChildren();
         return;
       }
+      if (demoMode) {
+        showHelp(entry[0]);
+        return;
+      }
       if (['profile','revenue'].includes(destination) && !canManageClinic) {
         showHelp('Ask your clinic owner or admin to open this section.');
         return;
@@ -898,11 +918,14 @@
       event.preventDefault();
       topic.value = '';
       const question = support.querySelector('#clinic-help-question').value.trim().toLowerCase();
-      if (/\blocalhost\b|wrong (site|workspace)|staging/.test(question)) {
+      if (demoMode && /\b(support request|access request|(?:find|see|approve) the request|request.*access|alerts?)\b/.test(question)) {
+        showHelp('In the sample clinic, an Eden support request is waiting. A clinic owner would open Alerts, choose the request, and review it.');
+      } else if (/\blocalhost\b|wrong (site|workspace)|staging/.test(question)) {
         showHelp('Open the workspace where you requested the email and ask for a fresh sign-in link. If it sends you to localhost again, tell Eden Support which workspace you opened.');
       } else if (/\b(sign[ -]?in|log[ -]?in|login|otp|magic link|rate limit)\b/.test(question)) {
         showHelp(/rate limit|too many/.test(question)
           ? 'Your sign-in email limit has been reached. If you already received an unused link for this workspace, open it. Otherwise, wait before requesting a new email.'
+          : demoMode ? 'Open the intended workspace and request a sign-in email. Use the link from that email to return to the workspace.'
           : 'You’re signed in to this workspace. To use a different account, open the intended workspace in a separate browser profile and request a fresh sign-in email there.');
       } else if (/\b(support request|access request|(?:find|see|approve) the request|request.*access|approv.*forwarding|missing alert|alerts?)\b/.test(question)) {
         if (!isClinicOwner) {
@@ -3258,7 +3281,11 @@
       codeForm.reset();
       status('Sign-in email sent to ' + email + '. Enter the code below.', 'success');
       codeInput.focus();
-    } catch (error) { status(error.message, 'error'); }
+    } catch (error) {
+      status(error.code === 'over_email_send_rate_limit' || /email rate limit/i.test(error.message)
+        ? 'The staging email limit has been reached. Try Ask Eden below while sign-in emails are paused.'
+        : error.message, 'error');
+    }
     finally { setSignInBusy(false); }
   });
 
