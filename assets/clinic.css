@@ -1055,3 +1055,7 @@ body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button[a
 @media (max-width: 600px) {
   .clinic-ops-comparison { grid-template-columns: minmax(0, 1fr); }
 }
+
+.clinic-support-dialog #clinic-send-feedback[hidden] { display: none; }
+.clinic-support-dialog #clinic-send-feedback { margin-block: .75rem 1.25rem; }
+.clinic-support-dialog #clinic-send-feedback textarea { width: 100%; box-sizing: border-box; }

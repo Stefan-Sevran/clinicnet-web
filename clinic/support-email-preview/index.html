@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Eden support email preview</title>
+<style>
+body { font: 1rem/1.5 system-ui,sans-serif; color:#202538; background:#f5f4fa; margin:0; }
+main { width:min(42rem, calc(100% - 2rem)); box-sizing:border-box; margin:2rem auto; background:white; padding:clamp(1rem,4vw,2rem); border-radius:.9rem; }
+label, textarea { display:block; }
+textarea { width:100%; box-sizing:border-box; font:inherit; min-height:7rem; padding:.6rem; margin:.5rem 0 1rem; }
+button { background:#175044; color:white; font:inherit; font-weight:700; border:0; border-radius:.5rem; padding:.65rem 1rem; cursor:pointer; }
+pre { font:inherit; white-space:pre-wrap; overflow-wrap:anywhere; background:#f2effa; padding:1rem; border-radius:.5rem; }
+</style>
+<main>
+<a href="/clinic/">Back to Clinic Workspace</a>
+<h1>Eden support email preview</h1>
+<p>Try a sample customer email. This preview creates a draft locally and sends nothing.</p>
+<form>
+<label for="message">Sample email</label>
+<textarea id="message" maxlength="4000" required>Hi, I can’t find the access request in my Clinic Workspace.</textarea>
+<button type="submit">Preview reply</button>
+</form>
+<pre id="answer" role="status" hidden></pre>
+</main>
+<script src="/assets/eden-support-email.js"></script>
+<script>
+document.querySelector('form').onsubmit = event => {
+  event.preventDefault();
+  const answer = document.querySelector('#answer');
+  const result = draftEdenSupportEmail(document.querySelector('#message').value);
+  answer.textContent = result.decision === 'draft' ? result.body : 'Send to a human support specialist for review.';
+  answer.hidden = false;
+};
+</script>
+</html>

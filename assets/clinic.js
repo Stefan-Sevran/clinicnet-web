@@ -840,16 +840,18 @@
         <option value="profile">Update approved clinic facts</option>
       </select>
       <p>Email <a href="mailto:team@clinicnet.live">team@clinicnet.live</a> for help with your workspace.</p>
-      <form id="clinic-send-feedback" class="clinic-form">
-        <label>How is Eden working for your clinic?
+      <form id="clinic-send-feedback" class="clinic-form" hidden>
+        <label>How helpful was this reply?
           <select name="rating" required>
             <option value="">Choose a rating from 1 to 10</option>
             ${Array.from({length:10},(_,index)=>'<option>'+(index+1)+'</option>').join('')}
           </select>
         </label>
-        <label>Suggestions or feedback (optional)<textarea name="feedback" rows="4" maxlength="1200"></textarea></label>
-        <p>Please leave patient information out of your feedback.</p>
-        <button type="submit">Open feedback email</button>
+        <small>1 means not helpful. 10 means very helpful.</small>
+        <label>What could Eden do better? (optional)<textarea name="feedback" rows="2" maxlength="1200"></textarea></label>
+        <small>Leave out patient details and sign-in codes.</small>
+        <button type="submit">Save feedback</button>
+        <p role="status" id="clinic-feedback-status"></p>
       </form>`;
     document.body.append(support);
     const tryEden = byId('clinic-try-eden');
@@ -857,25 +859,36 @@
     function openSupport(demo) {
       demoMode = demo;
       support.querySelector('#clinic-eden-demo-note').hidden = !demo;
-      support.querySelector('#clinic-send-feedback').hidden = demo;
-      support.querySelector('#clinic-send-feedback').style.display = demo ? 'none' : '';
+      resetFeedback();
       support.querySelector('#clinic-ask-eden').reset();
       topic.value = '';
       answer.replaceChildren();
       support.showModal();
       support.querySelector('#clinic-help-question').focus();
     }
-    tryEden.onclick = () => openSupport(true);
+    if (tryEden) tryEden.onclick = () => openSupport(true);
     menu.querySelector('#clinic-open-support').onclick = () => {
       menu.open = false;
       openSupport(false);
     };
     support.addEventListener('close',()=>{
-      if (demoMode) tryEden.focus();
+      if (demoMode) tryEden?.focus();
       else if (!alerts.open) menu.querySelector('summary').focus();
     });
     const topic = support.querySelector('#clinic-help-topic');
     const answer = support.querySelector('#clinic-help-answer');
+    const feedbackForm = support.querySelector('#clinic-send-feedback');
+    const feedbackStatus = support.querySelector('#clinic-feedback-status');
+    let feedbackId;
+    let ratedReply;
+    function resetFeedback() {
+      feedbackForm.reset();
+      feedbackForm.hidden = true;
+      feedbackForm.querySelector('button').disabled = false;
+      feedbackStatus.textContent = '';
+      feedbackId = undefined;
+      ratedReply = undefined;
+    }
     const help = {
       daily:['Open Daily Action to see bookings and inquiries. Choose Needs attention to find unclaimed callbacks.','Open Daily Action'],
       setup:['Open Connect and select the channel. Follow the next action shown for that connection.','Open Connect'],
@@ -888,6 +901,10 @@
       const labelElement = document.createElement('strong');
       labelElement.textContent = 'Eden’s reply';
       answer.replaceChildren(labelElement,response);
+      resetFeedback();
+      ratedReply = message;
+      answer.after(feedbackForm);
+      feedbackForm.hidden = false;
       if (!navigate) return;
       const action = document.createElement('button');
       action.type = 'button';
@@ -903,6 +920,7 @@
       const entry = help[destination];
       if (!entry) {
         answer.replaceChildren();
+        resetFeedback();
         return;
       }
       if (demoMode) {
@@ -953,16 +971,38 @@
         showHelp('I can help with sign-in, access requests, and connections. Try one of those topics or email Eden Support below.');
       }
     };
-    support.querySelector('#clinic-send-feedback').onsubmit = event => {
+    feedbackForm.onsubmit = async event => {
       event.preventDefault();
-      const data = new FormData(event.currentTarget);
+      const control = feedbackForm.querySelector('button');
+      if (control.disabled || !ratedReply) return;
+      const data = new FormData(feedbackForm);
       const rating = data.get('rating');
       if (!/^(?:[1-9]|10)$/.test(rating)) return;
-      const subject = encodeURIComponent('Eden workspace feedback');
-      const body = encodeURIComponent('Rating: '+rating+'/10\n\n'+data.get('feedback').trim());
-      const link = document.createElement('a');
-      link.href = 'mailto:team@clinicnet.live?subject='+subject+'&body='+body;
-      link.click();
+      const id = feedbackId ??= crypto.randomUUID();
+      const comment = data.get('feedback').trim();
+      const reply = ratedReply;
+      control.disabled = true;
+      feedbackStatus.textContent = 'Saving feedback…';
+      try {
+        if (demoMode) {
+          const key = 'eden-ask-demo-feedback';
+          const previous = JSON.parse(localStorage.getItem(key) || '[]');
+          localStorage.setItem(key, JSON.stringify([...previous.slice(-19),{id,rating:Number(rating),comment,reply}]));
+        } else {
+          if (!state.session) throw Error('Signed out');
+          const {error} = await state.client.rpc('eden_save_reply_feedback', {
+            p_id:id,p_reply:reply,p_rating:Number(rating),p_comment:comment
+          });
+          if (error) throw error;
+        }
+        if (feedbackId === id) feedbackStatus.textContent = demoMode
+          ? 'Demo feedback saved on this browser.'
+          : 'Thanks. Your feedback was saved.';
+      } catch {
+        if (feedbackId !== id) return;
+        control.disabled = false;
+        feedbackStatus.textContent = 'Feedback could not be saved. Please try again.';
+      }
     };
     return controls;
   }
@@ -972,7 +1012,9 @@
     byId('clinic-account-menu').open = false;
     const support = byId('clinic-support-dialog');
     if (support.open) support.close();
-    support.querySelector('#clinic-send-feedback').reset();
+    const feedback = support.querySelector('#clinic-send-feedback');
+    feedback.reset();
+    feedback.hidden = true;
     support.querySelector('#clinic-ask-eden').reset();
     support.querySelector('#clinic-help-topic').value = '';
     support.querySelector('#clinic-help-answer').replaceChildren();
