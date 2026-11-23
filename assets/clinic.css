@@ -974,3 +974,22 @@ body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button[a
 .clinic-ops-form :is(select, textarea) { width: 100%; box-sizing: border-box; }
 .clinic-ops-form textarea { min-height: 4rem; }
 .clinic-ops-form button { justify-self: start; }
+
+.clinic-ops-operator > details > label { display: grid; gap: .35rem; max-width: 42rem; margin-block: .75rem; }
+.clinic-ops-form select, .clinic-ops-operator > details > label select {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  width: 100%;
+  padding-inline: .65rem;
+  border: 1px solid #ded8ed;
+  border-radius: .5rem;
+  background: white;
+  font: inherit;
+  color: inherit;
+}
+.clinic-ops-values { margin: .75rem 0; }
+.clinic-ops-values dt { margin-top: .65rem; font-weight: 650; }
+.clinic-ops-values dd { margin: .25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.clinic-ops-review { padding: .85rem; margin-block: .65rem; border: 1px solid #ded8ed; border-radius: .55rem; }
+.clinic-ops-review summary { overflow-wrap: anywhere; }
+.clinic-ops-review-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }

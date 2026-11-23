@@ -2640,7 +2640,16 @@
       state.visitCurrency = currency;
       if (operationsAvailable && isClinicOwner && workspaceViews.ownerSupport.dataset.location !== locationId) {
         workspaceViews.ownerSupport.dataset.location = locationId;
-        workspaceViews.ownerSupport.replaceChildren(ClinicOperations.owner(state.client,locationId));
+        workspaceViews.ownerSupport.replaceChildren(ClinicOperations.owner(state.client,locationId,facts=>{
+          if (byId('clinic-location').value!==locationId) return;
+          clinicFactsRequest=undefined;
+          const messenger=selectedMessengerGuide();
+          if (messenger) {
+            messenger.facts=facts;
+            renderChannels();
+            renderMessengerGuide({resetFacts:true});
+          }
+        }));
       } else if (!operationsAvailable || !isClinicOwner) {
         delete workspaceViews.ownerSupport.dataset.location;
         workspaceViews.ownerSupport.replaceChildren();
