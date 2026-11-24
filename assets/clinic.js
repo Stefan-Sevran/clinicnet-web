@@ -97,6 +97,10 @@
   let lastInboxPoll = 0;
   let alertScope;
   let observedAlerts = new Set();
+  let workspaceAttentionCount = 0;
+  let supportAlertCount = 0;
+  let askEden;
+  let supportAlertRequest = 0;
   let alertAudio;
   let clinicFactsRequest;
   let loadedGeneration = -1;
@@ -765,6 +769,7 @@
       <section class="clinic-workspace-popover" aria-label="Recent clinic activity">
         <h2>Recent clinic activity</h2>
         <button type="button" id="clinic-alert-sound" aria-pressed="false">Enable alert sound</button>
+        <ul id="clinic-support-alerts" aria-label="Eden support" hidden></ul>
         <ul id="clinic-workspace-alerts" aria-label="Recent activity"></ul>
       </section>
     </details>
@@ -779,6 +784,9 @@
     </details>`;
     const menu = controls.querySelector('#clinic-account-menu');
     const alerts = controls.querySelector('#clinic-alerts-menu');
+    alerts.addEventListener('toggle', () => {
+      if (alerts.open) void refreshSupportAlerts();
+    });
     const sound = controls.querySelector('#clinic-alert-sound');
     sound.hidden = !window.AudioContext;
     sound.onclick = async () => {
@@ -810,108 +818,123 @@
     document.addEventListener('click',event=>{
       for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
     });
-    const support = document.createElement('dialog');
-    support.className = 'clinic-support-dialog';
-    support.id = 'clinic-support-dialog';
-    support.setAttribute('aria-labelledby','clinic-support-title');
-    support.innerHTML = `<form method="dialog"><button type="submit" aria-label="Close support">Close</button></form>
-      <h2 id="clinic-support-title">Ask Eden</h2>
-      <label for="clinic-help-topic">What would you like help with?</label>
-      <select id="clinic-help-topic">
-        <option value="">Choose a topic</option>
-        <option value="daily">Find a booking or callback</option>
-        <option value="setup">Troubleshoot a connection</option>
-        <option value="revenue">Understand Revenue Rescue</option>
-        <option value="profile">Update approved clinic facts</option>
-      </select>
-      <div id="clinic-help-answer" aria-live="polite"></div>
-      <p>Email <a href="mailto:team@clinicnet.live">team@clinicnet.live</a> for help with your workspace.</p>
-      <form id="clinic-send-feedback" class="clinic-form">
-        <label>How is Eden working for your clinic?
-          <select name="rating" required>
-            <option value="">Choose a rating from 1 to 10</option>
-            ${Array.from({length:10},(_,index)=>'<option>'+(index+1)+'</option>').join('')}
-          </select>
-        </label>
-        <label>Suggestions or feedback (optional)<textarea name="feedback" rows="4" maxlength="1200"></textarea></label>
-        <p>Please leave patient information out of your feedback.</p>
-        <button type="submit">Open feedback email</button>
-      </form>`;
-    document.body.append(support);
-    menu.querySelector('#clinic-open-support').onclick = () => {
-      menu.open = false;
-      support.showModal();
-    };
-    support.addEventListener('close',()=>menu.querySelector('summary').focus());
-    const topic = support.querySelector('#clinic-help-topic');
-    const answer = support.querySelector('#clinic-help-answer');
-    const help = {
-      daily:['Open Daily Action to see bookings and inquiries. Choose Needs attention to find unclaimed callbacks.','Open Daily Action'],
-      setup:['Open Connect and select the channel. Follow the next action shown for that connection.','Open Connect'],
-      revenue:['In Revenue, open a settlement and choose View counted visits to see the payments behind it.','Open Revenue'],
-      profile:['Open Clinic Profile to review and approve your location’s patient-facing facts.','Open Clinic Profile']
-    };
-    topic.onchange = () => {
-      answer.replaceChildren();
-      const destination = topic.value;
-      const entry = help[destination];
-      if (!entry) return;
-      if (['profile','revenue'].includes(destination) && !canManageClinic) {
-        answer.textContent = 'Ask your clinic owner or admin to open this section.';
-        return;
-      }
-      const response = document.createElement('p');
-      response.textContent = entry[0];
-      const action = document.createElement('button');
-      action.type = 'button';
-      action.textContent = entry[1];
-      action.onclick = () => {
-        support.close();
-        switchWorkspaceView(destination,true);
+    if (window.ClinicNetAskEden) {
+      const {mount, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
+      const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
+      const statusLabel = {connected:'Connected', requested:'Setup requested', action_required:'Action required'};
+      askEden = mount({
+        answerQuestion(question) {
+          const reply = publicReply(question);
+          const locationId = byId('clinic-location').value;
+          const location = state.locations.find(item => String(item.id) === locationId);
+          if (!state.session || !location || loadedGeneration !== state.generation) return reply;
+          if (reply.view === 'alerts') {
+            if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.'};
+            return {...reply, onAction:() => {
+              alerts.open = true;
+              alerts.querySelector('summary').focus();
+            }};
+          }
+          if (['profile','revenue'].includes(reply.view) && !canManageClinic) {
+            return {answer:'Ask a clinic owner or admin to open this section.'};
+          }
+          const channel = channelByGuide[reply.guide];
+          const connection = channel && state.connections.find(item=>item.channel===channel);
+          const status = connection && statusLabel[connection.status];
+          const answer = status ? location.name + ' · ' + status + '. ' + reply.answer : reply.answer;
+          return {...reply, answer, onAction:reply.view ? () => switchWorkspaceView(reply.view,true) : undefined};
+        },
+        async saveFeedback(entry) {
+          if (!state.session) return saveGuestFeedback(entry);
+          const {error} = await state.client.rpc('eden_save_reply_feedback', {
+            p_id:entry.id, p_reply:entry.answer, p_rating:entry.rating, p_comment:entry.comment
+          });
+          if (error) throw error;
+        }
+      });
+      const entry = menu.querySelector('#clinic-open-support');
+      entry.onclick = () => {
+        menu.open = false;
+        askEden.open(menu.querySelector('summary'));
       };
-      answer.append(response,action);
-    };
-    support.querySelector('#clinic-send-feedback').onsubmit = event => {
-      event.preventDefault();
-      const data = new FormData(event.currentTarget);
-      const rating = data.get('rating');
-      if (!/^(?:[1-9]|10)$/.test(rating)) return;
-      const subject = encodeURIComponent('Eden workspace feedback');
-      const body = encodeURIComponent('Rating: '+rating+'/10\n\n'+data.get('feedback').trim());
-      const link = document.createElement('a');
-      link.href = 'mailto:team@clinicnet.live?subject='+subject+'&body='+body;
-      link.click();
-    };
+    }
     return controls;
   }
 
   function clearWorkspaceAlerts() {
     byId('clinic-alerts-menu').open = false;
     byId('clinic-account-menu').open = false;
-    const support = byId('clinic-support-dialog');
-    if (support.open) support.close();
-    support.querySelector('#clinic-send-feedback').reset();
-    support.querySelector('#clinic-help-topic').value = '';
-    support.querySelector('#clinic-help-answer').replaceChildren();
+    askEden?.reset();
     const list = byId('clinic-workspace-alerts');
     const message = document.createElement('li');
     message.textContent = 'Choose a clinic to see its recent activity.';
     list.replaceChildren(message);
-    byId('clinic-alert-count').hidden = true;
+    ++supportAlertRequest;
+    workspaceAttentionCount = 0;
+    supportAlertCount = 0;
+    const supportList = byId('clinic-support-alerts');
+    supportList.replaceChildren();
+    supportList.hidden = true;
+    updateWorkspaceAlertCount();
     observedAlerts.clear();
     alertScope = undefined;
   }
 
+  function updateWorkspaceAlertCount() {
+    const count = byId('clinic-alert-count');
+    const total = workspaceAttentionCount + supportAlertCount;
+    count.hidden = total === 0;
+    count.textContent = String(total);
+  }
+
+  async function refreshSupportAlerts(locationId = byId('clinic-location').value, generation = state.generation) {
+    if (!operationsAvailable || !isClinicOwner || !locationId) return;
+    const requestId = ++supportAlertRequest;
+    try {
+      const {data, error} = await state.client.rpc('eden_support_notifications', {p_location: locationId});
+      if (error || !Array.isArray(data) || requestId !== supportAlertRequest || generation !== state.generation ||
+          locationId !== byId('clinic-location').value) return;
+      const list = byId('clinic-support-alerts');
+      const rows = data.map(item => {
+        const row = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.reviewId = item.id;
+        const title = document.createElement('strong');
+        title.textContent = ClinicOperations.notificationTitle(item);
+        const detail = document.createElement('span');
+        detail.textContent = ClinicOperations.targetLabel(item.target);
+        button.append(title, detail);
+        button.onclick = () => {
+          byId('clinic-alerts-menu').open = false;
+          switchWorkspaceView('settings', true);
+          void workspaceViews.ownerSupport.firstElementChild?.openReview(item.id);
+        };
+        row.append(button);
+        return row;
+      });
+      const focusedReview = list.contains(document.activeElement) ? document.activeElement.dataset.reviewId : null;
+      list.replaceChildren(...rows);
+      list.hidden = !rows.length;
+      if (focusedReview) {
+        const replacement = rows.find(row => row.firstElementChild.dataset.reviewId === focusedReview);
+        (replacement?.firstElementChild || byId('clinic-alerts-menu').querySelector('summary')).focus();
+      }
+      supportAlertCount = rows.length;
+      updateWorkspaceAlertCount();
+    } catch {
+      // Leave the current alerts visible if a refresh fails.
+    }
+  }
+
   function renderWorkspaceAlerts(activity, attention, booked) {
     const list = byId('clinic-workspace-alerts');
-    const count = byId('clinic-alert-count');
     const needsAction = new Set(attention);
     const confirmed = new Set(booked);
     const recent = activity.filter(event=>event.event_key && !event.details?.demo &&
       (followupKinds.includes(event.kind) || confirmed.has(event))).slice(0,12);
-    const attentionCount = attention.filter(event=>!event.details?.demo).length;
-    count.hidden = attentionCount===0;
-    count.textContent = String(attentionCount);
+    workspaceAttentionCount = attention.filter(event=>!event.details?.demo).length;
+    updateWorkspaceAlertCount();
     const scope = byId('clinic-account').value + '/' + byId('clinic-location').value;
     if (scope !== alertScope) observedAlerts.clear();
     const keys = recent.map(event=>event.event_key + (confirmed.has(event) ? ':booked' : ':received'));
@@ -2612,6 +2635,7 @@
       byId('clinic-overview-revenue').textContent = 'No clinic location is available.';
       return;
     }
+    if (quiet) void refreshSupportAlerts(locationId, generation);
     const activityQuery = '?accountId=' + encodeURIComponent(accountId) + '&locationId=' + encodeURIComponent(locationId);
     const [bookings, inbox, followups, connections, team, currency] = await timedRead(Promise.all([
       request('/clinic/bookings' + activityQuery), request('/clinic/inbox' + activityQuery + '&limit=100'),
@@ -2640,7 +2664,7 @@
       state.visitCurrency = currency;
       if (operationsAvailable && isClinicOwner && workspaceViews.ownerSupport.dataset.location !== locationId) {
         workspaceViews.ownerSupport.dataset.location = locationId;
-        workspaceViews.ownerSupport.replaceChildren(ClinicOperations.owner(state.client,locationId,facts=>{
+        const panel = ClinicOperations.owner(state.client,locationId,facts=>{
           if (byId('clinic-location').value!==locationId) return;
           clinicFactsRequest=undefined;
           const messenger=selectedMessengerGuide();
@@ -2649,11 +2673,22 @@
             renderChannels();
             renderMessengerGuide({resetFacts:true});
           }
-        }));
+        }, target => {
+          if (target === 'staff_alert') {
+            switchWorkspaceView('settings',true);
+            focusProfileControl(alertEmailInput);
+          } else {
+            switchWorkspaceView('profile',true);
+            byId('clinic-profile-'+target)?.click();
+          }
+        });
+        panel.addEventListener('eden-support-reviewed', () => void refreshSupportAlerts());
+        workspaceViews.ownerSupport.replaceChildren(panel);
       } else if (!operationsAvailable || !isClinicOwner) {
         delete workspaceViews.ownerSupport.dataset.location;
         workspaceViews.ownerSupport.replaceChildren();
       }
+      void refreshSupportAlerts(locationId, generation);
       ClinicRescue.pending({client:state.client,locationId,timezone,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
       ClinicRescue.attributionReviews({client:state.client,locationId,timezone});
       const clinicName = state.locations.find(l=>l.id===locationId)?.name || '';
@@ -3132,7 +3167,11 @@
       codeForm.reset();
       status('Sign-in email sent to ' + email + '. Enter the code below.', 'success');
       codeInput.focus();
-    } catch (error) { status(error.message, 'error'); }
+    } catch (error) {
+      status(error.code === 'over_email_send_rate_limit' || /email rate limit/i.test(error.message)
+        ? 'The sign-in email limit has been reached. Use an unused sign-in link or try again later.'
+        : error.message, 'error');
+    }
     finally { setSignInBusy(false); }
   });
 

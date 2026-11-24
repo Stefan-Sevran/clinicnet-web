@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { setTimeout as pause } from 'node:timers/promises';
 
 const { JSDOM } = createRequire(import.meta.url)(process.env.EDEN_JSDOM_MODULE || 'jsdom');
-const [html, rescue, workspace] = await Promise.all(['clinic/index.html','assets/clinic-rescue.js','assets/clinic.js']
+const [html, rescue, operations, workspace, knowledge, help] = await Promise.all(['clinic/index.html','assets/clinic-rescue.js','assets/clinic-operations.js','assets/clinic.js','assets/eden-support-knowledge.js','assets/ask-eden.js']
   .map(path=>readFile(new URL('../'+path,import.meta.url),'utf8')));
 const account = '10000000-0000-4000-8000-000000000001';
 const cebu = '20000000-0000-4000-8000-000000000001';
@@ -40,6 +40,7 @@ for (const role of roles) {
     let session = {access_token:'fixture',user:{id:'member',email:'fixture@example.test'}};
     let authChanged;
     let approvedFacts = null;
+    let supportPending = true;
     let factsWrites = 0;
     let editorRequests = 0;
     let configReads = 0;
@@ -117,6 +118,16 @@ for (const role of roles) {
           }
           return {data:approvedFacts};
         }
+        if (name==='eden_save_reply_feedback') return {data:null};
+        if (name==='eden_support_notifications') return {data:args.p_location===cebu && supportPending ?
+          [{id:'access-1',kind:'access',target:'website_chat'}] : []};
+        if (name==='eden_support_inbox') return {data:[{id:'access-1',kind:'access',target:'website_chat',
+          operator_email:'agent@example.test',created_at:'2026-11-22T10:00:00Z',decision:supportPending?'pending':'dismissed'}]};
+        if (name==='eden_review_support_request') {
+          assert.equal(args.p_request,'access-1');
+          assert.equal(args.p_approve,false);
+          supportPending=false;
+        }
         if (name==='current_rescue_period') {
           if (args.p_location===cebu && delayCebu) return new Promise(resolve=>{ resolveCebu=resolve; });
           return {data:{...dates,...data[args.p_location]}};
@@ -130,7 +141,7 @@ for (const role of roles) {
         return builder;
       }
     })};
-    win.eval(rescue+'\n'+workspace);
+    win.eval([rescue, operations, knowledge, help, workspace].join('\n'));
     const overview = doc.querySelector('#clinic-owner-overview');
     const hero = doc.querySelector('.clinic-hero');
     const overviewNav = doc.querySelector('.clinic-view-switch a[href*="view=overview"]');
@@ -150,9 +161,60 @@ for (const role of roles) {
     const profileNav = doc.querySelector('.clinic-view-switch a[href*="view=profile"]');
     assert.equal(profileNav.hidden,role==='staff');
     assert.ok(doc.body.classList.contains('clinic-workspace-signed-in'));
-    assert.equal(doc.querySelector('#clinic-alert-count').textContent,'1');
-    assert.equal(doc.querySelector('#clinic-support-dialog a').getAttribute('href'),'mailto:team@clinicnet.live');
-    assert.deepEqual([...doc.querySelector('#clinic-send-feedback select').options].slice(1).map(o=>o.value),
+    const helpDialog=doc.querySelector('#eden-help');
+    helpDialog.show=()=>{helpDialog.open=true;};
+    helpDialog.close=()=>{helpDialog.open=false;};
+    const askEden=async question=>{
+      doc.querySelector('#clinic-open-support').click();
+      doc.querySelector('#eden-help-question').value=question;
+      helpDialog.querySelector('.eden-help-composer').dispatchEvent(new win.Event('submit',{cancelable:true}));
+      const answer=[...helpDialog.querySelectorAll('.eden-help-answer')].at(-1);
+      await until(()=>answer.querySelector('details'));
+      return answer;
+    };
+    assert.match((await askEden('My sign-in link goes to localhost')).textContent,/fresh sign-in email/);
+    assert.match((await askEden('Messenger stopped connecting')).textContent,/Open Connect/);
+    const unfamiliar=await askEden('How do I export my data?');
+    assert.match(unfamiliar.textContent,/What were you trying to do/);
+    const feedback=unfamiliar.querySelector('.eden-help-feedback');
+    assert.equal(feedback.open,true);
+    feedback.querySelector('[aria-label="9 out of 10"]').click();
+    await until(()=>requests.filter(([name])=>name==='eden_save_reply_feedback').length===1);
+    feedback.querySelector('textarea').value='The next step was clear.';
+    feedback.querySelector('.eden-help-done').click();
+    await until(()=>feedback.open===false);
+    const [rating,saved]=requests.filter(([name])=>name==='eden_save_reply_feedback');
+    assert.equal(saved[1].p_id,rating[1].p_id);
+    assert.equal(saved[1].p_rating,9);
+    assert.equal(saved[1].p_comment,'The next step was clear.');
+    assert.match(saved[1].p_reply,/What were you trying to do/);
+    const alertCount=doc.querySelector('#clinic-alert-count');
+    if (role==='owner') {
+      await until(()=>alertCount.textContent==='2');
+      const guidance=await askEden('I can’t see the access request');
+      assert.match(guidance.textContent,/open Alerts/i);
+      guidance.querySelector('.eden-help-action').click();
+      assert.equal(doc.querySelector('#clinic-alerts-menu').open,true);
+      const notice=doc.querySelector('#clinic-support-alerts button');
+      assert.match(notice.textContent,/Eden requested support access.*Website Chat/);
+      notice.click();
+      await until(()=>doc.activeElement===doc.querySelector('#eden-review-access-1 > summary'));
+      assert.equal(new URL(win.location.href).searchParams.get('view'),'settings');
+      assert.equal(doc.querySelector('#clinic-alerts-menu').open,false);
+      [...doc.querySelectorAll('#eden-review-access-1 button')].find(button=>button.textContent==='Dismiss').click();
+      await until(()=>alertCount.textContent==='1');
+      assert.equal(doc.querySelector('#clinic-support-alerts').hidden,true);
+      overviewNav.click();
+    } else {
+      const guidance=await askEden('Where is the access request?');
+      assert.match(guidance.textContent,/Ask the clinic owner/);
+      assert.equal(guidance.querySelector('.eden-help-action'),null);
+      helpDialog.close();
+      assert.equal(alertCount.textContent,'1');
+      assert.ok(!requests.some(([name])=>name==='eden_support_notifications'));
+    }
+    assert.equal(helpDialog.querySelector('a[href^="mailto:"]').getAttribute('href'),'mailto:team@clinicnet.live');
+    assert.deepEqual([...feedback.querySelectorAll('.eden-help-ratings button')].map(button=>button.textContent),
       ['1','2','3','4','5','6','7','8','9','10']);
     assert.equal(hero.hidden,true);
     const accountMenu = doc.querySelector('#clinic-account-menu');
@@ -211,10 +273,7 @@ for (const role of roles) {
     await until(()=>approvedForm.textContent.includes('Approved facts saved'));
     assert.equal(factsWrites,1);
     assert.equal(approvedFacts.hours,'Fixture hours');
-    const helpPicker = doc.querySelector('#clinic-help-topic');
-    helpPicker.value = 'revenue';
-    helpPicker.dispatchEvent(new win.Event('change'));
-    assert.match(doc.querySelector('#clinic-help-answer').textContent,/View counted visits/);
+    assert.match((await askEden('Why was this visit counted in the settlement?')).textContent,/View counted visits/);
     doc.querySelector('#clinic-open-settings').click();
     assert.equal(doc.querySelector('#clinic-settings-view').hidden,false);
     assert.ok(doc.querySelector('#clinic-settings-view #clinic-team-invite'));

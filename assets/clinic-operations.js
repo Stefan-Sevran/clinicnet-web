@@ -17,8 +17,21 @@ const ClinicOperations = (() => {
   const button = (label,type='button') => Object.assign(el('button',label),{type});
   const form = () => Object.assign(el('form'),{className:'clinic-form clinic-ops-form'});
   const time = value => new Date(value).toLocaleString();
-  const scopeName = scope => scope==='read'?'Read only':'Propose Messenger changes';
-  const factLabels = {services:'Services',hours:'Opening hours',address:'Address',bookingRules:'Booking instructions'};
+  const scopes={read:'Read only',messenger_facts:'Propose Messenger changes',website_chat:'Propose Website Chat changes',
+    ai_phone:'Propose AI Phone changes',staff_alert:'Propose staff alert email'};
+  const scopeName = scope => scopes[scope] || 'Support access';
+  const targets={read:'Connection status and Messenger facts',messenger_facts:'Messenger',website_chat:'Website Chat',
+    ai_phone:'AI Phone',staff_alert:'Staff alerts'};
+  const factLabels = {services:'Services',hours:'Opening hours',address:'Address and directions',bookingRules:'Booking instructions',
+    common_answers:'Common answers',handoff:'Staff handoff and after-hours instructions',
+    forwarding_carrier:'Phone carrier',forwarding_code:'Tentative forwarding code',alert_email:'Staff alert email'};
+  const messengerFields=['services','hours','address','bookingRules'];
+  const draftFields=['services','hours','address','common_answers','bookingRules','handoff'];
+  const forwardingFields=['forwarding_carrier','forwarding_code'];
+  const forwardingNotice='Confirm the code with the carrier and verify the destination with a test call before the clinic uses it.';
+  const isDraft=target=>['website_chat','ai_phone','staff_alert'].includes(target);
+  const notificationTitle=item=>item.kind==='access'?'Eden requested support access':'Eden changes ready for review';
+  const targetLabel=target=>targets[target] || 'Eden support';
   const channelLabels = {website_chat:'Website Chat',facebook_messenger:'Messenger',ai_phone:'AI Phone'};
   const connectionLabels = {connected:'Connected',verifying:'Verification pending',requested:'Setup requested',
     disconnected:'Disconnected',action_required:'Needs attention'};
@@ -41,7 +54,27 @@ const ClinicOperations = (() => {
     const [grants,finance] = await Promise.all([
       rpc(client,'eden_support_locations'),rpc(client,'eden_finance_locations')
     ]);
-    if (!grants?.length && !finance?.length) return false;
+    const requestable=await rpc(client,'eden_support_request_locations').catch(()=>[]);
+    if (!grants?.length && !finance?.length && !requestable?.length) return false;
+    if (requestable?.length) {
+      const panel=el('details');
+      panel.append(el('summary','Request clinic access'));
+      const editor=form(),note=status();
+      const location=field(editor,'Business account and location',select(requestable.map(row=>
+        [row.location_id,row.account_name+' · '+row.location_name])));
+      const scope=field(editor,'Support area',select(Object.entries(scopes)));
+      const send=button('Request 1 hour of access','submit');
+      editor.append(send,note);
+      editor.onsubmit=event=>{
+        event.preventDefault();
+        void action(send,note,async()=>{
+          await rpc(client,'eden_request_support',{p_location:location.value,p_scope:scope.value});
+          note.textContent='Sent to the clinic owner’s alerts.';
+        });
+      };
+      panel.append(editor);
+      host.append(panel);
+    }
     if (grants?.length) {
       const panel=el('details');
       panel.append(el('summary','Switch location · Eden support'));
@@ -67,22 +100,31 @@ const ClinicOperations = (() => {
           diagnostics.append(el('h3','Connection status'),list);
         }).catch(()=>{ diagnostics.append(el('p','Connection status is unavailable.')); });
         try {
-          const expected=await rpc(client,'eden_support_messenger_facts',{p_grant:grant.grant_id});
+          const draft=isDraft(grant.scope);
+          const expected=await rpc(client,draft?'eden_support_draft_context':'eden_support_messenger_facts',{p_grant:grant.grant_id});
           if (picker.value!==grant.grant_id || !note.isConnected) return;
           note.textContent=scopeName(grant.scope)+' · Ends '+time(grant.expires_at);
           if (grant.scope==='read') {
             const facts=el('dl');
             facts.className='clinic-ops-values';
-            for (const [key,label] of Object.entries(factLabels)) {
-              facts.append(el('dt',label),el('dd',expected[key] ?? 'Not set'));
+            for (const key of messengerFields) {
+              facts.append(el('dt',factLabels[key]),el('dd',expected[key] ?? 'Not set'));
             }
             content.append(el('h3','Messenger facts'),facts);
           } else {
             const editor=form(), inputs={};
             editor.classList.add('clinic-approved-facts-form');
-            editor.append(el('h3','Messenger facts'),el('p','The clinic owner reviews your proposal before it goes live. Use clinic information meant for patients.'));
-            for (const [key,label] of Object.entries(factLabels)) {
-              inputs[key]=field(editor,label,Object.assign(el('textarea'),{value:expected[key] ?? '',maxLength:900}));
+            editor.append(el('h3',draft?targetLabel(grant.scope)+' draft':'Messenger facts'),
+              el('p',draft?'Fill only the fields you want to propose. The owner reviews and applies the draft in the relevant settings.':
+                'The clinic owner reviews your proposal before it goes live. Use clinic information meant for patients.'));
+            if (grant.scope==='ai_phone') editor.append(el('p','For a forwarding draft, enter both the carrier and the proposed code. '+forwardingNotice));
+            const fields=grant.scope==='ai_phone'?[...draftFields,...forwardingFields]:grant.scope==='staff_alert'?['alert_email']:draft?draftFields:messengerFields;
+            for (const key of fields) {
+              const input=key==='alert_email'?Object.assign(el('input'),{type:'email',required:true,maxLength:254}):
+                Object.assign(el('textarea'),{maxLength:900});
+              if (forwardingFields.includes(key)) input.maxLength=key==='forwarding_code'?80:100;
+              input.value=expected[key] ?? '';
+              inputs[key]=field(editor,factLabels[key],input);
             }
             const save=button('Send for owner approval','submit');
             const result=status();
@@ -93,11 +135,16 @@ const ClinicOperations = (() => {
               const p_changes=Object.fromEntries(Object.entries(inputs).flatMap(([key,input])=>
                 input.value.trim()!==(expected[key] ?? '').trim() ? [[key,input.value.trim()]] : []));
               if (!Object.keys(p_changes).length) {
-                result.textContent='Change at least one Messenger fact before sending.';
+                result.textContent='Change at least one field before sending.';
+                return;
+              }
+              if (grant.scope==='ai_phone' && forwardingFields.filter(key=>Object.hasOwn(p_changes,key)).length===1) {
+                result.textContent='Enter both the carrier and the proposed forwarding code.';
                 return;
               }
               void action(save,result,async()=>{
-                await rpc(client,'eden_propose_support_change',{p_grant:grant.grant_id,p_changes,p_expected:expected});
+                if (draft) await rpc(client,'eden_propose_support_draft',{p_grant:grant.grant_id,p_draft:p_changes,p_expected:expected});
+                else await rpc(client,'eden_propose_support_change',{p_grant:grant.grant_id,p_changes,p_expected:expected});
                 result.textContent='Sent for owner approval.';
               });
             };
@@ -144,59 +191,159 @@ const ClinicOperations = (() => {
     return true;
   }
 
-  function owner(client,p_location,onFactsChanged=()=>{}) {
+  function comparison(before,after) {
+    const oldText=before ?? '';
+    const newText=after ?? '';
+    let start=0, end=0;
+    while (start<oldText.length && start<newText.length && oldText[start]===newText[start]) start++;
+    while (end<oldText.length-start && end<newText.length-start &&
+      oldText[oldText.length-1-end]===newText[newText.length-1-end]) end++;
+    const full=el('details');
+    full.className='clinic-ops-full-comparison';
+    full.append(el('summary','Show full comparison'));
+    const compact=el('div');
+    compact.className='clinic-ops-comparison';
+    const complete=el('div');
+    complete.className='clinic-ops-comparison';
+    for (const [text,label] of [[oldText,'Before'],[newText,'Proposed']]) {
+      const finish=text.length-end;
+      const changed=text.slice(start,finish);
+      const snippet=el('p');
+      const prefix=text.slice(Math.max(0,start-42),start);
+      const suffix=text.slice(finish,finish+42);
+      const excerpt=changed.length>160?changed.slice(0,90)+' … '+changed.slice(-55):changed;
+      snippet.append((start>42?'…':'')+prefix,el('mark',excerpt || (text?'∅':'Not set')),suffix+(end>42?'…':''));
+      const cell=el('div'), original=el('div');
+      cell.append(el('strong',label),snippet);
+      original.append(el('strong',label),el('p',text || 'Not set'));
+      compact.append(cell);
+      complete.append(original);
+    }
+    full.append(complete);
+    return {compact,full};
+  }
+
+  function owner(client,p_location,onFactsChanged=()=>{},openDestination=()=>{}) {
     const panel=el('details');
     panel.className='clinic-panel';
     panel.append(el('summary','Eden support access'));
     const editor=form();
     const email=field(editor,'Eden specialist’s work email',Object.assign(el('input'),{type:'email',required:true}));
-    const scope=field(editor,'Access',select([['read','Read only'],['messenger_facts','Propose Messenger changes']]));
+    const scope=field(editor,'Access',select(Object.entries(scopes).slice(0,2)));
     const hours=field(editor,'Expires in',select([['1','1 hour'],['4','4 hours'],['24','24 hours']]));
     const grant=button('Approve support access','submit');
     const note=status(), list=el('ul');
     const reviews=el('div');
+    let focusedId, loadVersion=0, skipOpenToggle=false;
     editor.append(grant);
-    panel.append(el('p','Give Eden temporary access to this location’s connection status and Messenger facts. Review proposed changes or revoke access here.'),note,reviews,editor,list);
+    panel.append(el('p','Review Eden’s access requests and proposed changes for this location.'),note,reviews,editor,list);
+
     async function loadReviews() {
+      const version=++loadVersion;
       let changes;
-      try { changes=await rpc(client,'eden_support_changes',{p_location}); }
-      catch { reviews.replaceChildren(el('p','Support changes could not be loaded.')); return; }
+      try {
+        changes=await rpc(client,'eden_support_inbox',{p_location});
+        if (!Array.isArray(changes)) throw Error('Support inbox unavailable');
+        if (scope.options.length===2) for (const [value,label] of Object.entries(scopes).slice(2)) scope.add(new Option(label,value));
+      } catch {
+        try { changes=await rpc(client,'eden_support_changes',{p_location}); }
+        catch { if (version===loadVersion) reviews.replaceChildren(el('p','Support changes could not be loaded.')); return; }
+      }
+      if (version!==loadVersion) return;
       const cards=changes.map(change=>{
-        const decisionLabels={pending:'Needs review',approved:'Approved',dismissed:'Dismissed',undone:'Undone'};
-        const card=el('details');
+        const target=change.target || 'messenger_facts';
+        const access=change.kind==='access';
+        const draft=!access && isDraft(target);
+        const decisionLabels={pending:'Needs review',approved:draft?'Approved draft':'Approved',dismissed:'Dismissed',undone:'Undone'};
+        const card=el('details'), summary=el('summary');
+        card.id='eden-review-'+change.id;
         card.className='clinic-ops-review';
-        card.open=change.decision==='pending';
-        card.append(el('summary',decisionLabels[change.decision]+' · '+change.operator_email+' · '+time(change.proposed_at)));
-        const values=el('dl');
-        values.className='clinic-ops-values';
-        for (const [key,proposed] of Object.entries(change.proposed_values)) {
-          const before=el('dd');
-          before.append(el('strong','Before '),el('span',change.before_values[key] ?? 'Not set'));
-          const after=el('dd');
-          after.append(el('strong','Proposed '),el('span',proposed));
-          values.append(el('dt',factLabels[key]),before,after);
-        }
-        card.append(values);
+        card.open=change.decision==='pending'||change.id===focusedId;
+        summary.append(el('strong',access?'Access request':targetLabel(target)+' changes'),
+          el('span',decisionLabels[change.decision]));
+        card.append(summary,el('p',change.operator_email+' · '+time(change.created_at || change.proposed_at)));
         const controls=el('div');
         controls.className='clinic-ops-review-actions';
-        for (const [decision,label,done] of change.decision==='pending'
-          ? [['approve','Approve changes','Messenger facts updated.'],['dismiss','Dismiss','Proposal dismissed.']]
-          : change.decision==='approved' ? [['undo','Undo changes','Previous Messenger facts restored.']] : []) {
+        const actions=change.decision==='pending' ? [
+          ['approve',access?'Approve for 1 hour':draft?'Approve draft':'Approve changes',
+            access?'Support access approved.':draft?'Draft approved. Apply it from the relevant settings.':'Messenger facts updated.'],
+          ['dismiss','Dismiss',access?'Access request dismissed.':'Proposal dismissed.']
+        ] : change.decision==='approved' && !access && !draft ? [['undo','Undo changes','Previous Messenger facts restored.']] : [];
+        for (const [decision,label,done] of actions) {
           const control=button(label);
           if (decision!=='approve') control.className='clinic-secondary';
           control.onclick=()=>void action(control,note,async()=>{
-            const facts=await rpc(client,'eden_review_support_change',{p_location,p_change:change.id,p_action:decision});
-            if (facts) onFactsChanged(facts);
+            if (access) await rpc(client,'eden_review_support_request',{p_location,p_request:change.id,p_approve:decision==='approve'});
+            else if (draft) await rpc(client,'eden_review_support_draft',{p_location,p_change:change.id,p_approve:decision==='approve'});
+            else {
+              const facts=await rpc(client,'eden_review_support_change',{p_location,p_change:change.id,p_action:decision});
+              if (facts) onFactsChanged(facts);
+            }
             note.textContent=done;
+            focusedId=change.id;
             await reload();
+            panel.dispatchEvent(new Event('eden-support-reviewed',{bubbles:true}));
+            [...reviews.querySelectorAll('.clinic-ops-review')].find(card=>card.id==='eden-review-'+change.id)?.querySelector('summary')?.focus();
           });
           controls.append(control);
         }
+        const comparisons=el('div');
+        const fields=el('div');
+        fields.className='clinic-ops-review-fields';
+        if (access) {
+          card.append(el('p',scopeName(target)));
+        } else {
+          if (draft) card.append(el('p',target==='staff_alert'?
+            'Confirm the new address with your team before saving it under Staff alerts.':
+            'Apply the approved wording in the channel’s own setup. This draft does not publish it.'));
+          if (target==='ai_phone' && Object.hasOwn(change.proposed_values,'forwarding_code')) {
+            card.append(el('p','Forwarding draft only. '+forwardingNotice));
+          }
+          for (const [key,proposed] of Object.entries(change.proposed_values)) {
+            fields.append(el('h4',factLabels[key] || key));
+            if (Object.hasOwn(change.before_values,key)) {
+              const parts=comparison(change.before_values[key],proposed);
+              fields.append(parts.compact);
+              comparisons.append(parts.full);
+            } else {
+              const copy=el('p',proposed);
+              copy.className='clinic-ops-draft-text';
+              fields.append(copy);
+            }
+          }
+        }
+        if (draft && change.decision==='approved') {
+          const copy=button('Copy approved draft');
+          copy.onclick=()=>void action(copy,note,async()=>{
+            const draftText=target==='staff_alert'?change.proposed_values.alert_email:
+              Object.entries(change.proposed_values).map(([key,value])=>(factLabels[key] || key)+'\n'+value).join('\n\n');
+            await navigator.clipboard.writeText(draftText);
+            note.textContent='Draft copied.';
+          });
+          const open=button(target==='website_chat'?'Open Website Chat editor':target==='ai_phone'?'Open AI Phone setup':'Go to Staff alerts');
+          open.className='clinic-secondary';
+          open.onclick=()=>openDestination(target);
+          controls.append(copy,open);
+        }
         if (controls.childElementCount) card.append(controls);
+        card.append(fields,comparisons);
         return card;
       });
-      reviews.replaceChildren(...(cards.length ? [el('h3','Support changes'),...cards] : []));
+      reviews.replaceChildren(...(cards.length ? [el('h3','Support requests and changes'),...cards] : []));
     }
+
+    panel.openReview=async id=>{
+      focusedId=id;
+      if (!panel.open) {
+        skipOpenToggle=true;
+        panel.open=true;
+      }
+      try {
+        await reload();
+        const heading=document.getElementById('eden-review-'+id)?.querySelector('summary');
+        (heading || panel.querySelector('summary')).focus();
+      } catch (error) { note.textContent=error.message; }
+    };
     async function reload() {
       await Promise.all([loadActivity(),loadReviews()]);
     }
@@ -220,7 +367,10 @@ const ClinicOperations = (() => {
         return item;
       }));
     }
-    panel.ontoggle=()=>{if (panel.open) void reload().catch(error=>{note.textContent=error.message;});};
+    panel.ontoggle=()=>{
+      if (panel.open && !skipOpenToggle) void reload().catch(error=>{note.textContent=error.message;});
+      skipOpenToggle=false;
+    };
     editor.onsubmit=event=>{
       event.preventDefault();
       void action(grant,note,async()=>{
@@ -252,5 +402,5 @@ const ClinicOperations = (() => {
     parent.append(el('h3','Terms from Eden'),list,note);
     return data;
   }
-  return {operators,owner,reportTerms};
+  return {operators,owner,reportTerms,notificationTitle,targetLabel};
 })();
