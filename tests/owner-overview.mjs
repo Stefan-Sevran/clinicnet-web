@@ -177,7 +177,8 @@ for (const role of roles) {
     const unfamiliar=await askEden('How do I export my data?');
     assert.match(unfamiliar.textContent,/What were you trying to do/);
     const feedback=unfamiliar.querySelector('.eden-help-feedback');
-    assert.equal(feedback.open,true);
+    assert.equal(feedback.open,false);
+    feedback.querySelector('summary').click();
     feedback.querySelector('[aria-label="9 out of 10"]').click();
     await until(()=>requests.filter(([name])=>name==='eden_save_reply_feedback').length===1);
     feedback.querySelector('textarea').value='The next step was clear.';
@@ -213,7 +214,8 @@ for (const role of roles) {
       assert.equal(alertCount.textContent,'1');
       assert.ok(!requests.some(([name])=>name==='eden_support_notifications'));
     }
-    assert.equal(helpDialog.querySelector('a[href^="mailto:"]').getAttribute('href'),'mailto:team@clinicnet.live');
+    assert.equal(helpDialog.querySelector('.eden-help-address').textContent,'team@clinicnet.live');
+    assert.equal(helpDialog.querySelector('a[href^="mailto:"]'),null);
     assert.deepEqual([...feedback.querySelectorAll('.eden-help-ratings button')].map(button=>button.textContent),
       ['1','2','3','4','5','6','7','8','9','10']);
     assert.equal(hero.hidden,true);

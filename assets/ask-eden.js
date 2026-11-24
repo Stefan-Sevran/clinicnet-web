@@ -49,9 +49,12 @@
       </div>
       <form class="eden-help-composer">
         <label for="eden-help-question">Your question</label>
-        <div><textarea rows="2" maxlength="400" id="eden-help-question" required aria-describedby="eden-help-privacy"></textarea>
-          <button type="submit">Send</button></div>
-        <small id="eden-help-privacy">${footer} <a href="mailto:team@clinicnet.live">Email support</a></small>
+        <div class="eden-help-entry">
+          <textarea rows="2" maxlength="400" id="eden-help-question" required placeholder="Ask Eden a question" aria-describedby="eden-help-privacy"></textarea>
+          <button type="submit" aria-label="Send question"><span aria-hidden="true">↑</span></button>
+        </div>
+        <div class="eden-help-footer"><small id="eden-help-privacy">${footer}</small>
+          <small class="eden-help-address">team@clinicnet.live</small></div>
       </form>`;
     document.body.append(launcher,panel);
     const question = panel.querySelector('#eden-help-question');
@@ -91,7 +94,6 @@
       const id = crypto.randomUUID();
       const feedback = document.createElement('details');
       feedback.className = 'eden-help-feedback';
-      feedback.open = true;
       feedback.innerHTML = `
         <summary>How helpful was this answer?</summary>
         <div class="eden-help-ratings" role="group" aria-label="Rate this answer from 1 to 10"></div>
@@ -166,11 +168,14 @@
       user.textContent = input;
       const card = document.createElement('article');
       card.className = 'eden-help-answer';
+      const replyBody = document.createElement('div');
+      replyBody.className = 'eden-help-reply';
       const label = document.createElement('strong');
       label.textContent = 'Eden';
       const answer = document.createElement('p');
       answer.textContent = 'Finding guidance…';
-      card.append(label, answer);
+      replyBody.append(label, answer);
+      card.append(replyBody);
       messages.append(user,card);
       question.value = '';
       composer.querySelector('button').disabled = true;
@@ -192,7 +197,7 @@
               result.onAction();
             };
           }
-          card.append(action);
+          replyBody.append(action);
         }
         addFeedback(card,result.answer);
       } catch {
@@ -200,7 +205,7 @@
       } finally {
         if (version === conversationVersion) {
           composer.querySelector('button').disabled = false;
-          thread.scrollTop = user.offsetTop - thread.offsetTop;
+          thread.scrollTop = thread.scrollHeight;
         }
       }
     }
@@ -214,6 +219,12 @@
     }
     launcher.onclick = () => panel.open ? close() : open();
     panel.querySelector('.eden-help-close').onclick = close;
+    question.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        composer.requestSubmit();
+      }
+    });
     panel.addEventListener('keydown',event => {
       if (event.key === 'Escape') { event.preventDefault(); close(); }
     });
