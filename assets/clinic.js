@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const API = 'https://eden-webhook-ixdd.onrender.com';
+  const API = window.edenClinicApi || 'https://eden-webhook-ixdd.onrender.com';
   const setupOrigin = 'https://voice-demo.clinicnet-web.pages.dev';
   const byId = id => document.getElementById(id);
   const state = { client: null, session: null, accounts: [], locations: [], connections: [], followups: new Map(), generation: 0 };
@@ -2716,7 +2716,7 @@
       renderChannels();
       renderCommentPilot(inbox);
       const website = connections.find(row => row.channel === 'website_chat');
-      if (!website || ['requested', 'verifying'].includes(website.status)) {
+      if (!window.edenClinicPreview && (!website || ['requested', 'verifying'].includes(website.status))) {
         void checkWebsitePublication(accountId, locationId, generation);
       }
     }
@@ -2820,6 +2820,10 @@
   }
 
   async function openWebsiteSetup(button, feedback = (message, kind) => channelFeedback('website_chat',message,kind)) {
+    if (window.edenClinicPreview) {
+      feedback('Open Website Chat setup from your live Clinic Workspace.', 'info');
+      return;
+    }
     const userId = state.session?.user?.id;
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;

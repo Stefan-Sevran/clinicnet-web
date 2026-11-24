@@ -7,7 +7,10 @@
 <meta name="robots" content="noindex,nofollow">
 <!-- Clinic bootstrap request -->
 <script>
-window.edenClinicConfigRequest = fetch('https://eden-webhook-ixdd.onrender.com/clinic/public-config', {
+window.edenClinicPreview = location.hostname === 'codex-ask-eden-preview.clinicnet-web.pages.dev';
+window.edenClinicApi = window.edenClinicPreview
+  ? 'https://eden-webhook-staging.onrender.com' : 'https://eden-webhook-ixdd.onrender.com';
+window.edenClinicConfigRequest = fetch(window.edenClinicApi + '/clinic/public-config', {
   cache: 'no-store',
   referrerPolicy: 'no-referrer',
   ...(typeof AbortSignal.timeout === 'function' ? { signal: AbortSignal.timeout(15000) } : {})
