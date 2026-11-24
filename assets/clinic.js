@@ -819,15 +819,16 @@
       for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
     });
     if (window.ClinicNetAskEden) {
-      const {mount, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
+      const {mount, previewReply, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
       const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
       const statusLabel = {connected:'Connected', requested:'Setup requested', action_required:'Action required'};
       askEden = mount({
-        answerQuestion(question) {
+        answerQuestion(question, history) {
+          if (!state.session) return (previewReply || publicReply)(question, history);
           const reply = publicReply(question);
           const locationId = byId('clinic-location').value;
           const location = state.locations.find(item => String(item.id) === locationId);
-          if (!state.session || !location || loadedGeneration !== state.generation) return reply;
+          if (!location || loadedGeneration !== state.generation) return reply;
           if (reply.view === 'alerts') {
             if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.'};
             return {...reply, onAction:() => {

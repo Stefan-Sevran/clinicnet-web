@@ -24,7 +24,31 @@
     return {answer:result.answer, guide:result.articles[0]?.id, view:result.view};
   }
 
-  function mount({answerQuestion = publicReply, saveFeedback = saveGuestFeedback} = {}) {
+  async function previewReply(question, history = []) {
+    const fallback = publicReply(question);
+    if (location.hostname !== 'codex-ask-eden-preview.clinicnet-web.pages.dev') return fallback;
+    const mayUseModel = window.EdenSupportKnowledge?.mayUseModel;
+    if (!mayUseModel?.(question) || history.some(turn =>
+      turn.role === 'user' && !mayUseModel(turn.content))) return fallback;
+
+    try {
+      const response = await fetch('/api/ask-eden', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question, history}),
+        signal:AbortSignal.timeout(10000)
+      });
+      if (response.ok) {
+        const {answer, mode} = await response.json();
+        if (mode === 'model' && typeof answer === 'string' && answer.trim()) return {answer};
+      }
+    } catch {
+      // The local guidance is also available if the preview model times out.
+    }
+    return fallback;
+  }
+
+  function mount({answerQuestion = previewReply, saveFeedback = saveGuestFeedback} = {}) {
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'eden-help-launcher';
@@ -65,6 +89,7 @@
     const starters = panel.querySelector('.eden-help-suggestions');
     let openedBy = launcher;
     let conversationVersion = 0;
+    let history = [];
 
     function open(trigger = launcher) {
       openedBy = trigger;
@@ -82,6 +107,7 @@
 
     function reset() {
       ++conversationVersion;
+      history = [];
       close();
       composer.reset();
       composer.querySelector('button').disabled = false;
@@ -181,9 +207,11 @@
       composer.querySelector('button').disabled = true;
       thread.scrollTop = thread.scrollHeight;
       try {
-        const result = await answerQuestion(input);
+        const result = await answerQuestion(input, history);
         if (version !== conversationVersion) return;
         answer.textContent = result.answer;
+        history = [...history, {role:'user', content:input},
+          {role:'assistant', content:result.answer.slice(0, 1000)}].slice(-4);
         if (result.onAction || result.href) {
           const action = document.createElement(result.href ? 'a' : 'button');
           action.className = 'eden-help-action';
@@ -232,6 +260,6 @@
     return {open, close, reset};
   }
 
-  window.ClinicNetAskEden = {mount, publicReply, saveGuestFeedback};
+  window.ClinicNetAskEden = {mount, previewReply, publicReply, saveGuestFeedback};
   if (document.body.dataset.page !== 'clinic') mount();
 })();
