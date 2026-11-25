@@ -18,7 +18,7 @@ export async function renderPage(page) {
       .replace('</header>',()=>mobile+'</header>');
   }
   const clinicBootstrap=page.id==='clinic'?await component('clinic-bootstrap'):'';
-  const supportStyles=page.header?['/assets/ask-eden.css?v=2']:[];
+  const supportStyles=page.header?['/assets/ask-eden.css?v='+(page.id==='clinic'?3:2)]:[];
   const supportScripts=page.header?['/assets/eden-support-knowledge.js?v=1','/assets/ask-eden.js?v='+(page.id==='clinic'?4:3)]:[];
   const icon=['home','clinic'].includes(page.id)
     ? '<link rel="icon" type="image/png" href="/assets/clinicnet-favicon.png?v=brand-3">\n' : '';

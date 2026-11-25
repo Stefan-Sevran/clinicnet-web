@@ -212,7 +212,7 @@ for (const role of roles) {
     received.querySelector('.eden-help-action').click();
     const testsFilter=doc.querySelector('[data-filter="tests"]');
     assert.equal(testsFilter.getAttribute('aria-pressed'),'true');
-    assert.equal(doc.activeElement,testsFilter);
+    assert.equal(doc.activeElement,doc.querySelector('#clinic-inbox'));
     assert.equal(doc.querySelector('#clinic-daily-view').hidden,false);
     await until(()=>doc.querySelector('[data-event-key="setup-sample"]'));
     supportInboxUnavailable = true;
@@ -223,6 +223,10 @@ for (const role of roles) {
     doc.querySelector('[data-filter="all"]').click();
     if (role!=='staff') overviewNav.click();
     messengerStatus = 'action_required';
+    assert.match((await askEden('How many callbacks need attention?')).textContent,/1 callback needing attention/);
+    assert.match((await askEden('What about assigned to me?')).textContent,/0 inquiries assigned to you/);
+    const profileAnswer=await askEden('What opening hours does Eden have saved for Messenger?');
+    assert.match(profileAnswer.textContent,role==='staff' ? /clinic owner or admin/ : /Opening hours in Clinic Profile/);
     const unfamiliar=await askEden('How do I export my data?');
     assert.match(unfamiliar.textContent,/What were you trying to do/);
     const feedback=unfamiliar.querySelector('.eden-help-feedback');

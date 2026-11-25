@@ -65,3 +65,23 @@
   .eden-help { inset:auto .55rem calc(4.45rem + env(safe-area-inset-bottom)) auto; width:calc(100vw - 1.1rem); height:min(38rem,calc(100dvh - 5.1rem - env(safe-area-inset-bottom))); }
   .eden-help-thread,.eden-help-composer { padding-inline:.8rem; }
 }
+
+/* Signed-in mobile navigation occupies the bottom of the viewport. */
+@media (max-width: 820px) {
+  body.clinic-workspace-signed-in .eden-help-launcher {
+    bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
+    min-height: 2.75rem;
+    padding-inline: .85rem;
+  }
+  body.clinic-workspace-signed-in .eden-help {
+    bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+    height: min(38rem, calc(100dvh - 8.6rem - env(safe-area-inset-bottom, 0px)));
+  }
+}
+
+/* Keep selectable inbox filters readable over the primary button hover style. */
+body.clinic-workspace-signed-in #clinic-dashboard .clinic-inbox-filters button:hover:enabled {
+  background: #e8e0fb;
+  color: #3c257a;
+  border-color: #bba8ef;
+}
