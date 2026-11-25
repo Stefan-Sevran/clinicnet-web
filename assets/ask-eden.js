@@ -13,6 +13,37 @@
     localStorage.setItem(key, JSON.stringify([...saved.slice(-49), {id, reply:answer, rating, comment}]));
   }
 
+  function facebookPageHelp(question, topic) {
+    const text = question.toLowerCase().replace(/[’‘]/g, "'");
+    const accessProblem = /\b(?:lost access|regain access|recover|hacked|locked out|suspended)\b/.test(text);
+    const page = /\b(?:facebook|fb|meta)(?: business)? (?:page|account)s?\b|\b(?:old|new|current|business) page\b/.test(text);
+    const pageAdmin = /\b(?:creat(?:e|ing)|set(?:ting)? up|start|mak(?:e|ing)|delet(?:e|ing)|deactivat(?:e|ing)|cancel|clos(?:e|ing)|remov(?:e|ing)|replac(?:e|ing)|renam(?:e|ing))\b(?:(?!\bmessenger\b).){0,65}\b(?:facebook |fb |meta )?(?:business )?pages?\b/.test(text);
+    const handoff = /\b(?:connect(?:ing)?|reconnect(?:ing)?|link(?:ing)?|switch(?:ing)?|set(?:ting)? up|chang(?:e|ing))\b.{0,80}\b(?:messenger|eden|clinicnet)\b|\b(?:messenger|eden|clinicnet)\b/.test(text);
+    const connectionOnly = /\b(?:disconnect|unlink|remove|switch|change|replace)\b.{0,80}\b(?:from|in|on|for|to) (?:eden|clinicnet|connect|messenger)\b/.test(text);
+    const contextual = topic?.channel === 'facebook_messenger' &&
+      /\b(?:delet(?:e|ing)|deactivat(?:e|ing)|remov(?:e|ing)|replac(?:e|ing)|switch(?:ing)?)\b.{0,25}\b(?:it|the page)\b/.test(text);
+    const switchPage = /\b(?:switch|change|replace|different|new|another)\b/.test(text) && page && handoff;
+
+    if (page && accessProblem) return {kind:'meta', answer:
+      'Facebook controls Page access and recovery. Use Meta’s Help Center to regain access. Once your Facebook profile can manage the Page, return to ClinicNet → Connect → Facebook Messenger.',
+      action:'Open Facebook Help',href:'https://www.facebook.com/help/'};
+    if ((page && pageAdmin && !connectionOnly && !switchPage) || (page && pageAdmin && /\b(?:create|delete|deactivate|cancel|close)\b/.test(text)) || contextual && /\b(?:delete|deactivate)\b/.test(text)) {
+      if (!handoff && !contextual) {
+        if (/\b(?:delete|deactivate|cancel|close|remove)\b/.test(text)) return {kind:'meta',
+          answer:'Manage deactivation or deletion in Facebook. If this Page is connected to ClinicNet and you intend to replace it, verify Messenger on the replacement first.',
+          action:'Open Facebook Help',href:'https://www.facebook.com/help/'};
+        return {kind:'meta',answer:
+          'Create or manage the Page in Facebook. Meta’s guide walks you through creating a business Page. Once it’s ready, you can connect Messenger in ClinicNet → Connect → Facebook Messenger.',
+          action:'Open Meta’s Page guide',href:'https://en-gb.facebook.com/business/tools/facebook-pages/get-started'};
+      }
+      return {kind:'connect',answer:
+        'Create the replacement Page in Facebook first. Then open ClinicNet → Connect → Facebook Messenger for this location and look for the connection options to authorize the new Page. Verify the new Page with a private test before deactivating or deleting the old one in Facebook.'};
+    }
+    if (switchPage || (page && connectionOnly) || contextual) return {kind:'connect',answer:
+      'Open ClinicNet → Connect → Facebook Messenger for this location. Use the connection options to authorize the new Page with a Facebook profile that manages it, then run a private setup test. If the new Page isn’t listed, confirm your Page access in Facebook.'};
+    return null;
+  }
+
   function publicReply(question) {
     if (/^(?:what (?:is|does) (?:eden|clinicnet)(?: do)?|how does (?:eden|clinicnet) work)\??$/i.test(question)) {
       return {answer:'ClinicNet helps clinics capture booking inquiries from Website Chat, Messenger, and AI Phone. Use Clinic Workspace to manage connections and review inquiries.', href:'/clinic/', action:'Open Clinic Workspace'};
@@ -233,7 +264,13 @@
       try {
         const result = await answerQuestion(input, history, topic);
         if (version !== conversationVersion) return;
-        answer.textContent = result.answer;
+        if (result.clinicName) {
+          const clinic = document.createElement('strong');
+          clinic.textContent = result.clinicName;
+          answer.append(clinic, ' · ', result.answer);
+        } else {
+          answer.textContent = result.answer;
+        }
         topic = result.topic;
         history = [...history, {role:'user', content:input},
           {role:'assistant', content:result.answer.slice(0, 1000)}].slice(-4);
@@ -278,6 +315,6 @@
     return {open, close, reset, setAvailable: available => { launcher.hidden = !available; }};
   }
 
-  window.ClinicNetAskEden = {mount, previewReply, publicReply, saveGuestFeedback};
+  window.ClinicNetAskEden = {mount, previewReply, publicReply, saveGuestFeedback, facebookPageHelp};
   if (document.body.dataset.page !== 'clinic') mount();
 })();
