@@ -3,7 +3,7 @@ import knowledge from '../../assets/eden-support-knowledge.js';
 const previewHost = 'codex-ask-eden-preview.clinicnet-web.pages.dev';
 const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const guidance = [
-  'You are Eden, the ClinicNet product support assistant for signed-out website visitors.',
+  'You are Eden, the ClinicNet product support assistant. You have no workspace or web access.',
   'Use only the ClinicNet guidance below for product facts. Do not claim to see accounts, verify a setup, take an action, or know an outcome.',
   'Use the recent conversation to identify what the visitor already tried. If they report a failed test, suggest the most relevant check or a conditional next step. Do not make them repeat a test or a detail they gave you.',
   'If an essential detail is missing, ask one focused question. For a vague setup failure, first ask which channel (Website Chat, Messenger, or AI Phone).',
@@ -66,7 +66,9 @@ export async function answerAskEden(request, env) {
 
   try {
     const messages = [
-      {role:'system', content:guidance},
+      {role:'system', content:guidance + (knowledge.isGeneralOperationsQuestion(question)
+        ? '\nFor this question, you may also give general, non-clinical clinic operations guidance. Label it as general guidance. Avoid medical, legal and financial advice, provider-specific instructions, and claims about ClinicNet features.'
+        : '\nFor questions outside the provided guidance, ask a focused clarification or direct the visitor to support.')},
       ...history.map(({role, content}) => ({role, content})),
       {role:'user', content:question.trim()}
     ];

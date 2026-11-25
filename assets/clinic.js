@@ -819,12 +819,13 @@
       for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
     });
     if (window.ClinicNetAskEden) {
-      const {mount, previewReply, publicReply, saveGuestFeedback, facebookPageHelp} = window.ClinicNetAskEden;
+      const {mount, previewReply, publicReply, facebookPageHelp} = window.ClinicNetAskEden;
       const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
       askEden = mount({
         workspaceContext: () => state.session &&
           state.locations.find(item => item.id === byId('clinic-location').value)?.name,
-        answerQuestion(question, history, topic) {
+        feedbackSurface: () => state.session ? 'workspace' : 'public',
+        async answerQuestion(question, history, topic) {
           if (!state.session) return (previewReply || publicReply)(question, history);
           const pageHelp = facebookPageHelp?.(question, topic);
           if (pageHelp?.kind === 'meta') return pageHelp;
@@ -835,7 +836,7 @@
             const userId = state.session?.user?.id;
             const current = () => state.session?.user?.id === userId &&
               byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
-            return {...pageHelp, clinicName:clinic?.name, topic:{channel:'facebook_messenger'},
+            return {...pageHelp, clinicName:clinic?.name, topic:{channel:'facebook_messenger'}, feedbackTopic:'messenger',
               action:'Open Facebook Messenger in Connect',
               onAction:()=> {
                 if (!current()) return;
@@ -846,34 +847,32 @@
           const reply = publicReply(question);
           const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working)|(?:i )?(?:still )?(?:can.t|cannot) (?:find|see) it)\b/i;
           const lookup = workspaceSupportLookup(question, topic);
-          if (lookup) return answerWorkspaceLookup(lookup);
+          if (lookup) return {...await answerWorkspaceLookup(lookup), source:'workspace',
+            feedbackTopic:lookup.lookup === 'facts' ? 'clinic-facts' : 'daily-action'};
           const testQuestion = /\btest\b/i.test(question);
           const channel = channelByGuide[reply.guide] || (!reply.guide && followUp.test(question) ? topic?.channel : null);
           if (channel) {
             const checkTest = channel === 'facebook_messenger' && (testQuestion ||
               (!reply.guide && (topic?.checkTest || /(?:showed up|came through|find it|see it)/i.test(question))));
-            return answerChannelStatus(channel, checkTest);
+            return {...await answerChannelStatus(channel, checkTest), source:'workspace',
+              feedbackTopic:checkTest ? 'messenger-test' : reply.guide || 'connection'};
           }
           if (loadedGeneration !== state.generation ||
               !state.locations.some(item => item.id === byId('clinic-location').value)) return reply;
           if (reply.view === 'alerts') {
-            if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.'};
+            if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.', guide:reply.guide, source:'permissions'};
             return {...reply, onAction:() => {
               alerts.open = true;
               alerts.querySelector('summary').focus();
             }};
           }
           if (['profile','revenue'].includes(reply.view) && !canManageClinic) {
-            return {answer:'Ask a clinic owner or admin to open this section.'};
+            return {answer:'Ask a clinic owner or admin to open this section.', guide:reply.guide, source:'permissions'};
+          }
+          if (window.EdenSupportKnowledge?.isGeneralOperationsQuestion(question)) {
+            return (previewReply || publicReply)(question);
           }
           return {...reply, onAction:reply.view ? () => switchWorkspaceView(reply.view,true) : undefined};
-        },
-        async saveFeedback(entry) {
-          if (!state.session) return saveGuestFeedback(entry);
-          const {error} = await state.client.rpc('eden_save_reply_feedback', {
-            p_id:entry.id, p_reply:entry.answer, p_rating:entry.rating, p_comment:entry.comment
-          });
-          if (error) throw error;
         }
       });
       const entry = menu.querySelector('#clinic-open-support');
@@ -1539,7 +1538,7 @@
       if (/\b(?:assigned to me|my assigned)\b/.test(text)) return {lookup:'inbox',key:'assigned',callbacks,channel,today};
       if (callbacks || /\b(?:unclaimed|needs? attention)\b/.test(text)) return {lookup:'inbox',key:'attention',callbacks,channel,today};
     }
-    if (/\b(?:approved|saved|on file|does eden|do we have|our)\b/.test(text)) {
+    if (/\b(?:approved|saved|on file|does eden|do we have|our|my)\b/.test(text)) {
       const fields = [
         ['hours',/\b(?:opening |business )?hours\b/],
         ['address',/\baddress\b/],

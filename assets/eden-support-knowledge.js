@@ -55,7 +55,7 @@
       /\b(?:connect|set up|setup)\b.*\b(?:channel|receptionist|integration)\b/
     ], answer:'Open Connect for the clinic location and select the channel. The connection card shows its status and the next action. Which channel are you setting up?'},
     {id:'locations', view:null, questions:[
-      /\b(?:switch|select|choose|wrong|change)\b.*\b(?:location|clinic workspace)\b|\blocation picker\b/
+      /\b(?:switch|select|choose|wrong|change)\b.*\b(?:locations?|clinic workspace)\b|\blocation picker\b/
     ], answer:'Open the workspace selector and choose the business account and clinic location you want to manage. If the location is missing, confirm you signed in with the email address the clinic invited.'}
   ];
 
@@ -84,7 +84,14 @@
       && !/\b(?:ignore.*instructions|system prompt|developer instructions|reveal.*secret)\b/i.test(question);
   }
 
-  const api = {supportKnowledge, mayUseModel, supportArticles:() => articles.map(({id,answer}) => ({id,answer}))};
+  function isGeneralOperationsQuestion(question) {
+    return mayUseModel(question) &&
+      /\b(?:front desk|reception|clinic operations|dental office|clinic staff)\b/i.test(question) &&
+      /\b(?:workflow|schedule|checklist|coverage|handoff|staffing|after.hours|organize|organise)\b/i.test(question) &&
+      !/\b(?:eden|clinicnet|facebook|meta|messenger|my|our)\b/i.test(question);
+  }
+
+  const api = {supportKnowledge, isGeneralOperationsQuestion, mayUseModel, supportArticles:() => articles.map(({id,answer}) => ({id,answer}))};
   if (typeof module === 'object' && module.exports) module.exports = api;
   else globalThis.EdenSupportKnowledge = api;
 })();
