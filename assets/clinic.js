@@ -828,6 +828,8 @@
           if (!canUseAskEdenPilot()) return {answer:'Select Cebu Test Location to use this chat.'};
           const reply = publicReply(question);
           const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working)|(?:i )?(?:still )?(?:can.t|cannot) (?:find|see) it)\b/i;
+          const lookup = workspaceSupportLookup(question, topic);
+          if (lookup) return answerWorkspaceLookup(lookup);
           const testQuestion = /\btest\b/i.test(question);
           const channel = channelByGuide[reply.guide] || (!reply.guide && followUp.test(question) ? topic?.channel : null);
           if (channel) {
@@ -1512,6 +1514,100 @@
     };
   }
 
+  function openInboxFilter(name) {
+    openDailyWork();
+    const filter = inboxFilters.find(button => button.dataset.filter === name);
+    filter.click();
+    const results = byId('clinic-inbox');
+    results.tabIndex = -1;
+    results.focus({preventScroll:true});
+    results.scrollIntoView({block:'nearest'});
+    void refreshActivity(true).catch(() => {});
+  }
+
+  function workspaceSupportLookup(question, topic) {
+    const text = question.toLowerCase();
+    if (/\b(?:export|download|change|edit|update|delete|cancel|reset)\b/.test(text)) return null;
+    const continuing = /^(?:and|what about|how about)\b/.test(text) && topic?.lookup === 'inbox';
+    if (continuing || /\b(?:how many|count|any|what needs|which inquiries need)\b/.test(text)) {
+      const callbacks = /\bcallbacks?\b/.test(text);
+      const today = /\btoday\b/.test(text);
+      const channel = /\bmessenger\b/.test(text) ? 'facebook_messenger' :
+        /\bwebsite chat\b/.test(text) ? 'website_chat' : /\bai phone\b/.test(text) ? 'ai_phone' : null;
+      if (/\b(?:assigned to me|my assigned)\b/.test(text)) return {lookup:'inbox',key:'assigned',callbacks,channel,today};
+      if (callbacks || /\b(?:unclaimed|needs? attention)\b/.test(text)) return {lookup:'inbox',key:'attention',callbacks,channel,today};
+    }
+    if (/\b(?:approved|saved|on file|does eden|do we have|our)\b/.test(text)) {
+      const fields = [
+        ['hours',/\b(?:opening |business )?hours\b/],
+        ['address',/\baddress\b/],
+        ['services',/\bservices\b/],
+        ['bookingRules',/\bbooking instructions\b/]
+      ];
+      const match = fields.find(([, pattern])=>pattern.test(text));
+      if (match) return {lookup:'facts',key:match[0]};
+    }
+    return null;
+  }
+
+  async function answerWorkspaceLookup({lookup,key,callbacks,channel,today}) {
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const clinic = state.locations.find(item=>item.id===locationId);
+    const userId = state.session?.user?.id;
+    if (!accountId || !clinic || !userId || loadedGeneration !== state.generation) {
+      return {answer:'Choose a clinic location and wait for the workspace to load, then ask again.'};
+    }
+    const generation = state.generation;
+    const current = () => state.session?.user?.id === userId && generation === state.generation &&
+      byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+    const changed = {answer:'The workspace changed during the check. Ask again for the current location.'};
+    try {
+      if (lookup === 'facts') {
+        if (!canManageClinic) return {answer:'A clinic owner or admin can check approved facts in Clinic Profile.'};
+        const {data,error} = await timedRead(state.client.rpc('workspace_clinic_facts',{p_location:locationId}));
+        if (!current() || !canManageClinic) return changed;
+        if (error) throw error;
+        const label = {hours:'Opening hours',address:'Address',services:'Services',bookingRules:'Booking instructions'}[key];
+        const value = typeof data?.[key] === 'string' ? data[key].trim() : '';
+        return {
+          answer:clinic.name + ' · ' + label + ' in Clinic Profile: ' +
+            (value ? value : 'No value is saved for this location.'),
+          action:'Open Clinic Profile',onAction:()=>{ if (current() && canManageClinic) switchWorkspaceView('profile',true); }
+        };
+      }
+      const query = '?' + new URLSearchParams({accountId,locationId});
+      const [inbox, bookings, followups] = await timedRead(Promise.all([
+        request('/clinic/inbox' + query + '&limit=100',{cache:'no-store'}),
+        request('/clinic/bookings' + query,{cache:'no-store'}),
+        getFollowups(accountId,locationId)
+      ]));
+      if (!current()) return changed;
+      if ([...inbox, ...bookings].some(event => event.account_id !== accountId || event.location_id !== locationId)) {
+        throw Error('Activity did not match the selected clinic.');
+      }
+      const day = today && new Intl.DateTimeFormat('en-CA',{timeZone:clinicTimeZone(locationId),dateStyle:'short'});
+      const currentDate = day && day.format(Date.now());
+      const events = mergeDailyActivity(inbox,bookings).filter(event =>
+        (!callbacks || event.kind === 'call.followup_needed') && (!channel || event.channel === channel) &&
+        (!day || (Number.isFinite(Date.parse(event.occurred_at)) && day.format(new Date(event.occurred_at)) === currentDate)));
+      const match = inboxGroups(events,new Map(followups.map(row=>[row.event_key,row])),userId)[key];
+      const label = key === 'assigned' ? 'assigned to you' : 'needing attention';
+      const nouns = callbacks ? ['callback','callbacks'] : ['inquiry','inquiries'];
+      const source = channel ? ' from ' + setupChannelLabels[channel] : '';
+      return {
+        answer:clinic.name + ' · ' + match.length + ' ' + nouns[match.length === 1 ? 0 : 1] + source + ' ' + label +
+          (today ? ' from today’s recent activity at this location.' : ' in recent Daily Action activity.'),
+        topic:{lookup:'inbox'},
+        action:key === 'assigned' ? 'Open Assigned to me' : 'Open Needs attention',
+        onAction:()=>{ if (current()) openInboxFilter(key); }
+      };
+    } catch {
+      return current() ? {answer:'I couldn’t check ' + (lookup === 'facts' ? 'Clinic Profile' : 'Daily Action') +
+        ' for ' + clinic.name + '. Please try again.'} : changed;
+    }
+  }
+
   async function answerChannelStatus(channel, checkTest) {
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
@@ -1557,11 +1653,7 @@
         onAction:() => {
           if (!current()) return;
           if (openTests) {
-            openDailyWork();
-            const filter = inboxFilters.find(button => button.dataset.filter === 'tests');
-            filter.click();
-            filter.focus();
-            void refreshActivity(true).catch(() => {});
+            openInboxFilter('tests');
             return;
           }
           switchWorkspaceView('setup',true);
@@ -1999,23 +2091,28 @@
     filter.focus();
   });
 
-  function renderDailyInbox(targetKey) {
-    const activity = dailyEvents.filter(event => !isMessengerSetupSample(event));
+  function inboxGroups(events, followups, userId) {
+    const activity = events.filter(event => !isMessengerSetupSample(event));
     const attention = activity.filter(event => {
       if (!event.event_key || !followupKinds.includes(event.kind)) return false;
-      const action = state.followups.get(event.event_key)?.action;
+      const action = followups.get(event.event_key)?.action;
       return !action || action === 'reopened';
     });
     const assigned = activity.filter(event => {
-      const latest = state.followups.get(event.event_key);
-      return latest?.action === 'claimed' && latest.actor_user_id === state.session?.user?.id;
+      const latest = followups.get(event.event_key);
+      return latest?.action === 'claimed' && latest.actor_user_id === userId;
     });
     const booked = activity.filter(event => {
-      const followup = state.followups.get(event.event_key);
+      const followup = followups.get(event.event_key);
       return followup?.recorded_action !== 'cancelled' &&
         (followup?.action === 'booked' || bookingStatus(event) === 'Confirmed');
     });
-    const latestTest = dailyEvents.find(isMessengerSetupSample);
+    const latestTest = events.find(isMessengerSetupSample);
+    return {activity,attention,assigned,booked,latestTest};
+  }
+
+  function renderDailyInbox(targetKey) {
+    const {activity,attention,assigned,booked,latestTest} = inboxGroups(dailyEvents,state.followups,state.session?.user?.id);
     const urgent = new Set(attention);
     byId('clinic-attention-count').textContent = String(attention.length);
     const missedCalls = attention.filter(event=>event.kind==='call.followup_needed').length;
@@ -2029,7 +2126,7 @@
       attention: [attention, 'No unclaimed inquiries need follow-up.'],
       assigned: [assigned, 'No inquiries are assigned to you.'],
       booked: [booked, 'No confirmed bookings in recent activity.'],
-      tests: [latestTest ? [latestTest] : [], 'No setup tests yet.']
+      tests: [latestTest ? [latestTest] : [], 'No Messenger setup tests in recent activity for this location. This filter shows results from private setup tests. Check All activity for regular Messenger inquiries.']
     };
     for (const button of inboxFilters) {
       button.setAttribute('aria-pressed', String(button.dataset.filter === inboxFilter));
@@ -2088,6 +2185,18 @@
     return true;
   }
 
+  function mergeDailyActivity(inbox, bookings) {
+    const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
+    for (const booking of bookings) {
+      if (!byKey.has(booking.event_key) && booking.event_key && booking.details?.demo !== true) {
+        byKey.set(booking.event_key, booking);
+      }
+    }
+    return [...byKey.values(), ...inbox.filter(event => !event.event_key)]
+      .filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind))
+      .sort((a, b) => (Date.parse(b.occurred_at) || 0) - (Date.parse(a.occurred_at) || 0));
+  }
+
   function renderDailyWork(inbox, bookings, locationId) {
     if (inboxLocation !== locationId) {
       inboxPage = 0;
@@ -2095,15 +2204,7 @@
     }
     if (manualBooking && (manualBooking.locationId !== locationId ||
         manualBooking.accountId !== byId('clinic-account').value)) closeManualBooking();
-    const byKey = new Map(inbox.filter(event => event.event_key).map(event => [event.event_key, event]));
-    for (const booking of bookings) {
-      if (!byKey.has(booking.event_key) && booking.event_key && booking.details?.demo !== true) {
-        byKey.set(booking.event_key, booking);
-      }
-    }
-    dailyEvents = [...byKey.values(), ...inbox.filter(event => !event.event_key)]
-      .filter(event => !['comment.draft', 'comment.messenger_started'].includes(event.kind))
-      .sort((a, b) => (Date.parse(b.occurred_at) || 0) - (Date.parse(a.occurred_at) || 0));
+    dailyEvents = mergeDailyActivity(inbox, bookings);
     renderDailyInbox();
     renderTodayAppointments(locationId);
     byId('clinic-daily-location').textContent = state.locations.find(row=>row.id===locationId)?.name || '';
