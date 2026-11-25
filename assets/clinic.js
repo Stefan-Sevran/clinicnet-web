@@ -819,13 +819,30 @@
       for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
     });
     if (window.ClinicNetAskEden) {
-      const {mount, previewReply, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
+      const {mount, previewReply, publicReply, saveGuestFeedback, facebookPageHelp} = window.ClinicNetAskEden;
       const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
       askEden = mount({
         workspaceContext: () => state.session &&
           state.locations.find(item => item.id === byId('clinic-location').value)?.name,
         answerQuestion(question, history, topic) {
           if (!state.session) return (previewReply || publicReply)(question, history);
+          const pageHelp = facebookPageHelp?.(question, topic);
+          if (pageHelp?.kind === 'meta') return pageHelp;
+          if (pageHelp?.kind === 'connect') {
+            const accountId = byId('clinic-account').value;
+            const locationId = byId('clinic-location').value;
+            const clinic = state.locations.find(item => item.id === locationId);
+            const userId = state.session?.user?.id;
+            const current = () => state.session?.user?.id === userId &&
+              byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+            return {...pageHelp, clinicName:clinic?.name, topic:{channel:'facebook_messenger'},
+              action:'Open Facebook Messenger in Connect',
+              onAction:()=> {
+                if (!current()) return;
+                switchWorkspaceView('setup',true);
+                channelSteps.find(step=>step.channel==='facebook_messenger')?.link.click();
+              }};
+          }
           const reply = publicReply(question);
           const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working)|(?:i )?(?:still )?(?:can.t|cannot) (?:find|see) it)\b/i;
           const lookup = workspaceSupportLookup(question, topic);
@@ -1556,7 +1573,7 @@
         const label = {hours:'Opening hours',address:'Address',services:'Services',bookingRules:'Booking instructions'}[key];
         const value = typeof data?.[key] === 'string' ? data[key].trim() : '';
         return {
-          answer:clinic.name + ' · ' + label + ' in Clinic Profile: ' +
+          clinicName:clinic.name, answer:label + ' in Clinic Profile: ' +
             (value ? value : 'No value is saved for this location.'),
           action:'Open Clinic Profile',onAction:()=>{ if (current() && canManageClinic) switchWorkspaceView('profile',true); }
         };
@@ -1581,7 +1598,7 @@
       const nouns = callbacks ? ['callback','callbacks'] : ['inquiry','inquiries'];
       const source = channel ? ' from ' + setupChannelLabels[channel] : '';
       return {
-        answer:clinic.name + ' · ' + match.length + ' ' + nouns[match.length === 1 ? 0 : 1] + source + ' ' + label +
+        clinicName:clinic.name, answer:match.length + ' ' + nouns[match.length === 1 ? 0 : 1] + source + ' ' + label +
           (today ? ' from today’s recent activity at this location.' : ' in recent Daily Action activity.'),
         topic:{lookup:'inbox'},
         action:key === 'assigned' ? 'Open Assigned to me' : 'Open Needs attention',
@@ -1632,7 +1649,7 @@
         openTests = received || stage === 'connected' || stage === 'verifying';
       }
       return {
-        answer:clinic.name + ' · ' + name + ': ' + label + '. ' + message,
+        clinicName:clinic.name, answer:name + ': ' + label + '. ' + message,
         topic:{channel,checkTest},
         action:openTests ? 'Open Setup tests in Daily Action' : 'Open ' + name + ' in Connect',
         onAction:() => {
