@@ -57,10 +57,27 @@ execFileSync(process.execPath,['--check',join(staged,'assets/ask-eden.js')],{std
 console.log('Staged the Cebu Ask Eden pilot in '+staged);
 if (values.deploy) {
   for (const [route,path] of [['/','index.html'],['/clinic/',pagePath],['/assets/clinic.js','assets/clinic.js'],
-    ['/assistant-setup/','assistant-setup/index.html'],['/privacy/','privacy/index.html'],['/terms/','terms/index.html']]) {
+    ['/assistant-setup/','assistant-setup/index.html']]) {
     const live = execFileSync('curl',['-fsSL','--max-time','20','https://clinicnet.live'+route]);
     if (!live.equals(readFileSync(join(source,path)))) {
       throw Error('Production changed or the source bundle is stale at '+route+'. Nothing was deployed.');
+    }
+  }
+  // The custom domain rewrites email addresses in HTML. Read the source from
+  // the production Pages hostname so the deployment retains the original HTML.
+  for (const [name,title] of [['privacy','Privacy Policy'],['terms','Terms of Service']]) {
+    const route = '/'+name+'/';
+    const live = execFileSync('curl',['-fsSL','--max-redirs','0','--max-time','20',
+      'https://clinicnet-web.pages.dev'+route]);
+    const html = live.toString('utf8');
+    if (!/^\s*<!doctype html>/i.test(html) || !html.includes('<title>'+title+' | Eden Clinic Network</title>') ||
+        !html.includes('<link rel="canonical" href="https://clinicnet.live'+route+'">')) {
+      throw Error('Could not verify the production policy page at '+route+'. Nothing was deployed.');
+    }
+    const path = join(staged,name,'index.html');
+    if (!live.equals(readFileSync(path))) {
+      writeFileSync(path,live);
+      console.log('Preserved the current production page at '+route);
     }
   }
   execFileSync('npx',['wrangler','pages','deploy','.','--project-name','clinicnet-web','--branch','main'],
