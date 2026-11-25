@@ -12,11 +12,17 @@ const repository = fileURLToPath(new URL('../', import.meta.url));
 const pagePath = 'clinic/index.html';
 const baseVersion = '2f020b83c57a';
 const baseScriptHash = 'a33955e873036c4592f9023975b461db5e564e8f348692e6d11cf4d764f8ffcd';
-const previousTags = [
-  '<link rel="stylesheet" href="/assets/ask-eden.css?v='+baseVersion+'">',
+const previousScriptBlob = '6e19f6a25fd4f0a9ac3a60978c5d4f9bbd274c28';
+function tagsFor(version) { return [
+  '<link rel="stylesheet" href="/assets/ask-eden.css?v='+version+'">',
   ...['eden-support-knowledge','ask-eden','clinic']
-    .map(name=>'<script defer src="/assets/'+name+'.js?v='+baseVersion+'"></script>')
-].join('\n');
+    .map(name=>'<script defer src="/assets/'+name+'.js?v='+version+'"></script>')
+].join('\n'); }
+function installedTags(page) {
+  const version = page.match(/\/assets\/clinic\.js\?v=([a-f0-9]{12})"/)?.[1];
+  const tags = version && tagsFor(version);
+  return tags && page.includes(tags) ? tags : null;
+}
 const requiredFiles = [pagePath,'assets/clinic.js','_worker.js','_headers','index.html',
   'assistant-setup/index.html','assistant-core.js','pearlsmile-cebu/index.html','privacy/index.html','terms/index.html'];
 const assets = ['assets/clinic.js','assets/ask-eden.js','assets/ask-eden.css','assets/eden-support-knowledge.js'];
@@ -25,8 +31,11 @@ function matchesProduction(folder) {
   if (!requiredFiles.every(file => existsSync(join(folder,file)))) return false;
   const page = readFileSync(join(folder,pagePath),'utf8');
   const script = readFileSync(join(folder,'assets/clinic.js'));
-  return page.includes(previousTags) && page.includes('id="clinic-code-form"') &&
-    createHash('sha256').update(script).digest('hex') === baseScriptHash &&
+  const blobHash = createHash('sha1').update('blob ' + script.length + '\0').update(script).digest('hex');
+  const originalPilot = page.includes(tagsFor(baseVersion)) &&
+    createHash('sha256').update(script).digest('hex') === baseScriptHash;
+  return installedTags(page) && page.includes('id="clinic-code-form"') &&
+    (originalPilot || blobHash === previousScriptBlob) &&
     readFileSync(join(folder,'_worker.js'),'utf8').includes('Serve the Clinic Workspace from Pages assets.');
 }
 
@@ -55,7 +64,7 @@ const revision = version.digest('hex').slice(0,12);
 const stylesheet = '<link rel="stylesheet" href="/assets/ask-eden.css?v='+revision+'">';
 const scripts = ['eden-support-knowledge','ask-eden','clinic']
   .map(name=>'<script defer src="/assets/'+name+'.js?v='+revision+'"></script>').join('\n');
-writeFileSync(join(staged,pagePath),page.replace(previousTags,stylesheet+'\n'+scripts));
+writeFileSync(join(staged,pagePath),page.replace(installedTags(page),stylesheet+'\n'+scripts));
 execFileSync(process.execPath,['--check',join(staged,'assets/clinic.js')],{stdio:'inherit'});
 execFileSync(process.execPath,['--check',join(staged,'assets/ask-eden.js')],{stdio:'inherit'});
 console.log('Staged the Cebu Ask Eden pilot in '+staged);
