@@ -1,0 +1,53 @@
+/* Filled actions across ClinicNet pages and the Clinic Workspace. */
+body[data-page] :is(
+  .ecn-desktop-cta, .eden-home-primary, .eden-home-mobile-signin, .eden-home-mobile-demo,
+  .about-primary, .ht-primary, .standard-primary, .cert-primary-cta,
+  .demo-primary-cta, .demo-secondary-cta, .demo-hospital-cta, .forms-cta,
+  .calc-primary, .calc-primary-link, .recovery-cta a, .report-primary, .report-cta a,
+  .clinic-audit-floating-cta-2026, .eden-help-launcher, .eden-help-entry button,
+  .booking-input-row button, #eve-ai-send-2026, #pearlsmile-chat-send-2026,
+  #pattaya-smile-chat-send, #siam-serenity-chat-send-2026, #lumiere-ae-chat-2026 .lumiere-ae-chat-send,
+  #mabuhay-send, .clinic-messenger-primary-link,
+  .clinic-panel button:not(.clinic-secondary, .clinic-rescue-chart-link, .clinic-inbox-filters button),
+  .clinic-toolbar button:not(.clinic-secondary),
+  .clinic-support-dialog #clinic-ask-eden button[type="submit"]
+) {
+  --eden-action-violet: #5231bf;
+  --eden-action-pink-violet: #8333aa;
+
+  color: #fff;
+  border-color: transparent;
+  background: var(--eden-action-violet) linear-gradient(90deg,
+    var(--eden-action-violet), var(--eden-action-pink-violet), var(--eden-action-violet)
+  ) left center / 200% 100% no-repeat;
+  transition: background-position .22s ease, scale .12s ease, filter .12s ease,
+    transform .18s ease, box-shadow .18s ease;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled, [aria-disabled="true"]) { background-position: right center; }
+  }
+
+  &:focus-visible {
+    outline: 3px solid #8061d9;
+    outline-offset: 3px;
+  }
+
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    scale: .97;
+    filter: brightness(.9);
+  }
+
+  &:is(:disabled, [aria-disabled="true"]) {
+    opacity: .55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &, &:hover, &:active {
+      transition: none;
+      transform: none;
+      scale: none;
+    }
+  }
+}
