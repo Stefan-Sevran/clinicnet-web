@@ -821,14 +821,19 @@
     if (window.ClinicNetAskEden) {
       const {mount, previewReply, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
       const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
-      const statusLabel = {connected:'Connected', requested:'Setup requested', action_required:'Action required'};
       askEden = mount({
         answerQuestion(question, history) {
           if (!state.session) return (previewReply || publicReply)(question, history);
           const reply = publicReply(question);
-          const locationId = byId('clinic-location').value;
-          const location = state.locations.find(item => String(item.id) === locationId);
-          if (!location || loadedGeneration !== state.generation) return reply;
+          const channel = channelByGuide[reply.guide];
+          if (channel) return answerChannelStatus(channel);
+          const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working))\b/i;
+          if (!reply.guide && followUp.test(question)) {
+            const previousChannel = channelByGuide[publicReply(history.at(-2)?.content || '').guide];
+            if (previousChannel) return answerChannelStatus(previousChannel);
+          }
+          if (loadedGeneration !== state.generation ||
+              !state.locations.some(item => item.id === byId('clinic-location').value)) return reply;
           if (reply.view === 'alerts') {
             if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.'};
             return {...reply, onAction:() => {
@@ -839,11 +844,7 @@
           if (['profile','revenue'].includes(reply.view) && !canManageClinic) {
             return {answer:'Ask a clinic owner or admin to open this section.'};
           }
-          const channel = channelByGuide[reply.guide];
-          const connection = channel && state.connections.find(item=>item.channel===channel);
-          const status = connection && statusLabel[connection.status];
-          const answer = status ? location.name + ' · ' + status + '. ' + reply.answer : reply.answer;
-          return {...reply, answer, onAction:reply.view ? () => switchWorkspaceView(reply.view,true) : undefined};
+          return {...reply, onAction:reply.view ? () => switchWorkspaceView(reply.view,true) : undefined};
         },
         async saveFeedback(entry) {
           if (!state.session) return saveGuestFeedback(entry);
@@ -1376,8 +1377,8 @@
     return button;
   }
 
-  function channelStatus(channel, connection) {
-    if (channel === 'website_chat' && publishedWebsite && (!connection || ['requested', 'verifying'].includes(connection.status))) return 'Page live · inbox unverified';
+  function channelStatus(channel, connection, pageLive) {
+    if (pageLive) return 'Page live · inbox unverified';
     if (!connection) return 'Not set up';
     if (connection.status==='requested') return {
       website_chat:'Inbox unverified',facebook_messenger:'Access pending',ai_phone:'Number pending'
@@ -1478,28 +1479,82 @@
     };
   }
 
+  function channelPresentation(channel, connection, includeWorkspaceDetails = true) {
+    const messengerSetup = includeWorkspaceDetails && channel === 'facebook_messenger' && messengerSetups.find(setup =>
+      setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
+    const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
+    const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
+      !hasMessengerFacts(messengerSetup.facts);
+    const pageLive = includeWorkspaceDetails && publishedWebsite && channel === 'website_chat' &&
+      (!connection || ['requested','verifying'].includes(connection.status));
+    return {
+      messengerSetup, guided,
+      label: needsFacts ? 'Facts needed' : channelStatus(channel,connection,pageLive),
+      stage: needsFacts ? 'facts' : pageLive ? 'verifying' : connection?.status || 'unconfigured'
+    };
+  }
+
+  async function answerChannelStatus(channel) {
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const userId = state.session?.user?.id;
+    const clinic = state.locations.find(item => item.id === locationId);
+    if (!accountId || !clinic || !userId) return {answer:'Choose a clinic location and ask me to check again.'};
+    const current = () => state.session?.user?.id === userId &&
+      byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+
+    const generation = state.generation;
+    const displayedConnections = state.connections;
+    try {
+      const query = new URLSearchParams({accountId,locationId});
+      const connections = await timedRead(request('/clinic/connections?' + query,{cache:'no-store'}));
+      if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
+      if (connections.some(item => item.account_id !== accountId || item.location_id !== locationId)) {
+        throw Error('Connection response did not match the selected clinic.');
+      }
+      const connection = connections.find(item => item.channel === channel);
+      const {label,stage} = channelPresentation(channel,connection,loadedGeneration === state.generation);
+      const name = setupChannelLabels[channel];
+      const message = stage === 'connected'
+        ? 'If a test is missing, check Daily Action for an entry from ' + name + ' at this location. If it’s still missing, review the connection settings.'
+        : connectClinicAction(channel,stage)[1];
+      return {
+        answer:clinic.name + ' · ' + name + ': ' + label + '. ' + message,
+        action:'Open ' + name + ' in Connect',
+        onAction:() => {
+          if (!current()) return;
+          switchWorkspaceView('setup',true);
+          if (generation === state.generation && loadedGeneration === generation &&
+              displayedConnections === state.connections) {
+            state.connections = connections;
+            renderChannels();
+            renderMessengerGuide();
+          }
+          channelSteps.find(step => step.channel === channel)?.link.click();
+        }
+      };
+    } catch (error) {
+      if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
+      return {answer:error.status === 401 ? error.message :
+        'I couldn’t check ' + setupChannelLabels[channel] + ' for ' + clinic.name + '. Try asking again in a moment.'};
+    }
+  }
+
   function renderChannels(steps = channelSteps) {
     for (const { channel, panel, heading, body, link, marker, badge, action, updated } of steps) {
       const connection = state.connections.find(item=>item.channel===channel);
-      const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
-        setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
-      const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
-      const connected = connection?.status==='connected';
-      const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
-        !hasMessengerFacts(messengerSetup.facts);
-      badge.textContent = needsFacts ? 'Facts needed' : channelStatus(channel,connection);
+      const {messengerSetup, guided, label, stage} = channelPresentation(channel,connection);
+      const connected = stage === 'connected';
+      badge.textContent = label;
       const updatedAt = new Date(connection?.updated_at || '');
       updated.hidden = !Number.isFinite(updatedAt.getTime());
       updated.textContent = updated.hidden ? '' : 'Updated '+updatedAt.toLocaleDateString(undefined,{timeZone:clinicTimeZone(byId('clinic-location').value)});
       badge.title = updated.textContent;
 
-      link.dataset.connected = String(connected && !needsFacts);
+      link.dataset.connected = String(connected);
       badge.dataset.connected = link.dataset.connected;
-      marker.textContent = connected && !needsFacts ? '✓' : '○';
-      const websiteNeedsTest = channel==='website_chat' && publishedWebsite &&
-        (!connection || ['requested','verifying'].includes(connection.status));
-      link.dataset.connectionStatus = needsFacts ? 'facts' :
-        websiteNeedsTest ? 'verifying' : connection?.status || 'unconfigured';
+      marker.textContent = connected ? '✓' : '○';
+      link.dataset.connectionStatus = stage;
       action.textContent = connectClinicAction(channel,link.dataset.connectionStatus)[0];
       panel.hidden = false;
       if (guided) {

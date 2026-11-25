@@ -52,6 +52,9 @@ for (const role of roles) {
     let resolveCebu;
     let delayCebu = false;
     let messengerStatus = 'action_required';
+    let resolveConnections;
+    let delayConnections = false;
+    const supportReads = [];
     const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
     win.fetch = async (raw, options) => {
       const req = new URL(raw);
@@ -70,6 +73,12 @@ for (const role of roles) {
         accountReads++;
         accountAuthorization = options.headers.Authorization;
       }
+      if (req.pathname==='/clinic/connections' && options.cache==='no-store') {
+        assert.equal(options.headers.Authorization,'Bearer fixture');
+        assert.equal(req.searchParams.get('accountId'),account);
+        supportReads.push(req.searchParams.get('locationId'));
+        if (delayConnections) return new Promise(resolve=>{ resolveConnections=resolve; });
+      }
       if (req.pathname==='/clinic/connections' && activityFailure==='offline') throw new TypeError('Failed to fetch');
       if (req.pathname==='/clinic/connections' && activityFailure==='unauthorized') {
         return new Response(null,{status:401});
@@ -85,7 +94,8 @@ for (const role of roles) {
         }] : [],
         '/clinic/messenger/setups':role==='staff'?[]:[{locationId:cebu,clinicName:'Cebu fixture',facts}],
         '/clinic/connections':req.searchParams.get('locationId')===cebu ?
-          [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:messengerStatus}] : []
+          [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:messengerStatus}]
+            .map(row=>({...row,account_id:account,location_id:cebu})) : []
       };
       assert.ok(Object.hasOwn(responses,req.pathname),req.pathname);
       return Response.json(responses[req.pathname]);
@@ -164,16 +174,27 @@ for (const role of roles) {
     const helpDialog=doc.querySelector('#eden-help');
     helpDialog.show=()=>{helpDialog.open=true;};
     helpDialog.close=()=>{helpDialog.open=false;};
-    const askEden=async question=>{
+    const submitToEden=question=>{
       doc.querySelector('#clinic-open-support').click();
       doc.querySelector('#eden-help-question').value=question;
       helpDialog.querySelector('.eden-help-composer').dispatchEvent(new win.Event('submit',{cancelable:true}));
-      const answer=[...helpDialog.querySelectorAll('.eden-help-answer')].at(-1);
+      return [...helpDialog.querySelectorAll('.eden-help-answer')].at(-1);
+    };
+    const askEden=async question=>{
+      const answer=submitToEden(question);
       await until(()=>answer.querySelector('details'));
       return answer;
     };
     assert.match((await askEden('My sign-in link goes to localhost')).textContent,/fresh sign-in email/);
-    assert.match((await askEden('Messenger stopped connecting')).textContent,/Open Connect/);
+    const connectionAnswer=await askEden('Messenger stopped connecting');
+    assert.match(connectionAnswer.textContent,/Cebu fixture · Facebook Messenger: Action needed/);
+    assert.equal(connectionAnswer.querySelector('.eden-help-action').textContent,'Open Facebook Messenger in Connect');
+    messengerStatus = 'connected';
+    const followUp=await askEden('I already sent a test and nothing showed up.');
+    assert.match(followUp.textContent,/Cebu fixture · Facebook Messenger: Connected/);
+    assert.match(followUp.textContent,/Daily Action/);
+    assert.deepEqual(supportReads,[cebu,cebu]);
+    messengerStatus = 'action_required';
     const unfamiliar=await askEden('How do I export my data?');
     assert.match(unfamiliar.textContent,/What were you trying to do/);
     const feedback=unfamiliar.querySelector('.eden-help-feedback');
@@ -318,6 +339,9 @@ for (const role of roles) {
     delayCebu = true;
     doc.querySelector('#clinic-refresh').click();
     await until(()=>Boolean(resolveCebu));
+    delayConnections = true;
+    const previousClinicAnswer=submitToEden('Is Messenger connected?');
+    await until(()=>Boolean(resolveConnections));
     picker.value = bangkok;
     picker.dispatchEvent(new win.Event('change'));
     await until(()=>revenue.textContent.includes(amount(100000,'THB')));
@@ -329,6 +353,24 @@ for (const role of roles) {
     assert.ok(doc.querySelector('#clinic-alert-count').hidden);
     assert.doesNotMatch(doc.querySelector('#clinic-workspace-alerts').textContent,/Missed call/);
     assert.equal(new URL(report.href).searchParams.get('location'),bangkok);
+    delayConnections = false;
+    resolveConnections(Response.json([{channel:'facebook_messenger',status:'connected',account_id:account,location_id:cebu}]));
+    await pause(0);
+    assert.equal(previousClinicAnswer.isConnected,false);
+    assert.doesNotMatch(helpDialog.textContent,/Cebu fixture/);
+    assert.match((await askEden('Is Messenger connected?')).textContent,/Bangkok fixture · Facebook Messenger: Not set up/);
+    assert.equal(supportReads.at(-1),bangkok);
+    const phone=await askEden('Can you check AI Phone?');
+    assert.match(phone.textContent,/Bangkok fixture · AI Phone: Not set up/);
+    phone.querySelector('.eden-help-action').click();
+    assert.equal(doc.querySelector('#clinic-channel-ai_phone').open,true);
+    assert.equal(helpDialog.open,false);
+    if (role!=='staff') overviewNav.click();
+    activityFailure = 'offline';
+    const unavailable=await askEden('Is Website Chat connected?');
+    assert.match(unavailable.textContent,/couldn’t check Website Chat for Bangkok fixture/);
+    assert.equal(unavailable.querySelector('.eden-help-action'),null);
+    activityFailure = undefined;
     if (role !== 'owner') continue;
     delayCebu = false;
     await until(()=>!doc.querySelector('#clinic-refresh').disabled);
