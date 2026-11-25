@@ -822,15 +822,18 @@
       const {mount, previewReply, publicReply, saveGuestFeedback} = window.ClinicNetAskEden;
       const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
       askEden = mount({
-        answerQuestion(question, history) {
+        workspaceContext: () => state.session &&
+          state.locations.find(item => item.id === byId('clinic-location').value)?.name,
+        answerQuestion(question, history, topic) {
           if (!state.session) return (previewReply || publicReply)(question, history);
           const reply = publicReply(question);
-          const channel = channelByGuide[reply.guide];
-          if (channel) return answerChannelStatus(channel);
-          const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working))\b/i;
-          if (!reply.guide && followUp.test(question)) {
-            const previousChannel = channelByGuide[publicReply(history.at(-2)?.content || '').guide];
-            if (previousChannel) return answerChannelStatus(previousChannel);
+          const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working)|(?:i )?(?:still )?(?:can.t|cannot) (?:find|see) it)\b/i;
+          const testQuestion = /\btest\b/i.test(question);
+          const channel = channelByGuide[reply.guide] || (!reply.guide && followUp.test(question) ? topic?.channel : null);
+          if (channel) {
+            const checkTest = channel === 'facebook_messenger' && (testQuestion ||
+              (!reply.guide && (topic?.checkTest || /(?:showed up|came through|find it|see it)/i.test(question))));
+            return answerChannelStatus(channel, checkTest);
           }
           if (loadedGeneration !== state.generation ||
               !state.locations.some(item => item.id === byId('clinic-location').value)) return reply;
@@ -1494,7 +1497,7 @@
     };
   }
 
-  async function answerChannelStatus(channel) {
+  async function answerChannelStatus(channel, checkTest) {
     const accountId = byId('clinic-account').value;
     const locationId = byId('clinic-location').value;
     const userId = state.session?.user?.id;
@@ -1507,22 +1510,45 @@
     const displayedConnections = state.connections;
     try {
       const query = new URLSearchParams({accountId,locationId});
-      const connections = await timedRead(request('/clinic/connections?' + query,{cache:'no-store'}));
+      const inScope = rows => Array.isArray(rows) &&
+        rows.every(item => item.account_id === accountId && item.location_id === locationId);
+      const [connections, recentInbox] = await Promise.all([
+        timedRead(request('/clinic/connections?' + query,{cache:'no-store'})),
+        checkTest ? timedRead(request('/clinic/inbox?' + query + '&limit=100',{cache:'no-store'})).catch(() => null) : null
+      ]);
       if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
-      if (connections.some(item => item.account_id !== accountId || item.location_id !== locationId)) {
+      if (!inScope(connections)) {
         throw Error('Connection response did not match the selected clinic.');
       }
       const connection = connections.find(item => item.channel === channel);
       const {label,stage} = channelPresentation(channel,connection,loadedGeneration === state.generation);
       const name = setupChannelLabels[channel];
-      const message = stage === 'connected'
-        ? 'If a test is missing, check Daily Action for an entry from ' + name + ' at this location. If it’s still missing, review the connection settings.'
+      let message = stage === 'connected'
+        ? 'If a test is missing, check Daily Action for an entry from ' + name + ' at this location.'
         : connectClinicAction(channel,stage)[1];
+      let openTests = false;
+      if (checkTest) {
+        const inboxChecked = inScope(recentInbox);
+        const received = inboxChecked && recentInbox.some(isMessengerSetupSample);
+        message = received ? 'A Messenger setup test is visible in recent activity. Open Daily Action → Setup tests to check whether it’s the one you just sent.' :
+          inboxChecked ? 'I don’t see a Messenger setup test in the recent activity. If you sent a regular message, look under All activity. If you used the setup test, check the linked Facebook Page and use Check for reply in Connect if it’s available.' :
+          'I couldn’t check recent activity. Open Daily Action → Setup tests to look for the test, or use All activity if you sent a regular message.';
+        openTests = received || stage === 'connected' || stage === 'verifying';
+      }
       return {
         answer:clinic.name + ' · ' + name + ': ' + label + '. ' + message,
-        action:'Open ' + name + ' in Connect',
+        topic:{channel,checkTest},
+        action:openTests ? 'Open Setup tests in Daily Action' : 'Open ' + name + ' in Connect',
         onAction:() => {
           if (!current()) return;
+          if (openTests) {
+            openDailyWork();
+            const filter = inboxFilters.find(button => button.dataset.filter === 'tests');
+            filter.click();
+            filter.focus();
+            void refreshActivity(true).catch(() => {});
+            return;
+          }
           switchWorkspaceView('setup',true);
           if (generation === state.generation && loadedGeneration === generation &&
               displayedConnections === state.connections) {
@@ -1536,7 +1562,8 @@
     } catch (error) {
       if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
       return {answer:error.status === 401 ? error.message :
-        'I couldn’t check ' + setupChannelLabels[channel] + ' for ' + clinic.name + '. Try asking again in a moment.'};
+        'I couldn’t check ' + setupChannelLabels[channel] + ' for ' + clinic.name + '. Try asking again in a moment.',
+        topic:{channel,checkTest}};
     }
   }
 

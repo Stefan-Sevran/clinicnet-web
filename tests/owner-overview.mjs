@@ -55,6 +55,8 @@ for (const role of roles) {
     let resolveConnections;
     let delayConnections = false;
     const supportReads = [];
+    let setupSample;
+    let supportInboxUnavailable = false;
     const facts = {services:'Checkups',hours:'Weekdays 9 to 5',address:'Cebu',bookingRules:'Staff confirm times'};
     win.fetch = async (raw, options) => {
       const req = new URL(raw);
@@ -79,6 +81,9 @@ for (const role of roles) {
         supportReads.push(req.searchParams.get('locationId'));
         if (delayConnections) return new Promise(resolve=>{ resolveConnections=resolve; });
       }
+      if (req.pathname==='/clinic/inbox' && options.cache==='no-store' && supportInboxUnavailable) {
+        return new Response(null,{status:503});
+      }
       if (req.pathname==='/clinic/connections' && activityFailure==='offline') throw new TypeError('Failed to fetch');
       if (req.pathname==='/clinic/connections' && activityFailure==='unauthorized') {
         return new Response(null,{status:401});
@@ -90,8 +95,8 @@ for (const role of roles) {
           {id:bangkok,name:'Bangkok fixture',timezone:'Asia/Bangkok'}],
         '/clinic/bookings':[], '/clinic/inbox':req.searchParams.get('locationId')===cebu ? [{
           event_key:'morning-callback', channel:'ai_phone', kind:'call.followup_needed', summary:'Call back caller',
-          occurred_at:'2026-11-20T03:00:00Z',details:{}
-        }] : [],
+          occurred_at:'2026-11-20T03:00:00Z',details:{},account_id:account,location_id:cebu
+        },...(setupSample ? [setupSample] : [])] : [],
         '/clinic/messenger/setups':role==='staff'?[]:[{locationId:cebu,clinicName:'Cebu fixture',facts}],
         '/clinic/connections':req.searchParams.get('locationId')===cebu ?
           [{channel:'website_chat',status:'connected'},{channel:'facebook_messenger',status:messengerStatus}]
@@ -185,6 +190,9 @@ for (const role of roles) {
       await until(()=>answer.querySelector('details'));
       return answer;
     };
+    doc.querySelector('.eden-help-launcher').click();
+    assert.match(helpDialog.querySelector('.eden-help-header p').textContent,/Selected location: Cebu fixture/);
+    assert.match(helpDialog.querySelector('.eden-help-suggestions').textContent,/I sent a Messenger test/);
     assert.match((await askEden('My sign-in link goes to localhost')).textContent,/fresh sign-in email/);
     const connectionAnswer=await askEden('Messenger stopped connecting');
     assert.match(connectionAnswer.textContent,/Cebu fixture · Facebook Messenger: Action needed/);
@@ -193,7 +201,27 @@ for (const role of roles) {
     const followUp=await askEden('I already sent a test and nothing showed up.');
     assert.match(followUp.textContent,/Cebu fixture · Facebook Messenger: Connected/);
     assert.match(followUp.textContent,/Daily Action/);
+    assert.match(followUp.textContent,/don’t see a Messenger setup test/);
     assert.deepEqual(supportReads,[cebu,cebu]);
+    setupSample = {event_key:'setup-sample',channel:'facebook_messenger',kind:'inquiry.followup_needed',
+      summary:'Messenger test received',occurred_at:'2026-11-20T04:00:00Z',
+      account_id:account,location_id:cebu,details:{demo:true,messengerSetupTestId:'test-fixture'}};
+    const received=await askEden('What now?');
+    assert.match(received.textContent,/A Messenger setup test is visible/);
+    assert.equal(received.querySelector('.eden-help-action').textContent,'Open Setup tests in Daily Action');
+    received.querySelector('.eden-help-action').click();
+    const testsFilter=doc.querySelector('[data-filter="tests"]');
+    assert.equal(testsFilter.getAttribute('aria-pressed'),'true');
+    assert.equal(doc.activeElement,testsFilter);
+    assert.equal(doc.querySelector('#clinic-daily-view').hidden,false);
+    await until(()=>doc.querySelector('[data-event-key="setup-sample"]'));
+    supportInboxUnavailable = true;
+    const unknownInbox=await askEden('I still can’t find it.');
+    assert.match(unknownInbox.textContent,/couldn’t check recent activity/);
+    supportInboxUnavailable = false;
+    setupSample = undefined;
+    doc.querySelector('[data-filter="all"]').click();
+    if (role!=='staff') overviewNav.click();
     messengerStatus = 'action_required';
     const unfamiliar=await askEden('How do I export my data?');
     assert.match(unfamiliar.textContent,/What were you trying to do/);
@@ -360,6 +388,7 @@ for (const role of roles) {
     assert.doesNotMatch(helpDialog.textContent,/Cebu fixture/);
     assert.match((await askEden('Is Messenger connected?')).textContent,/Bangkok fixture · Facebook Messenger: Not set up/);
     assert.equal(supportReads.at(-1),bangkok);
+    assert.match(helpDialog.querySelector('.eden-help-header p').textContent,/Selected location: Bangkok fixture/);
     const phone=await askEden('Can you check AI Phone?');
     assert.match(phone.textContent,/Bangkok fixture · AI Phone: Not set up/);
     phone.querySelector('.eden-help-action').click();

@@ -48,7 +48,7 @@
     return fallback;
   }
 
-  function mount({answerQuestion = previewReply, saveFeedback = saveGuestFeedback} = {}) {
+  function mount({answerQuestion = previewReply, saveFeedback = saveGuestFeedback, workspaceContext} = {}) {
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'eden-help-launcher';
@@ -90,10 +90,32 @@
     let openedBy = launcher;
     let conversationVersion = 0;
     let history = [];
+    let topic;
+    const subtitle = panel.querySelector('.eden-help-header p');
+
+    function showSuggestions() {
+      const workspace = workspaceContext?.();
+      subtitle.textContent = workspace ? 'Selected location: ' + workspace : 'ClinicNet support';
+      const prompts = workspace ? [
+        'I sent a Messenger test and nothing showed up.',
+        'Is Website Chat connected?',
+        'Can you check AI Phone?'
+      ] : suggestions;
+      starters.replaceChildren(...prompts.map(text => {
+        const starter = document.createElement('button');
+        starter.type = 'button';
+        starter.textContent = text;
+        starter.onclick = () => { void send(text); question.focus(); };
+        return starter;
+      }));
+    }
 
     function open(trigger = launcher) {
       openedBy = trigger;
-      if (!panel.open) panel.show();
+      if (!panel.open) {
+        showSuggestions();
+        panel.show();
+      }
       launcher.setAttribute('aria-expanded','true');
       question.focus();
     }
@@ -108,10 +130,12 @@
     function reset() {
       ++conversationVersion;
       history = [];
+      topic = undefined;
       close();
       composer.reset();
       composer.querySelector('button').disabled = false;
       messages.replaceChildren();
+      subtitle.textContent = 'ClinicNet support';
       intro.hidden = false;
     }
 
@@ -207,9 +231,10 @@
       composer.querySelector('button').disabled = true;
       thread.scrollTop = thread.scrollHeight;
       try {
-        const result = await answerQuestion(input, history);
+        const result = await answerQuestion(input, history, topic);
         if (version !== conversationVersion) return;
         answer.textContent = result.answer;
+        topic = result.topic;
         history = [...history, {role:'user', content:input},
           {role:'assistant', content:result.answer.slice(0, 1000)}].slice(-4);
         if (result.onAction || result.href) {
@@ -238,13 +263,6 @@
       }
     }
 
-    for (const text of suggestions) {
-      const starter = document.createElement('button');
-      starter.type = 'button';
-      starter.textContent = text;
-      starter.onclick = () => { void send(text); question.focus(); };
-      starters.append(starter);
-    }
     launcher.onclick = () => panel.open ? close() : open();
     panel.querySelector('.eden-help-close').onclick = close;
     question.addEventListener('keydown', event => {
