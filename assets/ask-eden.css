@@ -1,0 +1,68 @@
+.eden-help-launcher,.eden-help {
+  --help-ink:#22263b;
+  --help-subtle:#5a5d74;
+  --help-brand:#4e36bf;
+  --help-soft:#f1edff;
+  --help-line:#deddea;
+  --help-surface:#fff;
+  font:1rem/1.5 system-ui,sans-serif;
+  color:var(--help-ink);
+}
+.eden-help-launcher {
+  position:fixed; inset:auto max(1.25rem,env(safe-area-inset-right)) max(1.25rem,env(safe-area-inset-bottom)) auto;
+  z-index:1200; display:inline-flex; align-items:center; gap:.55rem;
+  min-height:3rem; padding:.6rem 1.1rem; border:0; border-radius:1.2rem; color:#fff; background:var(--help-brand);
+  box-shadow:0 .45rem 1.2rem #24243c32; font-weight:700; cursor:pointer;
+}
+.eden-help-launcher[hidden] { display:none; }
+.eden-help-launcher::before { content:""; width:.55rem; height:.55rem; border-radius:50%; background:#dbd0ff; }
+.eden-help {
+  position:fixed; inset:auto max(1.25rem,env(safe-area-inset-right)) 5rem auto; margin:0; padding:0;
+  z-index:1201; width:min(28rem,calc(100vw - 2.5rem)); max-width:none; box-sizing:border-box;
+  height:min(40rem,calc(100dvh - 6rem)); max-height:none; overflow:hidden;
+  border:1px solid var(--help-line); border-radius:1.25rem; background:var(--help-surface);
+  box-shadow:0 1.2rem 3.2rem #24243c2e;
+}
+.eden-help[open] { display:flex; flex-direction:column; }
+.eden-help-header { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1rem; background:var(--help-soft); }
+.eden-help-header h2,.eden-help-header p,.eden-help p { margin:0; }
+.eden-help-header h2 { font-size:1.16rem; letter-spacing:-.02em; }
+.eden-help-header p,.eden-help small { color:var(--help-subtle); font-size:.82rem; }
+.eden-help-thread { display:flex; flex:1; flex-direction:column; min-height:0; overflow:auto; padding:1rem 1rem .45rem; overscroll-behavior:contain; }
+.eden-help-messages { flex:none; margin-top:auto; }
+.eden-help-intro p { font-size:1.15rem; font-weight:650; margin:.3rem 0 .8rem; }
+.eden-help-suggestions { display:grid; gap:.45rem; }
+.eden-help button,.eden-help-action { color:var(--help-ink); background:#fff; border:1px solid var(--help-line); border-radius:.6rem;
+  padding:.38rem .65rem; font:inherit; cursor:pointer; }
+.eden-help button:hover,.eden-help-action:hover { border-color:var(--help-brand); }
+.eden-help :is(button,a,textarea,summary):focus-visible,.eden-help-launcher:focus-visible { outline:3px solid #8069e1; outline-offset:2px; }
+.eden-help-question { margin:.65rem 0 .9rem auto!important; padding:.55rem .8rem; background:var(--help-soft); border-radius:.8rem .8rem .15rem .8rem; width:fit-content; max-width:92%; overflow-wrap:anywhere; }
+.eden-help-answer { margin:.65rem 0 .52rem; overflow-wrap:anywhere; }
+.eden-help-reply { padding:.7rem .85rem; border:1px solid #e6ddfb; border-inline-start:3px solid #8069d6; border-radius:.7rem; background:#f7f4ff; }
+.eden-help-reply>strong { font-size:.84rem; color:var(--help-brand); }
+.eden-help-reply>p { margin:.2rem 0 0; }
+.eden-help-reply .eden-help-action { margin:.45rem 0 0; }
+.eden-help-action { display:inline-block; margin-bottom:.45rem; font-weight:650; color:var(--help-brand); text-decoration:none; }
+.eden-help-feedback { margin-top:.35rem; padding:.2rem .12rem .3rem; }
+.eden-help-feedback summary { cursor:pointer; width:fit-content; color:var(--help-subtle); font-size:.83rem; }
+.eden-help-ratings { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:.22rem; margin:.56rem 0; }
+.eden-help-ratings button { min-width:0; min-height:2.4rem; padding:.15rem 0; font-size:.88rem; }
+.eden-help-ratings button[aria-pressed="true"] { color:#fff; background:var(--help-brand); border-color:var(--help-brand); }
+.eden-help-feedback label,.eden-help-composer label { display:block; font-size:.87rem; font-weight:600; }
+.eden-help textarea { box-sizing:border-box; width:100%; margin:.25rem 0; border:1px solid var(--help-line); border-radius:.6rem; padding:.44rem; font:inherit; color:inherit; resize:vertical; background:#fff; }
+.eden-help-feedback-status { margin-inline-start:.5rem; color:var(--help-subtle); font-size:.84rem; }
+.eden-help-composer { padding:.72rem 1rem .85rem; border-top:1px solid var(--help-line); background:var(--help-surface); }
+.eden-help-entry { display:flex; align-items:flex-end; gap:.45rem; margin:.24rem 0 .4rem; padding:.36rem; border:1px solid var(--help-line); border-radius:1rem; }
+.eden-help-entry:focus-within { border-color:#8069e1; }
+.eden-help-entry textarea { min-width:0; min-height:2.75rem; margin:0; border:0; padding:.3rem .4rem; resize:none; }
+.eden-help-entry textarea:focus-visible { outline:none; }
+.eden-help-entry button { display:grid; place-items:center; flex:0 0 2.5rem; width:2.5rem; height:2.5rem; padding:0; border:0; border-radius:50%; background:#2455bd; color:#fff; font-size:1.35rem; line-height:1; }
+.eden-help-entry button:hover { background:#1c469f; }
+.eden-help-entry button:disabled { opacity:.6; cursor:default; }
+.eden-help-footer { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:.1rem .5rem; }
+.eden-help .eden-help-address { color:#2055ab; white-space:nowrap; user-select:all; }
+@media(max-width:600px) {
+  .eden-help-launcher { inset:auto .8rem calc(.8rem + env(safe-area-inset-bottom)) auto; }
+  .eden-help { inset:auto .55rem calc(4.45rem + env(safe-area-inset-bottom)) auto; width:calc(100vw - 1.1rem); height:min(38rem,calc(100dvh - 5.1rem - env(safe-area-inset-bottom))); }
+  .eden-help-thread,.eden-help-composer { padding-inline:.8rem; }
+}

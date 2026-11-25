@@ -98,6 +98,7 @@
   let alertScope;
   let observedAlerts = new Set();
   let alertAudio;
+  let askEden;
   let clinicFactsRequest;
   let loadedGeneration = -1;
   let workspaceLoadFailed = false;
@@ -757,6 +758,13 @@
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths[name] + '</svg>';
   }
 
+  function canUseAskEdenPilot() {
+    const locationId = byId('clinic-location').value;
+    return Boolean(state.session && loadedGeneration === state.generation &&
+      locationId === '27140bed-5f11-4c6c-a30e-18f87d8747aa' &&
+      state.locations.some(item => item.id === locationId));
+  }
+
   function createWorkspaceControls() {
     const controls = document.createElement('div');
     controls.className = 'clinic-workspace-controls';
@@ -810,6 +818,38 @@
     document.addEventListener('click',event=>{
       for (const details of [menu,alerts]) if (!details.contains(event.target)) details.open = false;
     });
+    if (window.ClinicNetAskEden) {
+      const {mount, publicReply} = window.ClinicNetAskEden;
+      const channelByGuide = {messenger:'facebook_messenger', 'website-chat':'website_chat', phone:'ai_phone'};
+      askEden = mount({
+        workspaceContext: () => state.session &&
+          state.locations.find(item => item.id === byId('clinic-location').value)?.name,
+        answerQuestion(question, _history, topic) {
+          if (!canUseAskEdenPilot()) return {answer:'Select Cebu Test Location to use this chat.'};
+          const reply = publicReply(question);
+          const followUp = /^(?:what (?:now|next|should i do)|(?:i )?(?:already |just )?(?:sent|ran|tried|made) (?:it|a test|the test|a test call)|nothing (?:showed up|came through)|it still (?:doesn.t work|isn.t working)|(?:i )?(?:still )?(?:can.t|cannot) (?:find|see) it)\b/i;
+          const testQuestion = /\btest\b/i.test(question);
+          const channel = channelByGuide[reply.guide] || (!reply.guide && followUp.test(question) ? topic?.channel : null);
+          if (channel) {
+            const checkTest = channel === 'facebook_messenger' && (testQuestion ||
+              (!reply.guide && (topic?.checkTest || /(?:showed up|came through|find it|see it)/i.test(question))));
+            return answerChannelStatus(channel, checkTest);
+          }
+          if (reply.view === 'alerts') {
+            if (!isClinicOwner) return {answer:'Ask the clinic owner to open Alerts for the requested location.'};
+            return {...reply, onAction:() => {
+              alerts.open = true;
+              alerts.querySelector('summary').focus();
+            }};
+          }
+          if (['profile','revenue'].includes(reply.view) && !canManageClinic) {
+            return {answer:'Ask a clinic owner or admin to open this section.'};
+          }
+          return {...reply, onAction:reply.view ? () => switchWorkspaceView(reply.view,true) : undefined};
+        }
+      });
+      askEden.setAvailable(false);
+    }
     const support = document.createElement('dialog');
     support.className = 'clinic-support-dialog';
     support.id = 'clinic-support-dialog';
@@ -840,7 +880,8 @@
     document.body.append(support);
     menu.querySelector('#clinic-open-support').onclick = () => {
       menu.open = false;
-      support.showModal();
+      if (askEden && canUseAskEdenPilot()) askEden.open(menu.querySelector('summary'));
+      else support.showModal();
     };
     support.addEventListener('close',()=>menu.querySelector('summary').focus());
     const topic = support.querySelector('#clinic-help-topic');
@@ -888,6 +929,8 @@
   function clearWorkspaceAlerts() {
     byId('clinic-alerts-menu').open = false;
     byId('clinic-account-menu').open = false;
+    askEden?.reset();
+    askEden?.setAvailable(false);
     const support = byId('clinic-support-dialog');
     if (support.open) support.close();
     support.querySelector('#clinic-send-feedback').reset();
@@ -1352,8 +1395,8 @@
     return button;
   }
 
-  function channelStatus(channel, connection) {
-    if (channel === 'website_chat' && publishedWebsite && (!connection || ['requested', 'verifying'].includes(connection.status))) return 'Page live · inbox unverified';
+  function channelStatus(channel, connection, pageLive) {
+    if (pageLive) return 'Page live · inbox unverified';
     if (!connection) return 'Not set up';
     if (connection.status==='requested') return {
       website_chat:'Inbox unverified',facebook_messenger:'Access pending',ai_phone:'Number pending'
@@ -1454,28 +1497,106 @@
     };
   }
 
+  function channelPresentation(channel, connection, includeWorkspaceDetails = true) {
+    const messengerSetup = includeWorkspaceDetails && channel === 'facebook_messenger' && messengerSetups.find(setup =>
+      setup.accountId === byId('clinic-account').value && setup.locationId === byId('clinic-location').value);
+    const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
+    const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
+      !hasMessengerFacts(messengerSetup.facts);
+    const pageLive = includeWorkspaceDetails && publishedWebsite && channel === 'website_chat' &&
+      (!connection || ['requested','verifying'].includes(connection.status));
+    return {
+      messengerSetup, guided,
+      label: needsFacts ? 'Facts needed' : channelStatus(channel,connection,pageLive),
+      stage: needsFacts ? 'facts' : pageLive ? 'verifying' : connection?.status || 'unconfigured'
+    };
+  }
+
+  async function answerChannelStatus(channel, checkTest) {
+    const accountId = byId('clinic-account').value;
+    const locationId = byId('clinic-location').value;
+    const userId = state.session?.user?.id;
+    const clinic = state.locations.find(item => item.id === locationId);
+    if (!accountId || !clinic || !userId) return {answer:'Choose a clinic location and ask me to check again.'};
+    const current = () => state.session?.user?.id === userId &&
+      byId('clinic-account').value === accountId && byId('clinic-location').value === locationId;
+
+    const generation = state.generation;
+    const displayedConnections = state.connections;
+    try {
+      const query = new URLSearchParams({accountId,locationId});
+      const inScope = rows => Array.isArray(rows) &&
+        rows.every(item => item.account_id === accountId && item.location_id === locationId);
+      const [connections, recentInbox] = await Promise.all([
+        timedRead(request('/clinic/connections?' + query,{cache:'no-store'})),
+        checkTest ? timedRead(request('/clinic/inbox?' + query + '&limit=100',{cache:'no-store'})).catch(() => null) : null
+      ]);
+      if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
+      if (!inScope(connections)) {
+        throw Error('Connection response did not match the selected clinic.');
+      }
+      const connection = connections.find(item => item.channel === channel);
+      const {label,stage} = channelPresentation(channel,connection,loadedGeneration === state.generation);
+      const name = setupChannelLabels[channel];
+      let message = stage === 'connected'
+        ? 'If a test is missing, check Daily Action for an entry from ' + name + ' at this location.'
+        : connectClinicAction(channel,stage)[1];
+      let openTests = false;
+      if (checkTest) {
+        const inboxChecked = inScope(recentInbox);
+        const received = inboxChecked && recentInbox.some(isMessengerSetupSample);
+        message = received ? 'A Messenger setup test is visible in recent activity. Open Daily Action → Setup tests to check whether it’s the one you just sent.' :
+          inboxChecked ? 'I don’t see a Messenger setup test in the recent activity. If you sent a regular message, look under All activity. If you used the setup test, check the linked Facebook Page and use Check for reply in Connect if it’s available.' :
+          'I couldn’t check recent activity. Open Daily Action → Setup tests to look for the test, or use All activity if you sent a regular message.';
+        openTests = received || stage === 'connected' || stage === 'verifying';
+      }
+      return {
+        answer:clinic.name + ' · ' + name + ': ' + label + '. ' + message,
+        topic:{channel,checkTest},
+        action:openTests ? 'Open Setup tests in Daily Action' : 'Open ' + name + ' in Connect',
+        onAction:() => {
+          if (!current()) return;
+          if (openTests) {
+            openDailyWork();
+            const filter = inboxFilters.find(button => button.dataset.filter === 'tests');
+            filter.click();
+            filter.focus();
+            void refreshActivity(true).catch(() => {});
+            return;
+          }
+          switchWorkspaceView('setup',true);
+          if (generation === state.generation && loadedGeneration === generation &&
+              displayedConnections === state.connections) {
+            state.connections = connections;
+            renderChannels();
+            renderMessengerGuide();
+          }
+          channelSteps.find(step => step.channel === channel)?.link.click();
+        }
+      };
+    } catch (error) {
+      if (!current()) return {answer:'The clinic location changed. Ask me again to check this location.'};
+      return {answer:error.status === 401 ? error.message :
+        'I couldn’t check ' + setupChannelLabels[channel] + ' for ' + clinic.name + '. Try asking again in a moment.',
+        topic:{channel,checkTest}};
+    }
+  }
+
   function renderChannels(steps = channelSteps) {
     for (const { channel, panel, heading, body, link, marker, badge, action, updated } of steps) {
       const connection = state.connections.find(item=>item.channel===channel);
-      const messengerSetup = channel==='facebook_messenger' && messengerSetups.find(setup=>
-        setup.accountId===byId('clinic-account').value && setup.locationId===byId('clinic-location').value);
-      const guided = messengerSetup && Object.hasOwn(messengerSetup,'facts');
-      const connected = connection?.status==='connected';
-      const needsFacts = guided && ['connected','verifying'].includes(connection?.status) &&
-        !hasMessengerFacts(messengerSetup.facts);
-      badge.textContent = needsFacts ? 'Facts needed' : channelStatus(channel,connection);
+      const {messengerSetup, guided, label, stage} = channelPresentation(channel,connection);
+      const connected = stage === 'connected';
+      badge.textContent = label;
       const updatedAt = new Date(connection?.updated_at || '');
       updated.hidden = !Number.isFinite(updatedAt.getTime());
       updated.textContent = updated.hidden ? '' : 'Updated '+updatedAt.toLocaleDateString(undefined,{timeZone:clinicTimeZone(byId('clinic-location').value)});
       badge.title = updated.textContent;
 
-      link.dataset.connected = String(connected && !needsFacts);
+      link.dataset.connected = String(connected);
       badge.dataset.connected = link.dataset.connected;
-      marker.textContent = connected && !needsFacts ? '✓' : '○';
-      const websiteNeedsTest = channel==='website_chat' && publishedWebsite &&
-        (!connection || ['requested','verifying'].includes(connection.status));
-      link.dataset.connectionStatus = needsFacts ? 'facts' :
-        websiteNeedsTest ? 'verifying' : connection?.status || 'unconfigured';
+      marker.textContent = connected ? '✓' : '○';
+      link.dataset.connectionStatus = stage;
       action.textContent = connectClinicAction(channel,link.dataset.connectionStatus)[0];
       panel.hidden = false;
       if (guided) {
@@ -2690,6 +2811,7 @@
     if (!quiet) renderMessengerGuide();
     inboxSignature = signature;
     loadedGeneration = generation;
+    askEden?.setAvailable(canUseAskEdenPilot());
     if (!quiet) status('Workspace loaded for ' + state.locations.find(row => row.id === locationId)?.name + '.', 'success', true);
   }
 
