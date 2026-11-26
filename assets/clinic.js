@@ -116,6 +116,7 @@
   workspaceHero.after(channelNav);
   const channelSteps = createChannelSteps();
   const workspaceViews = createWorkspaceViews();
+  let operationsAvailable = false;
   switchWorkspaceView(workspaceView);
   const followupKinds = ['call.followup_needed', 'booking.requested', 'inquiry.followup_needed'];
   const show = (id, visible) => { byId(id).hidden = !visible; };
@@ -221,13 +222,28 @@
   async function loadAccounts(preferred, preferredLocation, generation) {
     const accounts = await timedRead(request('/clinic/accounts'));
     if (generation !== state.generation) return;
+    const operatorPanel = workspaceViews.operatorPanel;
+    operatorPanel.replaceChildren();
+    operatorPanel.hidden = true;
+    operationsAvailable = false;
+    let hasOperations = false;
+    if (typeof ClinicOperations !== 'undefined') {
+      const content = document.createElement('div');
+      try {
+        hasOperations = await timedRead(ClinicOperations.operators(state.client,content));
+        if (generation !== state.generation) return;
+        operationsAvailable = true;
+        operatorPanel.replaceChildren(...content.childNodes);
+        operatorPanel.hidden = !hasOperations;
+      } catch { if (generation !== state.generation) return; }
+    }
     state.accounts = accounts;
-    show('clinic-create', accounts.length === 0);
+    show('clinic-create', accounts.length === 0 && !hasOperations);
     show('clinic-dashboard', accounts.length > 0);
     document.querySelector('.clinic-view-switch').hidden = !accounts.length;
     byId('clinic-open-settings').hidden = !accounts.length;
     updateHeroAction();
-    if (!accounts.length) return status('You are signed in. Create your first workspace.');
+    if (!accounts.length) return status(hasOperations ? 'Choose an approved Eden workspace below.' : 'You are signed in. Create your first workspace.');
     selectOptions(byId('clinic-account'), accounts, preferred || byId('clinic-account').value, 'name');
     await loadLocations(preferredLocation, generation);
   }
@@ -975,7 +991,12 @@
     settings.className = 'clinic-workspace-admin';
     settings.innerHTML = '<h1 tabindex="-1">Settings</h1><section class="clinic-panel"><h2>Account</h2><p id="clinic-settings-identity"></p><p>Workspace sign-in uses a code sent to your email.</p><button type="button" id="clinic-settings-signout" class="clinic-secondary">Sign out</button></section><section class="clinic-panel" id="clinic-settings-alerts"><h2>Staff alerts</h2><p id="clinic-settings-alert-note">Staff alert email is unavailable for this clinic.</p></section>';
     settings.querySelector('#clinic-settings-alerts').append(alertEmailForm);
-    settings.append(byId('clinic-team-invite'));
+    const ownerSupport = document.createElement('div');
+    const operatorPanel = document.createElement('section');
+    operatorPanel.className = 'clinic-panel clinic-ops-operator';
+    operatorPanel.hidden = true;
+    dashboard.before(operatorPanel);
+    settings.append(byId('clinic-team-invite'),ownerSupport);
     settings.querySelector('#clinic-settings-signout').onclick = () => byId('clinic-signout').click();
     dashboard.append(overview,work,revenue,setup,profile,settings);
     setup.append(channelNav,...channelSteps.map(step=>step.panel));
@@ -1018,7 +1039,7 @@
       target.scrollIntoView({block:'nearest'});
     };
     overview.querySelector('.clinic-overview-header').after(today);
-    return {overview,setup,work,revenue,profile,settings,links};
+    return {overview,setup,work,revenue,profile,settings,links,ownerSupport,operatorPanel};
   }
 
   function switchWorkspaceView(view, updateUrl = false) {
@@ -2617,6 +2638,13 @@
     if (!quiet) {
       const timezone = clinicTimeZone(locationId);
       state.visitCurrency = currency;
+      if (operationsAvailable && isClinicOwner && workspaceViews.ownerSupport.dataset.location !== locationId) {
+        workspaceViews.ownerSupport.dataset.location = locationId;
+        workspaceViews.ownerSupport.replaceChildren(ClinicOperations.owner(state.client,locationId));
+      } else if (!operationsAvailable || !isClinicOwner) {
+        delete workspaceViews.ownerSupport.dataset.location;
+        workspaceViews.ownerSupport.replaceChildren();
+      }
       ClinicRescue.pending({client:state.client,locationId,timezone,candidates:()=>dailyEvents,refresh:()=>refreshActivity()});
       ClinicRescue.attributionReviews({client:state.client,locationId,timezone});
       const clinicName = state.locations.find(l=>l.id===locationId)?.name || '';
@@ -2624,7 +2652,7 @@
         (!query.has('location') || query.get('location')===locationId);
       openRequestedReport = false;
       byId('clinic-revenue-location').textContent = canManageClinic ? clinicName : '';
-      ClinicRescue.reports({client:state.client,locationId,clinicName,manager:canManageClinic,email:state.session?.user.email,
+      ClinicRescue.reports({client:state.client,locationId,clinicName,manager:canManageClinic,owner:isClinicOwner,operationsAvailable,email:state.session?.user.email,
         timezone,reportId:openReportHere && query.get('location')===locationId ? query.get('report') : null});
       publishedWebsite = false;
       state.connections = connections;
@@ -2982,6 +3010,11 @@
 
   async function authenticated(session) {
     state.session = session;
+    operationsAvailable = false;
+    workspaceViews.operatorPanel.hidden = true;
+    workspaceViews.operatorPanel.replaceChildren();
+    workspaceViews.ownerSupport.replaceChildren();
+    delete workspaceViews.ownerSupport.dataset.location;
     clearOwnerOverview();
     clearRevenueView();
     daily.hidden = true;
@@ -3131,6 +3164,8 @@
     catch (error) { status(error.message, 'error'); }
   });
   byId('clinic-account').addEventListener('change', () => {
+    workspaceViews.ownerSupport.replaceChildren();
+    delete workspaceViews.ownerSupport.dataset.location;
     clearWorkspaceAlerts();
     clearOwnerOverview();
     clearRevenueView();
@@ -3142,6 +3177,8 @@
     refreshLocations().catch(() => {});
   });
   byId('clinic-location').addEventListener('change', () => {
+    workspaceViews.ownerSupport.replaceChildren();
+    delete workspaceViews.ownerSupport.dataset.location;
     clearWorkspaceAlerts();
     clearRevenueView();
     closeManualBooking();
