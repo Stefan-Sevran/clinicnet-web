@@ -34,7 +34,7 @@
 .eden-help button,.eden-help-action { color:var(--help-ink); background:#fff; border:1px solid var(--help-line); border-radius:.6rem;
   padding:.38rem .65rem; font:inherit; cursor:pointer; }
 .eden-help button:hover,.eden-help-action:hover { border-color:var(--help-brand); }
-.eden-help :is(button,a,textarea,summary):focus-visible,.eden-help-launcher:focus-visible { outline:3px solid #8069e1; outline-offset:2px; }
+.eden-help :is(button,a,input,select,textarea,summary):focus-visible,.eden-help-launcher:focus-visible { outline:3px solid #8069e1; outline-offset:2px; }
 .eden-help-question { margin:.65rem 0 .9rem auto!important; padding:.55rem .8rem; background:var(--help-soft); border-radius:.8rem .8rem .15rem .8rem; width:fit-content; max-width:92%; overflow-wrap:anywhere; }
 .eden-help-answer { margin:.65rem 0 .52rem; overflow-wrap:anywhere; }
 .eden-help-reply { padding:.7rem .85rem; border:1px solid #e6ddfb; border-inline-start:3px solid #8069d6; border-radius:.7rem; background:#f7f4ff; }
@@ -42,14 +42,23 @@
 .eden-help-reply>p { margin:.2rem 0 0; }
 .eden-help-reply .eden-help-action { margin:.45rem 0 0; }
 .eden-help-action { display:inline-block; margin-bottom:.45rem; font-weight:650; color:var(--help-brand); text-decoration:none; }
-.eden-help-feedback { margin-top:.35rem; padding:.2rem .12rem .3rem; }
+.eden-help-feedback { margin-top:.45rem; padding:.2rem .12rem .3rem; }
 .eden-help-feedback summary { cursor:pointer; width:fit-content; color:var(--help-subtle); font-size:.83rem; }
-.eden-help-ratings { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:.22rem; margin:.56rem 0; }
+.eden-help-feedback-body { margin-top:.45rem; padding:.65rem; border:1px solid var(--help-line); border-radius:.7rem; background:var(--help-surface); }
+.eden-help-ratings { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:.25rem; }
 .eden-help-ratings button { min-width:0; min-height:2.4rem; padding:.15rem 0; font-size:.88rem; }
 .eden-help-ratings button[aria-pressed="true"] { color:#fff; background:var(--help-brand); border-color:var(--help-brand); }
 .eden-help-feedback label,.eden-help-composer label { display:block; font-size:.87rem; font-weight:600; }
 .eden-help textarea { box-sizing:border-box; width:100%; margin:.25rem 0; border:1px solid var(--help-line); border-radius:.6rem; padding:.44rem; font:inherit; color:inherit; resize:vertical; background:#fff; }
-.eden-help-feedback-status { margin-inline-start:.5rem; color:var(--help-subtle); font-size:.84rem; }
+.eden-help-feedback-status:not(:empty) { display:block; margin-top:.35rem; color:var(--help-subtle); font-size:.84rem; }
+.eden-help-feedback-more { margin-top:.55rem; }
+.eden-help-feedback-more summary { color:var(--help-brand); }
+.eden-help-feedback-fields { display:grid; gap:.65rem; margin-top:.55rem; }
+.eden-help-feedback-fields :is(select,textarea) { display:block; width:100%; margin:.22rem 0 0; }
+.eden-help-feedback-fields select { box-sizing:border-box; min-height:2.3rem; padding:.3rem .55rem; border:1px solid var(--help-line); border-radius:.6rem; font:inherit; color:inherit; background:var(--help-surface); }
+.eden-help-feedback-fields .eden-help-feedback-handoff { display:flex; align-items:baseline; gap:.45rem; font-weight:400; }
+.eden-help-feedback-handoff input { margin:0; accent-color:var(--help-brand); }
+.eden-help-feedback-fields .eden-help-done { justify-self:start; font-size:.85rem; }
 .eden-help-composer { padding:.72rem 1rem .85rem; border-top:1px solid var(--help-line); background:var(--help-surface); }
 .eden-help-entry { display:flex; align-items:flex-end; gap:.45rem; margin:.24rem 0 .4rem; padding:.36rem; border:1px solid var(--help-line); border-radius:1rem; }
 .eden-help-entry:focus-within { border-color:#8069e1; }
@@ -64,6 +73,9 @@
   .eden-help-launcher { inset:auto .8rem calc(.8rem + env(safe-area-inset-bottom)) auto; }
   .eden-help { inset:auto .55rem calc(4.45rem + env(safe-area-inset-bottom)) auto; width:calc(100vw - 1.1rem); height:min(38rem,calc(100dvh - 5.1rem - env(safe-area-inset-bottom))); }
   .eden-help-thread,.eden-help-composer { padding-inline:.8rem; }
+}
+@media(max-width:360px) {
+  .eden-help-ratings { grid-template-columns:repeat(5,minmax(0,1fr)); }
 }
 
 /* Signed-in mobile navigation occupies the bottom of the viewport. */

@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/api/ask-eden"],
+  "include": ["/api/ask-eden", "/api/ask-eden-feedback"],
   "exclude": []
 }

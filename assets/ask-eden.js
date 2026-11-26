@@ -1,16 +1,21 @@
 (function () {
   const suggestions = [
-    'My sign-in link opens the wrong page',
-    'Where do I review an access request?',
-    'How do I set up Website Chat?'
+    'How much does the AI receptionist cost?',
+    'Can I try the AI receptionist?',
+    'Do you work with clinics in Thailand?'
   ];
   const footer = 'Leave out patient details and sign-in codes.';
   const paths = {setup:'Open Connect', daily:'Open Daily Action', profile:'Open Clinic profile', revenue:'Open Revenue', alerts:'Open Alerts'};
 
-  function saveGuestFeedback({id, answer, rating, comment}) {
-    const key = 'eden-ask-demo-feedback';
-    const saved = JSON.parse(localStorage.getItem(key) || '[]').filter(item => item.id !== id);
-    localStorage.setItem(key, JSON.stringify([...saved.slice(-49), {id, reply:answer, rating, comment}]));
+  async function savePilotFeedback({id, rating, comment, outcome, handoff, surface, topic, source}) {
+    const response = await fetch('/api/ask-eden-feedback', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id, rating, comment, outcome, handoff, surface, topic, source}),
+      signal:AbortSignal.timeout(10000)
+    });
+    if (response.status === 400) throw Error('Check your feedback and remove private details before trying again.');
+    if (!response.ok) throw Error('Couldn’t save. Try again.');
   }
 
   function facebookPageHelp(question, topic) {
@@ -56,7 +61,11 @@
   }
 
   async function previewReply(question, history = []) {
-    const fallback = publicReply(question);
+    const guidance = window.EdenSupportKnowledge?.publicGuide(question, history);
+    const fallback = guidance || facebookPageHelp(question) || publicReply(question);
+    if (guidance?.intent === 'offer') return guidance;
+    if (fallback.kind === 'connect') return {...fallback, href:'/clinic/', action:'Open Clinic Workspace'};
+    if (fallback.kind) return fallback;
     if (location.hostname !== 'codex-ask-eden-preview.clinicnet-web.pages.dev') return fallback;
     const mayUseModel = window.EdenSupportKnowledge?.mayUseModel;
     if (!mayUseModel?.(question) || history.some(turn =>
@@ -71,7 +80,7 @@
       });
       if (response.ok) {
         const {answer, mode} = await response.json();
-        if (mode === 'model' && typeof answer === 'string' && answer.trim()) return {answer};
+        if (mode === 'model' && typeof answer === 'string' && answer.trim()) return {...fallback, answer, source:'model'};
       }
     } catch {
       // The local guidance is also available if the preview model times out.
@@ -79,7 +88,7 @@
     return fallback;
   }
 
-  function mount({answerQuestion = previewReply, saveFeedback = saveGuestFeedback, workspaceContext} = {}) {
+  function mount({answerQuestion = previewReply, saveFeedback = savePilotFeedback, workspaceContext, feedbackSurface = () => 'public'} = {}) {
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'eden-help-launcher';
@@ -170,34 +179,59 @@
       intro.hidden = false;
     }
 
-    function addFeedback(card, reply) {
+    function addFeedback(card, reply, surface) {
       const feedbackVersion = conversationVersion;
       const id = crypto.randomUUID();
       const feedback = document.createElement('details');
       feedback.className = 'eden-help-feedback';
       feedback.innerHTML = `
         <summary>How helpful was this answer?</summary>
-        <div class="eden-help-ratings" role="group" aria-label="Rate this answer from 1 to 10"></div>
-        <label>Optional feedback<textarea rows="2" maxlength="1200"></textarea></label>
-        <button type="button" class="eden-help-done">Done</button>
-        <span class="eden-help-feedback-status" role="status"></span>`;
+        <div class="eden-help-feedback-body">
+          <div class="eden-help-ratings" role="group" aria-label="Rate this answer from 1 to 10"></div>
+          <span class="eden-help-feedback-status" role="status"></span>
+          <details class="eden-help-feedback-more">
+            <summary>Add details (optional)</summary>
+            <div class="eden-help-feedback-fields">
+              <label>Issue status
+                <select>
+                  <option value="">Choose a status</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="unresolved">Still unresolved</option>
+                  <option value="reopened">The issue came back</option>
+                </select>
+              </label>
+              <label class="eden-help-feedback-handoff"><input type="checkbox"> I needed help from the support team</label>
+              <label>Comment
+                <textarea rows="2" maxlength="1200" aria-describedby="eden-feedback-privacy-${id}"></textarea>
+              </label>
+              <small id="eden-feedback-privacy-${id}">Leave out patient details, contact information, and sign-in codes.</small>
+              <button type="button" class="eden-help-done">Save details</button>
+            </div>
+          </details>
+        </div>`;
       const ratings = feedback.querySelector('.eden-help-ratings');
       const commentField = feedback.querySelector('textarea');
+      const outcomeField = feedback.querySelector('select');
+      const handoffField = feedback.querySelector('input');
+      const more = feedback.querySelector('.eden-help-feedback-more');
       const done = feedback.querySelector('.eden-help-done');
       const status = feedback.querySelector('[role="status"]');
       let rating = null;
-      let submittedComment = '';
+      let submitted = {comment:'', outcome:null, handoff:false};
       let saved = null;
       let pending = Promise.resolve();
       let latest = 0;
 
       function save(closeOnSave = false) {
-        if (closeOnSave) submittedComment = commentField.value.trim();
-        const comment = submittedComment;
-        const selection = {id, answer:reply, rating, comment};
-        if (rating === null && !comment && !saved) {
-          feedback.open = false;
-          feedback.querySelector('summary').focus();
+        if (closeOnSave) submitted = {
+          comment:commentField.value.trim(), outcome:outcomeField.value || null, handoff:handoffField.checked
+        };
+        const selection = {id, rating, ...submitted, surface,
+          topic:reply.feedbackTopic || reply.guide || (reply.kind ? 'messenger' : 'other'),
+          source:reply.source || (reply.kind === 'meta' ? 'provider' : 'guidance')};
+        if (rating === null && !submitted.comment && !submitted.outcome && !submitted.handoff && !saved) {
+          more.open = false;
+          more.querySelector('summary').focus();
           return;
         }
         const attempt = ++latest;
@@ -205,18 +239,19 @@
         pending = pending.then(async () => {
           if (conversationVersion !== feedbackVersion) return;
           try {
-            if (!saved || selection.rating !== saved.rating || selection.comment !== saved.comment) {
+            if (!saved || selection.rating !== saved.rating || selection.comment !== saved.comment ||
+                selection.outcome !== saved.outcome || selection.handoff !== saved.handoff) {
               await saveFeedback(selection);
               saved = selection;
             }
             if (attempt !== latest) return;
             status.textContent = 'Saved. Thank you.';
             if (closeOnSave) {
-              feedback.open = false;
-              feedback.querySelector('summary').focus();
+              more.open = false;
+              more.querySelector('summary').focus();
             }
-          } catch {
-            if (attempt === latest) status.textContent = 'Couldn’t save. Try again.';
+          } catch (error) {
+            if (attempt === latest) status.textContent = error.message || 'Couldn’t save. Try again.';
           }
         });
       }
@@ -242,6 +277,7 @@
       const input = text.trim();
       if (!input || composer.querySelector('button').disabled) return;
       const version = conversationVersion;
+      const surface = feedbackSurface();
       intro.hidden = true;
       for (const previous of messages.querySelectorAll('details[open]')) previous.open = false;
       const user = document.createElement('p');
@@ -289,7 +325,7 @@
           }
           replyBody.append(action);
         }
-        addFeedback(card,result.answer);
+        addFeedback(card,result,surface);
       } catch {
         if (version === conversationVersion) answer.textContent = 'Eden couldn’t load an answer. Please try again.';
       } finally {
@@ -315,6 +351,6 @@
     return {open, close, reset};
   }
 
-  window.ClinicNetAskEden = {mount, previewReply, publicReply, saveGuestFeedback, facebookPageHelp};
+  window.ClinicNetAskEden = {mount, previewReply, publicReply, facebookPageHelp};
   if (document.body.dataset.page !== 'clinic') mount();
 })();
