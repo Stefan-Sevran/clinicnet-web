@@ -63,6 +63,11 @@
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
   pearlPilotLink.hidden = true;
   byId('clinic-inbox').before(pearlPilotLink);
+  const pearlCalendarPilotLink = document.createElement('a');
+  pearlCalendarPilotLink.href = '/pearlsmile-cebu/?calendar-pilot=1#pearlsmile-reception-chat-2026';
+  pearlCalendarPilotLink.textContent = 'Test PearlSmile calendar booking';
+  pearlCalendarPilotLink.hidden = true;
+  byId('clinic-inbox').before(pearlCalendarPilotLink);
   const commentPilotPanel = document.createElement('section');
   commentPilotPanel.className = 'clinic-events';
   commentPilotPanel.hidden = true;
@@ -1964,6 +1969,14 @@
           line.textContent = 'Topics · ' + additionalTopics.join(', ');
           details.append(line);
         }
+        const calendarTime = Date.parse(event.details?.appointmentAt);
+        if (event.details?.calendarEventId && bookingStatus(event) === 'Confirmed' && Number.isFinite(calendarTime)) {
+          const timing = document.createElement('small');
+          timing.textContent = 'Appointment · ' + new Intl.DateTimeFormat(undefined, {
+            timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short'
+          }).format(calendarTime) + ' (Cebu time)';
+          row.append(timing);
+        }
         if (event.details?.requestedTime) {
           const timing = document.createElement('small');
           timing.textContent = 'Requested time · ' + event.details.requestedTime;
@@ -2913,6 +2926,8 @@
       clinicTeamAvailable = team !== null;
       clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
       pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
+      pearlCalendarPilotLink.hidden = !window.edenClinicPreview ||
+        !state.locations.some(location => location.id === locationId && location.name === 'Test Location');
       renderChannels();
       renderCommentPilot(inbox);
       const website = connections.find(row => row.channel === 'website_chat');
