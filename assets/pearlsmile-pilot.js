@@ -157,7 +157,12 @@
         choices.replaceChildren();
         status.textContent = 'Confirmed · ' + result.service + ' · ' + clock.format(new Date(start)) + ' (Cebu time).';
         const link = document.createElement('a');
-        link.href = '/clinic/?view=daily';
+        const workspace = new URLSearchParams({ view: 'daily', inbox: 'booked' });
+        if (result.accountId && result.locationId) {
+          workspace.set('account', result.accountId);
+          workspace.set('location', result.locationId);
+        }
+        link.href = '/clinic/?' + workspace;
         link.textContent = 'See the test booking in Daily Action';
         choices.append(link);
       } catch {

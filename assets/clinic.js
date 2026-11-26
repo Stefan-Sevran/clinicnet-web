@@ -81,7 +81,7 @@
   let manualBooking;
   const inboxFilters = [...daily.querySelectorAll('[data-filter]')];
   let dailyEvents = [];
-  let inboxFilter = 'all';
+  let inboxFilter = requestedView === 'daily' && query.get('inbox') === 'booked' ? 'booked' : 'all';
   const inboxPageSize = 5;
   let inboxPage = 0;
   let inboxLocation;
