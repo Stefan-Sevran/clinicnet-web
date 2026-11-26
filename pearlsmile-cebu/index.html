@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/brand-actions.css?v=1">
 <script src="/assets/navigation.js?v=2"></script>
-<script defer src="/assets/pearlsmile-pilot.js?v=calendar-pilot-2"></script>
+<script defer src="/assets/pearlsmile-pilot.js?v=calendar-pilot-3"></script>
 </head><body data-page="pearlsmile-cebu" data-header="hidden" data-footer="hidden">
 <a class="skip-link" href="#main-content">Skip to content</a>
 
@@ -531,6 +531,8 @@ document.getElementById(
 );
 
 if (!root) return;
+if (location.hostname === 'codex-ask-eden-preview.clinicnet-web.pages.dev' &&
+    new URLSearchParams(location.search).get('calendar-pilot') === '1') return;
 
 const messages =
 root.querySelector(

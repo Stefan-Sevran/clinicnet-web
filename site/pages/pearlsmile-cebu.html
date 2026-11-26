@@ -517,6 +517,8 @@ document.getElementById(
 );
 
 if (!root) return;
+if (location.hostname === 'codex-ask-eden-preview.clinicnet-web.pages.dev' &&
+    new URLSearchParams(location.search).get('calendar-pilot') === '1') return;
 
 const messages =
 root.querySelector(

@@ -19,8 +19,8 @@
     return line;
   }
 
-  chat.querySelectorAll('.pearlsmile-voice-row-2026, .pearlsmile-chat-input-row-2026')
-    .forEach(row => { row.style.display = 'none'; });
+  chat.querySelector('.pearlsmile-voice-row-2026').style.display = 'none';
+  if (!calendarPilot) chat.querySelector('.pearlsmile-chat-input-row-2026').style.display = 'none';
   let client;
   async function getSession() {
     if (!client) {
@@ -99,15 +99,16 @@
 
   function startCalendarPilot() {
     const intro = message('PearlSmile Cebu booking test · Fictional patient, initial consultation only.', 'bot');
+    const input = chat.querySelector('#pearlsmile-chat-input-2026');
+    const send = chat.querySelector('#pearlsmile-chat-send-2026');
+    input.placeholder = 'e.g. Can I book a consultation Friday morning?';
+    input.maxLength = 240;
     const check = document.createElement('button');
     check.type = 'button';
     check.textContent = 'Show consultation times';
     intro.append(document.createElement('br'), check);
-    const reply = message('', 'bot');
-    const status = document.createElement('span');
-    status.setAttribute('role', 'status');
-    const choices = document.createElement('div');
-    reply.append(status, choices);
+    let status;
+    let choices;
     const clock = new Intl.DateTimeFormat('en-PH', {
       timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit'
@@ -115,10 +116,39 @@
     let working = false;
     let selectedTime;
     let requestId;
+    const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const cebuTime = timestamp => new Date(timestamp + 8 * 60 * 60_000);
 
-    async function call(data) {
+    function setAvailabilityControls(disabled) {
+      check.disabled = disabled;
+      input.disabled = disabled;
+      send.disabled = disabled;
+    }
+
+    function openReply() {
+      choices?.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      status = document.createElement('span');
+      status.setAttribute('role', 'status');
+      choices = document.createElement('div');
+      message('', 'bot').append(status, choices);
+    }
+
+    function requestedDate(text) {
+      const isoDate = text.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];
+      if (isoDate) return isoDate;
+      const day = text.match(/\b(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/)?.[0];
+      if (!day) return undefined;
+      const cebu = cebuTime(Date.now());
+      const offset = day === 'today' ? 0 : day === 'tomorrow' ? 1 :
+        (weekdays.indexOf(day) - cebu.getUTCDay() + 7) % 7;
+      cebu.setUTCDate(cebu.getUTCDate() + offset);
+      return cebu.toISOString().slice(0, 10);
+    }
+
+    async function call(data, date) {
       const session = await getSession();
-      const response = await fetch(api + '/clinic/pilots/pearlsmile/calendar', {
+      const search = date ? '?' + new URLSearchParams({ date }) : '';
+      const response = await fetch(api + '/clinic/pilots/pearlsmile/calendar' + search, {
         method: data ? 'POST' : 'GET', cache: 'no-store',
         signal: AbortSignal.timeout(30_000),
         headers: { Authorization: 'Bearer ' + session.access_token,
@@ -138,8 +168,8 @@
       selectedTime = start;
       requestId ||= crypto.randomUUID();
       working = true;
-      check.disabled = true;
-      for (const choice of choices.children) choice.disabled = true;
+      setAvailabilityControls(true);
+      choices.querySelectorAll('button').forEach(choice => { choice.disabled = true; });
       status.textContent = 'Checking that slot and saving your reservation…';
       try {
         const result = await call({ start, requestId });
@@ -147,8 +177,8 @@
           selectedTime = null;
           requestId = null;
           choices.replaceChildren();
-          check.disabled = false;
-          status.textContent = 'That time is unavailable. Show consultation times to choose another.';
+          setAvailabilityControls(false);
+          status.textContent = 'That time is unavailable. Ask for another day or show all consultation times.';
           return;
         }
         if (result.status !== 'CONFIRMED' || result.start !== start) {
@@ -168,24 +198,30 @@
       } catch {
         status.textContent = 'The booking has not been confirmed yet. Retry the same time to check it.';
         const retry = Array.from(choices.children).find(choice => choice.dataset.start === start);
-        retry.textContent = 'Retry ' + clock.format(new Date(start));
-        retry.disabled = false;
+        if (retry) {
+          retry.textContent = 'Retry ' + clock.format(new Date(start));
+          retry.disabled = false;
+        }
       } finally {
         working = false;
         messages.scrollTop = messages.scrollHeight;
       }
     }
 
-    check.addEventListener('click', async () => {
+    async function showTimes(date) {
       if (working) return;
       working = true;
-      check.disabled = true;
-      choices.replaceChildren();
+      setAvailabilityControls(true);
+      openReply();
       status.textContent = 'Checking the test calendar…';
       try {
-        const { slots } = await call();
+        const { slots } = await call(undefined, date);
+        if (date && slots.some(start => cebuTime(Date.parse(start)).toISOString().slice(0, 10) !== date)) {
+          throw Error('I could not check that day. Try again or show all consultation times.');
+        }
         status.textContent = slots.length ? 'Which consultation time works for you? All times are in Cebu time.' :
-          'There are no open consultation times this week.';
+          date ? 'I don’t have open consultation times that day. Would another day work?' :
+            'There are no open consultation times in the next seven days.';
         for (const start of slots) {
           const choice = document.createElement('button');
           choice.type = 'button';
@@ -198,9 +234,35 @@
         status.textContent = error.message;
       } finally {
         working = false;
-        check.disabled = false;
+        setAvailabilityControls(false);
         messages.scrollTop = messages.scrollHeight;
       }
+    }
+
+    function sendRequest() {
+      const text = input.value.trim();
+      if (!text || working || selectedTime) return;
+      input.value = '';
+      message(text, 'user');
+      choices?.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      const request = text.toLowerCase();
+      const date = requestedDate(request);
+      if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request)) {
+        message('The test offers morning consultations from 10:00 a.m. to noon Cebu time. Would a morning work?', 'bot');
+      } else if (date || /\b(book|schedule|reserve|available|availability|appointment|consultation|morning|slots?|times?)\b/.test(request)) {
+        void showTimes(date);
+      } else {
+        message('I can help book a fictional initial consultation. What day works for you?', 'bot');
+      }
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    check.addEventListener('click', () => showTimes());
+    send.addEventListener('click', sendRequest);
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      sendRequest();
     });
   }
 })();
