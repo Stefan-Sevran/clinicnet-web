@@ -184,22 +184,34 @@
       feedback.className = 'eden-help-feedback';
       feedback.innerHTML = `
         <summary>How helpful was this answer?</summary>
-        <div class="eden-help-ratings" role="group" aria-label="Rate this answer from 1 to 10"></div>
-        <label>Issue status (optional)<select>
-          <option value="">Choose a status</option>
-          <option value="resolved">Resolved</option>
-          <option value="unresolved">Still unresolved</option>
-          <option value="reopened">The issue came back</option>
-        </select></label>
-        <label><input type="checkbox"> I needed help from the support team</label>
-        <label>Optional feedback<textarea rows="2" maxlength="1200" aria-describedby="eden-feedback-privacy-${id}"></textarea></label>
-        <small id="eden-feedback-privacy-${id}">Leave out patient details, contact information, and sign-in codes.</small>
-        <button type="button" class="eden-help-done">Done</button>
-        <span class="eden-help-feedback-status" role="status"></span>`;
+        <div class="eden-help-feedback-body">
+          <div class="eden-help-ratings" role="group" aria-label="Rate this answer from 1 to 10"></div>
+          <span class="eden-help-feedback-status" role="status"></span>
+          <details class="eden-help-feedback-more">
+            <summary>Add details (optional)</summary>
+            <div class="eden-help-feedback-fields">
+              <label>Issue status
+                <select>
+                  <option value="">Choose a status</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="unresolved">Still unresolved</option>
+                  <option value="reopened">The issue came back</option>
+                </select>
+              </label>
+              <label class="eden-help-feedback-handoff"><input type="checkbox"> I needed help from the support team</label>
+              <label>Comment
+                <textarea rows="2" maxlength="1200" aria-describedby="eden-feedback-privacy-${id}"></textarea>
+              </label>
+              <small id="eden-feedback-privacy-${id}">Leave out patient details, contact information, and sign-in codes.</small>
+              <button type="button" class="eden-help-done">Save details</button>
+            </div>
+          </details>
+        </div>`;
       const ratings = feedback.querySelector('.eden-help-ratings');
       const commentField = feedback.querySelector('textarea');
       const outcomeField = feedback.querySelector('select');
       const handoffField = feedback.querySelector('input');
+      const more = feedback.querySelector('.eden-help-feedback-more');
       const done = feedback.querySelector('.eden-help-done');
       const status = feedback.querySelector('[role="status"]');
       let rating = null;
@@ -216,8 +228,8 @@
           topic:reply.feedbackTopic || reply.guide || (reply.kind ? 'messenger' : 'other'),
           source:reply.source || (reply.kind === 'meta' ? 'provider' : 'guidance')};
         if (rating === null && !submitted.comment && !submitted.outcome && !submitted.handoff && !saved) {
-          feedback.open = false;
-          feedback.querySelector('summary').focus();
+          more.open = false;
+          more.querySelector('summary').focus();
           return;
         }
         const attempt = ++latest;
@@ -233,8 +245,8 @@
             if (attempt !== latest) return;
             status.textContent = 'Saved. Thank you.';
             if (closeOnSave) {
-              feedback.open = false;
-              feedback.querySelector('summary').focus();
+              more.open = false;
+              more.querySelector('summary').focus();
             }
           } catch (error) {
             if (attempt === latest) status.textContent = error.message || 'Couldn’t save. Try again.';
