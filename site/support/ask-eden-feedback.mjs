@@ -1,7 +1,7 @@
 import knowledge from '../../assets/eden-support-knowledge.js';
 
 const topics = new Set([
-  ...knowledge.supportArticles().map(({id}) => id), 'messenger-test', 'other'
+  ...knowledge.supportArticles().map(({id}) => id), 'messenger-test', 'other', 'public-offer', 'public-receptionist-future'
 ]);
 const sources = new Set(['guidance', 'provider', 'workspace', 'permissions', 'model']);
 const previewHost = 'codex-ask-eden-preview.clinicnet-web.pages.dev';

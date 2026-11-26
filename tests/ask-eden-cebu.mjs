@@ -25,6 +25,28 @@ assert.equal(publicReply('What opening hours does Eden have saved?').guide,'clin
 assert.equal(publicReply('Where do I review a support access request?').view,'alerts');
 assert.equal(publicReply('How do I switch locations?').guide,'locations');
 
+const pricing = 'How much is the AI receptionist? Does AI Phone cost anything monthly or is it a percentage of what we make? And do you have any services in Thailand?';
+const offer = await previewReply(pricing);
+assert.equal(offer.feedbackTopic,'public-offer');
+assert.match(offer.answer,/percentage of recovered revenue/);
+assert.match(offer.answer,/monthly AI Phone price/);
+assert.match(offer.answer,/live availability/i);
+assert.match(offer.answer,/Which city is your clinic in\?/);
+assert.equal(offer.href,'/siam-serenity-thailand/');
+assert.equal((offer.answer.match(/\?/g) || []).length,1);
+const thaiPhone = await previewReply('Pattaya, phone calls.',[
+  {role:'user',content:pricing}, {role:'assistant',content:offer.answer}
+]);
+assert.match(thaiPhone.answer,/confirm phone availability and fees/);
+assert.doesNotMatch(thaiPhone.answer,/Which city/);
+const futureQuestion = 'What is the future of AI receptionists like the one you got at Eden?';
+const futureReply = await previewReply(futureQuestion);
+assert.match(futureReply.answer,/clinic team for confirmation/);
+assert.equal(futureReply.href,'/ai-receptionist/');
+assert.equal((await previewReply('I would like to start a pilot')).href,'/audit/');
+
+assert.equal((await previewReply('Can I try the AI receptionist?')).href,'/ai-receptionist/');
+
 const clinic = read('assets/clinic.js');
 const start = clinic.indexOf('        async answerQuestion(question, history, topic) {');
 const end = clinic.indexOf('\n      });',start);
@@ -79,4 +101,11 @@ const response = await answerAskEden(post('/api/ask-eden',{
 }),{AI});
 assert.equal(response.status,200);
 assert.match(modelInput.messages[0].content,/general, non-clinical clinic operations guidance/);
+const exactPrice = await answerAskEden(post('/api/ask-eden',{question:pricing,history:[]}),{});
+assert.equal(exactPrice.status,200);
+assert.equal((await exactPrice.json()).mode,'guidance');
+const forecast = await answerAskEden(post('/api/ask-eden',{question:futureQuestion,history:[]}),{AI});
+assert.equal(forecast.status,200);
+assert.match(modelInput.messages[0].content,/distinguish plausible trends from current Eden capabilities/);
+assert.match(modelInput.messages[0].content,/confirmation/);
 console.log('Ask Eden Cebu checks passed');

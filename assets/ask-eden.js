@@ -1,8 +1,8 @@
 (function () {
   const suggestions = [
-    'My sign-in link opens the wrong page',
-    'Where do I review an access request?',
-    'How do I set up Website Chat?'
+    'How much does the AI receptionist cost?',
+    'Can I try the AI receptionist?',
+    'Do you work with clinics in Thailand?'
   ];
   const footer = 'Leave out patient details and sign-in codes.';
   const paths = {setup:'Open Connect', daily:'Open Daily Action', profile:'Open Clinic profile', revenue:'Open Revenue', alerts:'Open Alerts'};
@@ -61,7 +61,9 @@
   }
 
   async function previewReply(question, history = []) {
-    const fallback = facebookPageHelp(question) || publicReply(question);
+    const guidance = window.EdenSupportKnowledge?.publicGuide(question, history);
+    const fallback = guidance || facebookPageHelp(question) || publicReply(question);
+    if (guidance?.intent === 'offer') return guidance;
     if (fallback.kind === 'connect') return {...fallback, href:'/clinic/', action:'Open Clinic Workspace'};
     if (fallback.kind) return fallback;
     if (location.hostname !== 'codex-ask-eden-preview.clinicnet-web.pages.dev') return fallback;
@@ -78,7 +80,7 @@
       });
       if (response.ok) {
         const {answer, mode} = await response.json();
-        if (mode === 'model' && typeof answer === 'string' && answer.trim()) return {answer, guide:fallback.guide, source:'model'};
+        if (mode === 'model' && typeof answer === 'string' && answer.trim()) return {...fallback, answer, source:'model'};
       }
     } catch {
       // The local guidance is also available if the preview model times out.

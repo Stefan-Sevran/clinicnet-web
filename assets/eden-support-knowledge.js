@@ -91,7 +91,63 @@
       !/\b(?:eden|clinicnet|facebook|meta|messenger|my|our)\b/i.test(question);
   }
 
-  const api = {supportKnowledge, isGeneralOperationsQuestion, mayUseModel, supportArticles:() => articles.map(({id,answer}) => ({id,answer}))};
+  const publicOffer = {
+    pilot:'ClinicNet advertises no setup fee or lock-in. Our terms describe a free trial of up to one week when offered, followed by a percentage of recovered revenue or other agreed pricing.',
+    phone:'We don’t have a published monthly AI Phone price or a standard usage fee to quote. Confirm the fee structure for your clinic before starting.',
+    thailand:'You can try our Thailand example. Live availability depends on the city and channel, so the demo does not confirm that a phone line can be activated there.',
+    service:'Eden’s receptionist answers booking questions and sends appointment requests to the clinic team for confirmation.'
+  };
+  const offering = /\b(?:eden|clinicnet|receptionists?|ai phone|missed calls?|messenger|website chat|pilots?)\b/i;
+  const price = /\b(?:how much|pric(?:e|es|ing)|costs?|charges?|fees?|monthly|commission|percentage|revenue share|pay|subscription)\b/i;
+  const thailand = /\b(?:thailand|thai|bangkok|pattaya|phuket|chiang mai|hua hin|khon kaen)\b/i;
+  const city = /\b(?:bangkok|pattaya|phuket|chiang mai|hua hin|khon kaen)\b/i;
+  const channel = /\b(?:phone|calls?|messenger|website chat|web chat)\b/i;
+  const ready = /\b(?:demo|try (?:it|eden|the)|get started|start (?:a |the )?pilot|sign up|buy|purchase|book a (?:demo|call))\b/i;
+  const future = /\b(?:future|next few years|where .*head(?:ed|ing)|what.s next|will .*replace|will .*evolve)\b/i;
+
+  function publicGuide(question, history = []) {
+    if (!mayUseModel(question)) return null;
+    const prior = history.filter(turn => turn?.role === 'user').map(turn => turn.content).join('\n');
+    const context = question + '\n' + prior;
+    const receptionist = {href:'/ai-receptionist/', action:'Try the AI receptionist'};
+    const thaiDemo = {href:'/siam-serenity-thailand/', action:'Try the Thailand demo'};
+    if (future.test(question) && /\b(?:ai receptionist|ai phone|ai front desk|receptionists?)\b/i.test(context)) {
+      return {intent:'future', feedbackTopic:'public-receptionist-future', ...receptionist, answer:
+        'One likely direction is better coverage across calls and messages, with more useful handoffs to staff. ' +
+        publicOffer.service + ' What would help your clinic most today: better after-hours coverage or less front-desk admin?'};
+    }
+
+    const pricing = price.test(question) && (offering.test(context) || /\b(?:your|your service)\b/i.test(question) || /^\s*(?:how much (?:is it|does it cost)|what.s the price)\b/i.test(question));
+    const thai = thailand.test(question) || (thailand.test(prior) &&
+      (channel.test(question) || ready.test(question) || /\b(?:city|based in|we.re in|located in)\b/i.test(question)));
+    const nextStep = ready.test(question) && offering.test(context);
+    const wantsDemo = /\b(?:demo|try (?:it|eden|the))\b/i.test(question);
+    if (!pricing && !thai && !nextStep) return null;
+    if (/\b(?:broken|not working|failed|error|can.t connect|missing test)\b/i.test(question) && !pricing) return null;
+
+    const answer = [];
+    if (pricing) {
+      answer.push(publicOffer.pilot);
+      if (/\b(?:phone|calls?|monthly|usage|recurring)\b/i.test(context)) answer.push(publicOffer.phone);
+    }
+    if (thai) answer.push(publicOffer.thailand);
+    if (nextStep && !pricing && !thai) answer.push(publicOffer.service);
+    const knownCity = city.test(context) || /\b(?:based|located|we.re) in (?!thailand\b)[a-z]{2,}/i.test(context);
+    if (thai && !knownCity) answer.push('Which city is your clinic in?');
+    else if ((thai || pricing) && !channel.test(context)) {
+      answer.push('Which would help your clinic most: phone calls, Messenger, or website chat?');
+    } else if (thai && /\b(?:phone|calls?)\b/i.test(context)) {
+      answer.push('If you’d like to confirm phone availability and fees, send your city and current phone provider to team@clinicnet.live.');
+    } else if (nextStep && !wantsDemo) {
+      answer.push('If you’re ready to evaluate a pilot, start with the clinic audit to identify where you’re missing inquiries.');
+    } else if (pricing) {
+      answer.push('Would you like to try the receptionist before deciding on a pilot?');
+    }
+    return {intent:'offer', feedbackTopic:'public-offer', answer:answer.join(' '),
+      ...(thai ? thaiDemo : nextStep && !wantsDemo ? {href:'/audit/', action:'Start the clinic audit'} : receptionist)};
+  }
+
+  const api = {supportKnowledge, publicGuide, isGeneralOperationsQuestion, mayUseModel, supportArticles:() => articles.map(({id,answer}) => ({id,answer}))};
   if (typeof module === 'object' && module.exports) module.exports = api;
   else globalThis.EdenSupportKnowledge = api;
 })();
