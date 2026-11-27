@@ -132,6 +132,10 @@
       timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit'
     });
+    const voiceClock = new Intl.DateTimeFormat('en-PH', {
+      timeZone: 'Asia/Manila', weekday: 'long', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit'
+    });
     let working = false;
     let selectedTime;
     let requestId;
@@ -226,8 +230,9 @@
       if (!patient) requestId ||= crypto.randomUUID();
       working = true;
       setAvailabilityControls(true);
-      choices.querySelectorAll('button').forEach(choice => { choice.disabled = true; });
+      openReply();
       status.textContent = 'Checking that slot and saving your reservation…';
+      messages.scrollTop = messages.scrollHeight;
       try {
         const result = await calendarRequest({ start, requestId });
         if (result.taken) {
@@ -244,7 +249,7 @@
         }
         choices.replaceChildren();
         status.textContent = 'Confirmed · ' + result.service + ' · ' + clock.format(new Date(start)) + ' (Cebu time).';
-        if (spoken) voice.reply('Your initial consultation is confirmed for ' + clock.format(new Date(start)) + ', Cebu time.');
+        if (spoken) voice.reply('You’re booked for ' + voiceClock.format(new Date(start)) + ', Cebu time.');
         if (patient) return;
         const link = document.createElement('a');
         const workspace = new URLSearchParams({ view: 'daily', inbox: 'booked' });
@@ -262,11 +267,12 @@
           return;
         }
         status.textContent = 'The booking has not been confirmed yet. Retry the same time to check it.';
-        const retry = Array.from(choices.children).find(choice => choice.dataset.start === start);
-        if (retry) {
-          retry.textContent = 'Retry ' + clock.format(new Date(start));
-          retry.disabled = false;
-        }
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'pearlsmile-pilot-action';
+        retry.textContent = 'Retry ' + clock.format(new Date(start));
+        retry.addEventListener('click', () => choose(start, spoken));
+        choices.append(retry);
         if (spoken) {
           voice.setBusy(false);
           voice.reply('The booking is not confirmed yet. Say retry to check the same time.');
@@ -454,9 +460,14 @@
             : undefined;
           offered = nextDay ? [slots[0], nextDay] : slots.slice(0, 2);
           offerTurn = turn;
-          openReply();
-          renderSlots(offered, date);
-          return { slots: offered.map(start => ({ start, cebu: clock.format(new Date(start)) })), timeZone: 'Asia/Manila' };
+          if (offered.length) {
+            openReply();
+            renderSlots(offered, date);
+            status.textContent = 'Available consultation times (Cebu time)';
+          } else {
+            choices?.querySelectorAll('button').forEach(choice => { choice.disabled = true; });
+          }
+          return { slots: offered.map(start => ({ start, cebu: voiceClock.format(new Date(start)) })), timeZone: 'Asia/Manila' };
         }
         if (item.name === 'select_consultation_time' && offerTurn < turn && offered.includes(args.start)) {
           const local = cebuTime(Date.parse(args.start));
@@ -502,7 +513,7 @@
           } });
         }
         if (pending) {
-          const text = 'I have ' + clock.format(new Date(pending.start)) + ', Cebu time. Shall I book it for you?';
+          const text = 'That’s ' + voiceClock.format(new Date(pending.start)) + ', Cebu time. Shall I book it for you?';
           message(text, 'bot');
           messages.scrollTop = messages.scrollHeight;
           reply(text, true);
@@ -535,7 +546,7 @@
             button.disabled = false;
             button.textContent = 'End voice';
             button.setAttribute('aria-label', 'End voice');
-            respond('Greet the patient warmly as Maria at PearlSmile Dental. Briefly explain this is a test appointment, then ask one question about their preferred day.');
+            respond('Greet the patient warmly as Maria at PearlSmile Dental, then ask what day works for their test consultation. Keep it brief.');
           };
           channel.onclose = () => { if (call === current) endCall(); };
           channel.onmessage = event => {
