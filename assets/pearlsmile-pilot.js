@@ -135,11 +135,13 @@
     let requestId;
     const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const cebuTime = timestamp => new Date(timestamp + 8 * 60 * 60_000);
+    const voice = patient ? setupBookingVoice() : null;
 
     function setAvailabilityControls(disabled) {
       check.disabled = disabled;
       input.disabled = disabled;
       send.disabled = disabled;
+      voice?.setBusy(disabled);
     }
 
     function openReply() {
@@ -182,7 +184,7 @@
       return response.json();
     }
 
-    async function choose(start) {
+    async function choose(start, spoken = false) {
       if (working || (selectedTime && selectedTime !== start)) return;
       selectedTime = start;
       if (!patient) requestId ||= crypto.randomUUID();
@@ -198,6 +200,7 @@
           choices.replaceChildren();
           setAvailabilityControls(false);
           status.textContent = 'That time is unavailable. Ask for another day or show all consultation times.';
+          if (spoken) voice.reply(status.textContent);
           return;
         }
         if (result.status !== 'CONFIRMED' || result.start !== start) {
@@ -205,6 +208,7 @@
         }
         choices.replaceChildren();
         status.textContent = 'Confirmed · ' + result.service + ' · ' + clock.format(new Date(start)) + ' (Cebu time).';
+        if (spoken) voice.reply('Your initial consultation is confirmed for ' + clock.format(new Date(start)) + ', Cebu time.');
         if (patient) return;
         const link = document.createElement('a');
         const workspace = new URLSearchParams({ view: 'daily', inbox: 'booked' });
@@ -218,6 +222,7 @@
       } catch (error) {
         if (error.invalidLink) {
           status.textContent = error.message;
+          if (spoken) voice.reply(error.message);
           return;
         }
         status.textContent = 'The booking has not been confirmed yet. Retry the same time to check it.';
@@ -226,13 +231,17 @@
           retry.textContent = 'Retry ' + clock.format(new Date(start));
           retry.disabled = false;
         }
+        if (spoken) {
+          voice.setBusy(false);
+          voice.reply('The booking is not confirmed yet. Say retry to check the same time.');
+        }
       } finally {
         working = false;
         messages.scrollTop = messages.scrollHeight;
       }
     }
 
-    async function showTimes(date) {
+    async function showTimes(date, spoken = false) {
       if (working) return;
       working = true;
       setAvailabilityControls(true);
@@ -254,8 +263,10 @@
           choice.addEventListener('click', () => choose(start));
           choices.append(choice, document.createTextNode(' '));
         }
+        if (spoken) voice.offer(slots.slice(0, 2), status.textContent);
       } catch (error) {
         status.textContent = error.message;
+        if (spoken) voice.reply(error.message);
         if (error.invalidLink) return;
       } finally {
         working = false;
@@ -264,26 +275,144 @@
       setAvailabilityControls(false);
     }
 
-    function sendRequest() {
-      const text = input.value.trim();
+    function sendRequest(raw = input.value, spoken = false) {
+      const text = raw.trim().slice(0, 240);
       if (!text || working || selectedTime) return;
+      voice?.clearOptions();
       input.value = '';
       message(text, 'user');
       choices?.querySelectorAll('button').forEach(button => { button.disabled = true; });
       const request = text.toLowerCase();
       const date = requestedDate(request);
       if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request)) {
-        message('The test offers morning consultations from 10:00 a.m. to noon Cebu time. Would a morning work?', 'bot');
+        const reply = 'The test offers morning consultations from 10:00 a.m. to noon Cebu time. Would a morning work?';
+        if (spoken) voice.reply(reply);
+        else message(reply, 'bot');
       } else if (date || /\b(book|schedule|reserve|available|availability|appointment|consultation|morning|slots?|times?)\b/.test(request)) {
-        void showTimes(date);
+        void showTimes(date, spoken);
       } else {
-        message('I can help book a fictional initial consultation. What day works for you?', 'bot');
+        const reply = 'I can help book a fictional initial consultation. What day works for you?';
+        if (spoken) voice.reply(reply);
+        else message(reply, 'bot');
       }
       messages.scrollTop = messages.scrollHeight;
     }
 
+    function setupBookingVoice() {
+      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Recognition || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return null;
+      const row = chat.querySelector('.pearlsmile-voice-row-2026');
+      const button = row.querySelector('button');
+      const hint = document.createElement('small');
+      hint.setAttribute('role', 'status');
+      const instruction = 'Use fictional details. Your browser may send audio to its speech recognition service.';
+      hint.textContent = instruction;
+      row.append(hint);
+      row.style.display = '';
+      button.textContent = 'Speak to book';
+      button.setAttribute('aria-label', 'Speak to book');
+      let listening = false;
+      let speaking = false;
+      let busy = false;
+      let offered = [];
+      let pending;
+
+      function updateButton() {
+        button.disabled = listening || speaking || busy;
+      }
+
+      function reply(text) {
+        hint.textContent = text;
+        const utterance = new window.SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-PH';
+        speaking = true;
+        updateButton();
+        utterance.onend = utterance.onerror = () => {
+          speaking = false;
+          updateButton();
+        };
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function sayRequest(transcript) {
+        const command = transcript.toLowerCase().trim().replace(/[.!?]+$/, '');
+        if (selectedTime) {
+          if (command === 'retry') void choose(selectedTime, true);
+          else reply('Say retry to check the same reservation.');
+          return;
+        }
+        if (pending && /^(confirm|yes|yes please|yes confirm|confirm booking)$/.test(command)) {
+          const start = pending;
+          pending = undefined;
+          offered = [];
+          void choose(start, true);
+          return;
+        }
+        if (pending && /^(no|cancel|start over)$/.test(command)) {
+          pending = undefined;
+          reply('Which option would you prefer?');
+          return;
+        }
+        const choice = /^(?:option )?(first|one|1|second|two|2)(?: option)?$/.exec(command)?.[1];
+        if (choice) {
+          pending = offered[/^(second|two|2)$/.test(choice) ? 1 : 0];
+          if (pending) reply('You selected ' + clock.format(new Date(pending)) + ', Cebu time. Say confirm to book it or no to choose again.');
+          else reply('Ask for consultation times first.');
+          return;
+        }
+        pending = undefined;
+        offered = [];
+        sendRequest(transcript, true);
+      }
+
+      button.addEventListener('click', () => {
+        if (button.disabled) return;
+        const recognition = new Recognition();
+        recognition.lang = 'en-PH';
+        let transcript;
+        let failed = false;
+        recognition.onresult = event => { transcript = event.results[0]?.[0]?.transcript; };
+        recognition.onerror = () => { failed = true; };
+        recognition.onend = () => {
+          listening = false;
+          updateButton();
+          if (busy || speaking) return;
+          if (failed || !transcript) hint.textContent = 'Speech was unavailable. Try the microphone again or type your request.';
+          else sayRequest(transcript);
+        };
+        try {
+          recognition.start();
+          listening = true;
+          hint.textContent = 'Listening…';
+          updateButton();
+        } catch {
+          hint.textContent = 'Could not start the microphone. You can type your request instead.';
+        }
+      });
+      function clearOptions() {
+        offered = [];
+        pending = undefined;
+      }
+
+      return {
+        reply,
+        clearOptions,
+        offer(slots, fallback) {
+          offered = slots;
+          pending = undefined;
+          const options = slots.map((start, i) => `Option ${i + 1}, ${clock.format(new Date(start))}.`);
+          reply(slots.length ? `${options.join(' ')} Cebu time. Say first${slots.length > 1 ? ' or second' : ''} to choose.` : fallback);
+        },
+        setBusy(value) {
+          busy = value;
+          if (value) clearOptions();
+          updateButton();
+        }
+      };
+    }
+
     check.addEventListener('click', () => showTimes());
-    send.addEventListener('click', sendRequest);
+    send.addEventListener('click', () => sendRequest());
     input.addEventListener('keydown', event => {
       if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
       event.preventDefault();
