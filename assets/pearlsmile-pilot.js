@@ -2,6 +2,7 @@
   'use strict';
   const query = new URLSearchParams(location.search);
   const calendarPilot = query.get('calendar-pilot') === '1';
+  const patient = calendarPilot && query.get('patient') === '1';
   if (calendarPilot && location.hostname !== 'codex-ask-eden-preview.clinicnet-web.pages.dev') return;
   if (!calendarPilot && query.get('workspace-pilot') !== '1') return;
 
@@ -98,9 +99,25 @@
   });
 
   function startCalendarPilot() {
-    const intro = message('PearlSmile Cebu booking test · Fictional patient, initial consultation only.', 'bot');
     const input = chat.querySelector('#pearlsmile-chat-input-2026');
     const send = chat.querySelector('#pearlsmile-chat-send-2026');
+    let patientToken;
+    if (patient) {
+      const storageKey = 'pearlsmile-patient-pilot';
+      const incoming = new URLSearchParams(location.hash.slice(1)).get('patient-link');
+      if (incoming) {
+        history.replaceState(null, '', location.pathname + location.search + '#' + chat.id);
+        sessionStorage.setItem(storageKey, incoming);
+        chat.scrollIntoView({ block: 'center' });
+      }
+      patientToken = sessionStorage.getItem(storageKey);
+      if (!patientToken) {
+        input.disabled = send.disabled = true;
+        message('Open a patient test link from the clinic team to book a fictional consultation.', 'bot');
+        return;
+      }
+    }
+    const intro = message('PearlSmile Cebu booking test · Fictional patient, initial consultation only.', 'bot');
     input.placeholder = 'e.g. Can I book a consultation Friday morning?';
     input.maxLength = 240;
     const check = document.createElement('button');
@@ -146,17 +163,19 @@
     }
 
     async function call(data, date) {
-      const session = await getSession();
+      const accessToken = patient ? patientToken : (await getSession()).access_token;
+      const route = patient ? '/pilots/pearlsmile/patient-calendar' : '/clinic/pilots/pearlsmile/calendar';
       const search = date ? '?' + new URLSearchParams({ date }) : '';
-      const response = await fetch(api + '/clinic/pilots/pearlsmile/calendar' + search, {
+      const response = await fetch(api + route + search, {
         method: data ? 'POST' : 'GET', cache: 'no-store',
         signal: AbortSignal.timeout(30_000),
-        headers: { Authorization: 'Bearer ' + session.access_token,
+        headers: { Authorization: 'Bearer ' + accessToken,
           ...(data ? { 'Content-Type': 'application/json' } : {}) },
-        body: data ? JSON.stringify(data) : undefined
+        body: data ? JSON.stringify(patient ? { start: data.start } : data) : undefined
       });
       if (response.status === 409) return { taken: true };
       if (response.status === 401 || response.status === 403) {
+        if (patient) throw Object.assign(Error('This patient test link is invalid or expired. Ask the clinic team for a new link.'), { invalidLink: true });
         throw Error('Sign in with the account that can open Test Location in Clinic Workspace.');
       }
       if (!response.ok) throw Error('The test calendar is unavailable. Please try again.');
@@ -166,7 +185,7 @@
     async function choose(start) {
       if (working || (selectedTime && selectedTime !== start)) return;
       selectedTime = start;
-      requestId ||= crypto.randomUUID();
+      if (!patient) requestId ||= crypto.randomUUID();
       working = true;
       setAvailabilityControls(true);
       choices.querySelectorAll('button').forEach(choice => { choice.disabled = true; });
@@ -186,6 +205,7 @@
         }
         choices.replaceChildren();
         status.textContent = 'Confirmed · ' + result.service + ' · ' + clock.format(new Date(start)) + ' (Cebu time).';
+        if (patient) return;
         const link = document.createElement('a');
         const workspace = new URLSearchParams({ view: 'daily', inbox: 'booked' });
         if (result.accountId && result.locationId) {
@@ -195,7 +215,11 @@
         link.href = '/clinic/?' + workspace;
         link.textContent = 'See the test booking in Daily Action';
         choices.append(link);
-      } catch {
+      } catch (error) {
+        if (error.invalidLink) {
+          status.textContent = error.message;
+          return;
+        }
         status.textContent = 'The booking has not been confirmed yet. Retry the same time to check it.';
         const retry = Array.from(choices.children).find(choice => choice.dataset.start === start);
         if (retry) {
@@ -232,11 +256,12 @@
         }
       } catch (error) {
         status.textContent = error.message;
+        if (error.invalidLink) return;
       } finally {
         working = false;
-        setAvailabilityControls(false);
         messages.scrollTop = messages.scrollHeight;
       }
+      setAvailabilityControls(false);
     }
 
     function sendRequest() {
