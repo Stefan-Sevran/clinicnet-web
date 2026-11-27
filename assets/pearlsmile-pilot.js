@@ -134,7 +134,9 @@
     let selectedTime;
     let requestId;
     const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
     const cebuTime = timestamp => new Date(timestamp + 8 * 60 * 60_000);
+    const dayKey = date => date.toISOString().slice(0, 10);
     const voice = patient ? setupBookingVoice() : null;
 
     function setAvailabilityControls(disabled) {
@@ -152,19 +154,50 @@
       message('', 'bot').append(status, choices);
     }
 
-    function requestedDate(text) {
-      const isoDate = text.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];
-      if (isoDate) return isoDate;
-      const day = text.match(/\b(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/)?.[0];
-      if (!day) return undefined;
-      const cebu = cebuTime(Date.now());
-      const offset = day === 'today' ? 0 : day === 'tomorrow' ? 1 :
-        (weekdays.indexOf(day) - cebu.getUTCDay() + 7) % 7;
-      cebu.setUTCDate(cebu.getUTCDate() + offset);
-      return cebu.toISOString().slice(0, 10);
+    function requestedDay(text) {
+      const today = cebuTime(Date.now());
+      const iso = /\b\d{4}-\d{2}-\d{2}\b/.exec(text)?.[0];
+      const named = new RegExp(`\\b(${months.join('|')}) (\\d{1,2})(?:st|nd|rd|th)?\\b`).exec(
+        text.replace(/\b(first|second|third)\b/g, word => ({ first: '1st', second: '2nd', third: '3rd' }[word])));
+      let specified;
+      if (named) {
+        const month = months.indexOf(named[1]);
+        const year = today.getUTCFullYear() + (month < today.getUTCMonth() ? 1 : 0);
+        specified = new Date(Date.UTC(year, month, Number(named[2])));
+        if (specified.getUTCMonth() !== month) return { conflict: true };
+      } else if (iso) {
+        specified = new Date(iso + 'T00:00:00Z');
+        if (!Number.isFinite(specified.getTime()) || dayKey(specified) !== iso) return { conflict: true };
+      }
+      const days = Array.from(text.matchAll(/\b(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/g), match => match[0]);
+      const candidates = new Set(specified ? [dayKey(specified)] : []);
+      for (const day of days) {
+        const weekday = weekdays.indexOf(day);
+        if (specified && weekday >= 0) {
+          if (specified.getUTCDay() !== weekday) return { conflict: true };
+          continue;
+        }
+        const offset = day === 'today' ? 0 : day === 'tomorrow' ? 1 : (weekday - today.getUTCDay() + 7) % 7;
+        const date = new Date(today);
+        date.setUTCDate(today.getUTCDate() + offset);
+        candidates.add(dayKey(date));
+      }
+      const date = candidates.values().next().value;
+      const ordinal = /\b(\d{1,2})(?:st|nd|rd|th)\b/.exec(text);
+      const conflict = candidates.size > 1 || Boolean(date && ordinal && Number(date.slice(-2)) !== Number(ordinal[1]));
+      return { date, conflict };
     }
 
-    async function call(data, date) {
+    function requestedTime(text) {
+      const match = /\bat\s+(\d{1,2})(?::([0-5]\d))?\s*([ap]\.?m\.?)?\b|\b(\d{1,2})(?::([0-5]\d))?\s*([ap]\.?m\.?)\b/.exec(text);
+      if (!match) return undefined;
+      let hour = Number(match[1] || match[4]);
+      const suffix = match[3] || match[6];
+      if (suffix) hour = hour % 12 + (suffix.startsWith('p') ? 12 : 0);
+      return hour * 60 + Number(match[2] || match[5] || 0);
+    }
+
+    async function calendarRequest(data, date) {
       const accessToken = patient ? patientToken : (await getSession()).access_token;
       const route = patient ? '/pilots/pearlsmile/patient-calendar' : '/clinic/pilots/pearlsmile/calendar';
       const search = date ? '?' + new URLSearchParams({ date }) : '';
@@ -193,7 +226,7 @@
       choices.querySelectorAll('button').forEach(choice => { choice.disabled = true; });
       status.textContent = 'Checking that slot and saving your reservation…';
       try {
-        const result = await call({ start, requestId });
+        const result = await calendarRequest({ start, requestId });
         if (result.taken) {
           selectedTime = null;
           requestId = null;
@@ -241,36 +274,35 @@
       }
     }
 
-    async function showTimes(date, spoken = false) {
+    function renderSlots(slots, date) {
+      status.textContent = slots.length ? 'Which consultation time works for you? All times are in Cebu time.' :
+        date ? 'I don’t have open consultation times that day. Would another day work?' :
+          'There are no open consultation times in the next seven days.';
+      for (const start of slots) {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.dataset.start = start;
+        choice.textContent = clock.format(new Date(start));
+        choice.addEventListener('click', () => choose(start));
+        choices.append(choice, document.createTextNode(' '));
+      }
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function showTimes(date) {
       if (working) return;
       working = true;
       setAvailabilityControls(true);
       openReply();
       status.textContent = 'Checking the test calendar…';
       try {
-        const { slots } = await call(undefined, date);
+        const { slots } = await calendarRequest(undefined, date);
         if (date && slots.some(start => cebuTime(Date.parse(start)).toISOString().slice(0, 10) !== date)) {
           throw Error('I could not check that day. Try again or show all consultation times.');
         }
-        status.textContent = slots.length ? 'Which consultation time works for you? All times are in Cebu time.' :
-          date ? 'I don’t have open consultation times that day. Would another day work?' :
-            'There are no open consultation times in the next seven days.';
-        const dayKey = start => cebuTime(Date.parse(start)).toISOString().slice(0, 10);
-        const differentDay = spoken && !date && slots.length > 1
-          ? slots.findIndex(start => dayKey(start) !== dayKey(slots[0])) : -1;
-        if (differentDay > 1) slots.splice(1, 0, slots.splice(differentDay, 1)[0]);
-        for (const start of slots) {
-          const choice = document.createElement('button');
-          choice.type = 'button';
-          choice.dataset.start = start;
-          choice.textContent = clock.format(new Date(start));
-          choice.addEventListener('click', () => choose(start));
-          choices.append(choice, document.createTextNode(' '));
-        }
-        if (spoken) voice.offer(slots.slice(0, 2), status.textContent);
+        renderSlots(slots, date);
       } catch (error) {
         status.textContent = error.message;
-        if (spoken) voice.reply(error.message);
         if (error.invalidLink) return;
       } finally {
         working = false;
@@ -279,7 +311,7 @@
       setAvailabilityControls(false);
     }
 
-    function sendRequest(raw = input.value, spoken = false) {
+    function sendRequest(raw = input.value) {
       const text = raw.trim().slice(0, 240);
       if (!text || working || selectedTime) return;
       voice?.clearOptions();
@@ -287,19 +319,20 @@
       message(text, 'user');
       choices?.querySelectorAll('button').forEach(button => { button.disabled = true; });
       const request = text.toLowerCase();
-      const date = requestedDate(request);
-      const hour = /\bat\s+(\d{1,2})(?::[0-5]\d)?\b/.exec(request)?.[1];
-      if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request) ||
-          (hour !== undefined && ![10, 11].includes(Number(hour)))) {
+      const { date, conflict } = requestedDay(request);
+      const time = requestedTime(request);
+      if (conflict) {
+        const reply = 'I heard different dates. Which date should I check?';
+        message(reply, 'bot');
+      } else if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request) ||
+          (time !== undefined && (time < 600 || time >= 720))) {
         const reply = 'The test offers morning consultations from 10:00 a.m. to noon Cebu time. Would a morning work?';
-        if (spoken) voice.reply(reply);
-        else message(reply, 'bot');
+        message(reply, 'bot');
       } else if (date || /\b(book|schedule|reserve|available|availability|appointment|consultation|morning|slots?|times?|days)\b/.test(request)) {
-        void showTimes(date, spoken);
+        void showTimes(date);
       } else {
         const reply = 'I can help book a fictional initial consultation. What day works for you?';
-        if (spoken) voice.reply(reply);
-        else message(reply, 'bot');
+        message(reply, 'bot');
       }
       messages.scrollTop = messages.scrollHeight;
     }
@@ -321,6 +354,9 @@
       let speaking = false;
       let offered = [];
       let pending;
+      let turn = 0;
+      let offerTurn = -1;
+      let lastTranscript = '';
 
       function updateMic() {
         for (const track of call?.stream?.getAudioTracks() || []) {
@@ -350,56 +386,124 @@
         hint.textContent = text;
       }
 
-      function reply(text) {
+      function sendEvent(event) {
+        call.channel.send(JSON.stringify(event));
+      }
+
+      function respond(instructions, exact = false, afterReadback = false, allowTools = !instructions) {
         if (call?.channel?.readyState !== 'open') return;
-        hint.textContent = text;
         speaking = true;
         updateMic();
         clearTimeout(call.replyTimeout);
         call.replyTimeout = setTimeout(() => endCall('Voice stopped responding. You can continue by chat.'), 25_000);
-        call.channel.send(JSON.stringify({
-          type: 'response.create',
-          response: {
-            conversation: 'none',
-            input: [],
-            instructions: 'Speak this exact text, with no additions: ' + JSON.stringify(text)
-          }
-        }));
+        call.response = { exact, afterReadback, tools: [] };
+        const response = exact
+          ? { conversation: 'none', input: [], tool_choice: 'none', instructions: 'Speak this exact text with no additions: ' + JSON.stringify(instructions) }
+          : { ...(instructions ? { instructions } : {}), ...(allowTools ? {} : { tool_choice: 'none' }) };
+        sendEvent({ type: 'response.create', response });
+      }
+
+      function reply(text, afterReadback = false) {
+        hint.textContent = text;
+        respond(text, true, afterReadback);
       }
 
       function sayRequest(transcript) {
         const command = transcript.toLowerCase().trim().replace(/[.!?]+$/, '');
         if (!command) return;
+        turn++;
+        lastTranscript = command;
+        message(transcript.trim().slice(0, 240), 'user');
+        messages.scrollTop = messages.scrollHeight;
         if (selectedTime) {
-          if (/\bretry\b/.test(command) && !/\b(?:no|not|don.t)\b/.test(command)) void choose(selectedTime, true);
+          if (command === 'retry' || command === 'please retry') void choose(selectedTime, true);
           else reply('Say retry to check the same reservation.');
           return;
         }
-        if (pending && /^(?:yes[ ,]+)?(?:(?:i )?confirm(?: it| booking)?|book it|go ahead|yes|yes please)$/.test(command)) {
-          const start = pending;
+        if (pending?.read && /^(?:yes[ ,]+)?(?:(?:i )?confirm(?: it| booking)?|book it|go ahead|yes|yes please|please do|that works)$/.test(command)) {
+          const { start } = pending;
           clearOptions();
           void choose(start, true);
           return;
         }
-        if (pending && /^(no|cancel|start over|not that one)$/.test(command)) {
-          pending = undefined;
-          reply('Which option would you prefer?');
+        pending = undefined;
+        if (requestedDay(command).conflict) {
+          const text = 'I heard different dates. Which date should I check?';
+          message(text, 'bot');
+          messages.scrollTop = messages.scrollHeight;
+          reply(text);
           return;
         }
-        const first = /\b(first|option (?:one|1))\b/.test(command);
-        const second = /\b(second|option (?:two|2))\b/.test(command);
-        if (offered.length && (first || second) && !requestedDate(command)) {
-          if (first === second || /\b(no|not|don.t)\b/.test(command)) {
-            pending = undefined;
-            reply('Please say first or second to choose one time.');
-            return;
+        respond();
+      }
+
+      async function runTool(item, current) {
+        if (working || selectedTime) return { error: 'A booking is being processed.' };
+        const args = JSON.parse(item.arguments || '{}');
+        const { date: saidDate } = requestedDay(lastTranscript);
+        if (item.name === 'list_consultation_times') {
+          const date = saidDate || args.date || undefined;
+          const { slots } = await calendarRequest(undefined, date);
+          if (call !== current || working || selectedTime) return { error: 'The calendar request was interrupted.' };
+          const nextDay = !date && slots.length > 1
+            ? slots.find(start => dayKey(cebuTime(Date.parse(start))) !== dayKey(cebuTime(Date.parse(slots[0]))))
+            : undefined;
+          offered = nextDay ? [slots[0], nextDay] : slots.slice(0, 2);
+          offerTurn = turn;
+          openReply();
+          renderSlots(offered, date);
+          return { slots: offered.map(start => ({ start, cebu: clock.format(new Date(start)) })), timeZone: 'Asia/Manila' };
+        }
+        if (item.name === 'select_consultation_time' && offerTurn < turn && offered.includes(args.start)) {
+          const local = cebuTime(Date.parse(args.start));
+          const saidTime = requestedTime(lastTranscript);
+          const first = /\b(first|option (?:one|1))\b/.test(lastTranscript);
+          const second = /\b(second|option (?:two|2))\b/.test(lastTranscript);
+          if ((saidDate && dayKey(local) !== saidDate) ||
+              (saidTime !== undefined && local.getUTCHours() * 60 + local.getUTCMinutes() !== saidTime) ||
+              (!saidDate && saidTime === undefined && ((first && args.start !== offered[0]) ||
+                (second && args.start !== offered[1]))) ||
+              /\b(no|not|don.t|cancel)\b/.test(lastTranscript)) {
+            return { error: 'Ask which exact offered appointment the patient wants.' };
           }
-          pending = offered[second ? 1 : 0];
-          if (pending) reply('You selected ' + clock.format(new Date(pending)) + ', Cebu time. Say confirm to book it or no to choose again.');
-          else reply('Only the first option is available. Say first to choose it.');
+          pending = { start: args.start, read: false };
+          return { selected: true, reserved: false };
+        }
+        return { error: 'Ask the patient to choose an available time from the most recent calendar result.' };
+      }
+
+      async function finishResponse(current, response) {
+        if (call !== current || current.response !== response) return;
+        if (!response.tools.length) {
+          clearTimeout(current.replyTimeout);
+          if (response.afterReadback && pending) pending.read = true;
+          speaking = false;
+          updateMic();
           return;
         }
-        sendRequest(transcript, true);
+        if (response.handling) return;
+        response.handling = true;
+        let result;
+        try {
+          result = await runTool(response.tools[0], current);
+        } catch {
+          result = { error: 'The calendar could not be checked. Say so and offer to try again.' };
+        }
+        if (call !== current) return;
+        for (const [index, item] of response.tools.entries()) {
+          sendEvent({ type: 'conversation.item.create', item: {
+            type: 'function_call_output', call_id: item.call_id,
+            output: JSON.stringify(index === 0 ? result : { error: 'One calendar action per turn. Wait for the next user reply.' })
+          } });
+        }
+        if (pending) {
+          const text = 'I have ' + clock.format(new Date(pending.start)) + ', Cebu time. Shall I book it for you?';
+          message(text, 'bot');
+          messages.scrollTop = messages.scrollHeight;
+          reply(text, true);
+        } else {
+          respond(undefined, false, false, false);
+        }
       }
 
       async function startCall() {
@@ -426,18 +530,35 @@
             button.disabled = false;
             button.textContent = 'End voice';
             button.setAttribute('aria-label', 'End voice');
-            reply('Hi po, I’m Maria. What day works for your test consultation?');
+            respond('Greet the patient warmly as Maria at PearlSmile Dental. Briefly explain this is a test appointment, then ask one question about their preferred day.');
           };
           channel.onclose = () => { if (call === current) endCall(); };
           channel.onmessage = event => {
             if (call !== current) return;
             let data;
             try { data = JSON.parse(event.data); } catch { return; }
-            if (data.type === 'output_audio_buffer.stopped') {
-              clearTimeout(current.replyTimeout);
-              speaking = false;
-              updateMic();
-            } else if (data.type === 'error' || (data.type === 'response.done' && data.response?.status === 'failed')) {
+            const response = current.response;
+            if (data.type === 'response.created' && response) {
+              response.id = data.response.id;
+            } else if (data.type === 'response.done' && response?.id === data.response?.id) {
+              if (data.response.status === 'failed') {
+                endCall('Voice is unavailable right now. You can continue by chat.');
+                return;
+              }
+              const output = data.response.output || [];
+              response.tools = response.exact ? [] : output.filter(item => item.type === 'function_call');
+              if (!output.some(item => item.content?.some(part => ['output_audio', 'audio'].includes(part.type)))) {
+                if (response.afterReadback) pending = undefined;
+                void finishResponse(current, response);
+              }
+            } else if (data.type === 'output_audio_buffer.stopped' && response?.id === data.response_id) {
+              void finishResponse(current, response);
+            } else if (data.type === 'response.output_audio_transcript.done' && response?.id === data.response_id &&
+                !response.exact && data.transcript) {
+              hint.textContent = data.transcript;
+              message(data.transcript, 'bot');
+              messages.scrollTop = messages.scrollHeight;
+            } else if (data.type === 'error') {
               endCall('Voice is unavailable right now. You can continue by chat.');
             } else if (!busy && !speaking) {
               if (data.type === 'conversation.item.input_audio_transcription.completed' && typeof data.transcript === 'string') {
@@ -449,7 +570,7 @@
           };
           const offer = await current.peer.createOffer();
           await current.peer.setLocalDescription(offer);
-          const response = await fetch(api + '/pilots/pearlsmile/patient-voice', {
+          const response = await fetch(api + '/pilots/pearlsmile/patient-voice?flow=conversation', {
             method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(25_000),
             headers: { Authorization: 'Bearer ' + patientToken, 'Content-Type': 'application/sdp' },
             body: offer.sdp
@@ -473,12 +594,6 @@
       return {
         reply,
         clearOptions,
-        offer(slots, fallback) {
-          offered = slots;
-          pending = undefined;
-          const options = slots.map((start, i) => `Option ${i + 1}, ${clock.format(new Date(start))}.`);
-          reply(slots.length ? `${options.join(' ')} Cebu time. Say first${slots.length > 1 ? ' or second' : ''} to choose.` : fallback);
-        },
         setBusy(value) {
           busy = value;
           if (value) clearOptions();
