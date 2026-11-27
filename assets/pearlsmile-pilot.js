@@ -255,6 +255,10 @@
         status.textContent = slots.length ? 'Which consultation time works for you? All times are in Cebu time.' :
           date ? 'I don’t have open consultation times that day. Would another day work?' :
             'There are no open consultation times in the next seven days.';
+        const dayKey = start => cebuTime(Date.parse(start)).toISOString().slice(0, 10);
+        const differentDay = spoken && !date && slots.length > 1
+          ? slots.findIndex(start => dayKey(start) !== dayKey(slots[0])) : -1;
+        if (differentDay > 1) slots.splice(1, 0, slots.splice(differentDay, 1)[0]);
         for (const start of slots) {
           const choice = document.createElement('button');
           choice.type = 'button';
@@ -284,11 +288,13 @@
       choices?.querySelectorAll('button').forEach(button => { button.disabled = true; });
       const request = text.toLowerCase();
       const date = requestedDate(request);
-      if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request)) {
+      const hour = /\bat\s+(\d{1,2})(?::[0-5]\d)?\b/.exec(request)?.[1];
+      if (/\b(afternoon|evening|tonight|p\.?m\.?)\b/.test(request) ||
+          (hour !== undefined && ![10, 11].includes(Number(hour)))) {
         const reply = 'The test offers morning consultations from 10:00 a.m. to noon Cebu time. Would a morning work?';
         if (spoken) voice.reply(reply);
         else message(reply, 'bot');
-      } else if (date || /\b(book|schedule|reserve|available|availability|appointment|consultation|morning|slots?|times?)\b/.test(request)) {
+      } else if (date || /\b(book|schedule|reserve|available|availability|appointment|consultation|morning|slots?|times?|days)\b/.test(request)) {
         void showTimes(date, spoken);
       } else {
         const reply = 'I can help book a fictional initial consultation. What day works for you?';
@@ -299,101 +305,171 @@
     }
 
     function setupBookingVoice() {
-      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!Recognition || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return null;
+      if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) return null;
       const row = chat.querySelector('.pearlsmile-voice-row-2026');
       const button = row.querySelector('button');
       const hint = document.createElement('small');
       hint.setAttribute('role', 'status');
-      const instruction = 'Use fictional details. Your browser may send audio to its speech recognition service.';
-      hint.textContent = instruction;
+      hint.textContent = 'Use fictional details. Microphone audio is processed by OpenAI.';
       row.append(hint);
       row.style.display = '';
-      button.textContent = 'Speak to book';
-      button.setAttribute('aria-label', 'Speak to book');
-      let listening = false;
-      let speaking = false;
+      button.textContent = 'Talk to Maria';
+      button.setAttribute('aria-label', 'Talk to Maria');
+
+      let call;
       let busy = false;
+      let speaking = false;
       let offered = [];
       let pending;
 
-      function updateButton() {
-        button.disabled = listening || speaking || busy;
+      function updateMic() {
+        for (const track of call?.stream?.getAudioTracks() || []) {
+          track.enabled = call.channel?.readyState === 'open' && !busy && !speaking;
+        }
       }
 
-      function reply(text) {
-        hint.textContent = text;
-        const utterance = new window.SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-PH';
-        speaking = true;
-        updateButton();
-        utterance.onend = utterance.onerror = () => {
-          speaking = false;
-          updateButton();
-        };
-        window.speechSynthesis.speak(utterance);
-      }
-
-      function sayRequest(transcript) {
-        const command = transcript.toLowerCase().trim().replace(/[.!?]+$/, '');
-        if (selectedTime) {
-          if (command === 'retry') void choose(selectedTime, true);
-          else reply('Say retry to check the same reservation.');
-          return;
-        }
-        if (pending && /^(confirm|yes|yes please|yes confirm|confirm booking)$/.test(command)) {
-          const start = pending;
-          pending = undefined;
-          offered = [];
-          void choose(start, true);
-          return;
-        }
-        if (pending && /^(no|cancel|start over)$/.test(command)) {
-          pending = undefined;
-          reply('Which option would you prefer?');
-          return;
-        }
-        const choice = /^(?:option )?(first|one|1|second|two|2)(?: option)?$/.exec(command)?.[1];
-        if (choice) {
-          pending = offered[/^(second|two|2)$/.test(choice) ? 1 : 0];
-          if (pending) reply('You selected ' + clock.format(new Date(pending)) + ', Cebu time. Say confirm to book it or no to choose again.');
-          else reply('Ask for consultation times first.');
-          return;
-        }
-        pending = undefined;
-        offered = [];
-        sendRequest(transcript, true);
-      }
-
-      button.addEventListener('click', () => {
-        if (button.disabled) return;
-        const recognition = new Recognition();
-        recognition.lang = 'en-PH';
-        let transcript;
-        let failed = false;
-        recognition.onresult = event => { transcript = event.results[0]?.[0]?.transcript; };
-        recognition.onerror = () => { failed = true; };
-        recognition.onend = () => {
-          listening = false;
-          updateButton();
-          if (busy || speaking) return;
-          if (failed || !transcript) hint.textContent = 'Speech was unavailable. Try the microphone again or type your request.';
-          else sayRequest(transcript);
-        };
-        try {
-          recognition.start();
-          listening = true;
-          hint.textContent = 'Listening…';
-          updateButton();
-        } catch {
-          hint.textContent = 'Could not start the microphone. You can type your request instead.';
-        }
-      });
       function clearOptions() {
         offered = [];
         pending = undefined;
       }
 
+      function endCall(text = 'Voice ended. You can continue by chat.') {
+        const current = call;
+        call = undefined;
+        if (!current) return;
+        clearTimeout(current.lifetime);
+        clearTimeout(current.replyTimeout);
+        current.stream?.getTracks().forEach(track => track.stop());
+        current.peer?.close();
+        current.audio?.remove();
+        speaking = false;
+        clearOptions();
+        button.disabled = false;
+        button.textContent = 'Talk to Maria';
+        button.setAttribute('aria-label', 'Talk to Maria');
+        hint.textContent = text;
+      }
+
+      function reply(text) {
+        if (call?.channel?.readyState !== 'open') return;
+        hint.textContent = text;
+        speaking = true;
+        updateMic();
+        clearTimeout(call.replyTimeout);
+        call.replyTimeout = setTimeout(() => endCall('Voice stopped responding. You can continue by chat.'), 25_000);
+        call.channel.send(JSON.stringify({
+          type: 'response.create',
+          response: {
+            conversation: 'none',
+            input: [],
+            instructions: 'Speak this exact text, with no additions: ' + JSON.stringify(text)
+          }
+        }));
+      }
+
+      function sayRequest(transcript) {
+        const command = transcript.toLowerCase().trim().replace(/[.!?]+$/, '');
+        if (!command) return;
+        if (selectedTime) {
+          if (/\bretry\b/.test(command) && !/\b(?:no|not|don.t)\b/.test(command)) void choose(selectedTime, true);
+          else reply('Say retry to check the same reservation.');
+          return;
+        }
+        if (pending && /^(?:yes[ ,]+)?(?:(?:i )?confirm(?: it| booking)?|book it|go ahead|yes|yes please)$/.test(command)) {
+          const start = pending;
+          clearOptions();
+          void choose(start, true);
+          return;
+        }
+        if (pending && /^(no|cancel|start over|not that one)$/.test(command)) {
+          pending = undefined;
+          reply('Which option would you prefer?');
+          return;
+        }
+        const first = /\b(first|option (?:one|1))\b/.test(command);
+        const second = /\b(second|option (?:two|2))\b/.test(command);
+        if (offered.length && (first || second) && !requestedDate(command)) {
+          if (first === second || /\b(no|not|don.t)\b/.test(command)) {
+            pending = undefined;
+            reply('Please say first or second to choose one time.');
+            return;
+          }
+          pending = offered[second ? 1 : 0];
+          if (pending) reply('You selected ' + clock.format(new Date(pending)) + ', Cebu time. Say confirm to book it or no to choose again.');
+          else reply('Only the first option is available. Say first to choose it.');
+          return;
+        }
+        sendRequest(transcript, true);
+      }
+
+      async function startCall() {
+        const current = {};
+        call = current;
+        hint.textContent = 'Connecting voice…';
+        button.disabled = true;
+        try {
+          current.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          current.peer = new window.RTCPeerConnection();
+          const audio = document.createElement('audio');
+          audio.autoplay = true;
+          row.append(audio);
+          current.audio = audio;
+          current.peer.ontrack = event => { audio.srcObject = event.streams[0]; };
+          for (const track of current.stream.getAudioTracks()) {
+            track.enabled = false;
+            current.peer.addTrack(track, current.stream);
+          }
+          const channel = current.peer.createDataChannel('oai-events');
+          current.channel = channel;
+          channel.onopen = () => {
+            if (call !== current) return;
+            button.disabled = false;
+            button.textContent = 'End voice';
+            button.setAttribute('aria-label', 'End voice');
+            reply('Hi po, I’m Maria. What day works for your test consultation?');
+          };
+          channel.onclose = () => { if (call === current) endCall(); };
+          channel.onmessage = event => {
+            if (call !== current) return;
+            let data;
+            try { data = JSON.parse(event.data); } catch { return; }
+            if (data.type === 'output_audio_buffer.stopped') {
+              clearTimeout(current.replyTimeout);
+              speaking = false;
+              updateMic();
+            } else if (data.type === 'error' || (data.type === 'response.done' && data.response?.status === 'failed')) {
+              endCall('Voice is unavailable right now. You can continue by chat.');
+            } else if (!busy && !speaking) {
+              if (data.type === 'conversation.item.input_audio_transcription.completed' && typeof data.transcript === 'string') {
+                sayRequest(data.transcript);
+              } else if (data.type === 'conversation.item.input_audio_transcription.failed') {
+                reply('I missed that. Could you say it again?');
+              }
+            }
+          };
+          const offer = await current.peer.createOffer();
+          await current.peer.setLocalDescription(offer);
+          const response = await fetch(api + '/pilots/pearlsmile/patient-voice', {
+            method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(25_000),
+            headers: { Authorization: 'Bearer ' + patientToken, 'Content-Type': 'application/sdp' },
+            body: offer.sdp
+          });
+          if (!response.ok) throw Error('Voice session unavailable');
+          await current.peer.setRemoteDescription({ type: 'answer', sdp: await response.text() });
+          current.lifetime = setTimeout(() => endCall('The voice test ended. You can continue by chat.'), 5 * 60_000);
+          if (channel.readyState !== 'open') {
+            current.replyTimeout = setTimeout(() => endCall('Voice could not connect. You can continue by chat.'), 15_000);
+          }
+        } catch {
+          if (current === call) endCall('Voice could not connect. Check microphone access or continue by chat.');
+        }
+      }
+
+      button.addEventListener('click', () => {
+        if (call) endCall();
+        else void startCall();
+      });
+      window.addEventListener('pagehide', () => endCall());
       return {
         reply,
         clearOptions,
@@ -406,7 +482,7 @@
         setBusy(value) {
           busy = value;
           if (value) clearOptions();
-          updateButton();
+          updateMic();
         }
       };
     }
