@@ -9,6 +9,7 @@
   const chat = document.getElementById('pearlsmile-reception-chat-2026');
   const messages = chat?.querySelector('#pearlsmile-chat-messages-2026');
   if (!messages) return;
+  if (calendarPilot) document.body.setAttribute('data-pearlsmile-calendar-preview', '');
   const api = calendarPilot
     ? 'https://eden-webhook-staging.onrender.com' : 'https://eden-webhook-ixdd.onrender.com';
 
@@ -122,6 +123,7 @@
     input.maxLength = 240;
     const check = document.createElement('button');
     check.type = 'button';
+    check.className = 'pearlsmile-pilot-action';
     check.textContent = 'Show consultation times';
     intro.append(document.createElement('br'), check);
     let status;
@@ -151,6 +153,7 @@
       status = document.createElement('span');
       status.setAttribute('role', 'status');
       choices = document.createElement('div');
+      choices.className = 'pearlsmile-pilot-options';
       message('', 'bot').append(status, choices);
     }
 
@@ -281,10 +284,11 @@
       for (const start of slots) {
         const choice = document.createElement('button');
         choice.type = 'button';
+        choice.className = 'pearlsmile-pilot-action';
         choice.dataset.start = start;
         choice.textContent = clock.format(new Date(start));
         choice.addEventListener('click', () => choose(start));
-        choices.append(choice, document.createTextNode(' '));
+        choices.append(choice);
       }
       messages.scrollTop = messages.scrollHeight;
     }
@@ -342,12 +346,11 @@
       const row = chat.querySelector('.pearlsmile-voice-row-2026');
       const button = row.querySelector('button');
       const hint = document.createElement('small');
+      hint.className = 'pearlsmile-pilot-voice-status';
       hint.setAttribute('role', 'status');
       hint.textContent = 'Use fictional details. Microphone audio is processed by OpenAI.';
       row.append(hint);
       row.style.display = '';
-      button.textContent = 'Talk to Maria';
-      button.setAttribute('aria-label', 'Talk to Maria');
 
       let call;
       let busy = false;
@@ -381,7 +384,7 @@
         speaking = false;
         clearOptions();
         button.disabled = false;
-        button.textContent = 'Talk to Maria';
+        button.textContent = '🎙️ Talk to Maria';
         button.setAttribute('aria-label', 'Talk to Maria');
         hint.textContent = text;
       }
@@ -392,6 +395,7 @@
 
       function respond(instructions, exact = false, afterReadback = false, allowTools = !instructions) {
         if (call?.channel?.readyState !== 'open') return;
+        if (!exact) hint.textContent = 'Maria is responding…';
         speaking = true;
         updateMic();
         clearTimeout(call.replyTimeout);
@@ -478,6 +482,7 @@
           clearTimeout(current.replyTimeout);
           if (response.afterReadback && pending) pending.read = true;
           speaking = false;
+          if (!response.exact) hint.textContent = 'Listening…';
           updateMic();
           return;
         }
@@ -555,7 +560,6 @@
               void finishResponse(current, response);
             } else if (data.type === 'response.output_audio_transcript.done' && response?.id === data.response_id &&
                 !response.exact && data.transcript) {
-              hint.textContent = data.transcript;
               message(data.transcript, 'bot');
               messages.scrollTop = messages.scrollHeight;
             } else if (data.type === 'error') {
