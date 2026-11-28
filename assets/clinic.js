@@ -1775,13 +1775,19 @@
           row.append(channelButton(actionLabel,
             button=>verifying?checkMessenger(button):startMessenger(button,messengerSetup),true));
         }
-        if (verifying && messengerSetup.pageUrl) {
+        if ((verifying || (connected && messengerSetup.calendarTest)) && messengerSetup.pageUrl) {
           const testLink = document.createElement('a');
           testLink.href = messengerSetup.pageUrl;
           testLink.target = '_blank';
           testLink.rel = 'noopener noreferrer';
-          testLink.textContent = 'Open Facebook Page';
+          testLink.textContent = messengerSetup.calendarTest?'Open Facebook Page for test':'Open Facebook Page';
           row.append(testLink);
+          if (messengerSetup.calendarTest) {
+            const instruction = document.createElement('small');
+            instruction.className = 'clinic-connection-pending';
+            instruction.textContent = 'Click Message and send “Start a new test booking”. Choose a time, reply Yes when asked, then check Daily Action for the confirmed test appointment.';
+            detail.append(instruction);
+          }
         }
       } else {
         detail.textContent = connected?'This location’s Facebook Page is connected.':
@@ -3230,12 +3236,13 @@
     byId('clinic-location').value = locationId;
     loadAlertEmail();
     await refreshActivity();
+    const calendarTest = messengerSetups.some(setup => setup.locationId === locationId && setup.calendarTest);
     status(result.status === 'connected' ? 'Messenger reconnected.' :
       'Facebook approved. Send a private test message to confirm delivery.', 'success');
-    if (!guide.hidden) {
+    if (calendarTest || !guide.hidden) {
       switchWorkspaceView('setup');
       channelSteps.find(step=>step.channel==='facebook_messenger').panel.open = true;
-      byId('clinic-messenger-test-help').focus();
+      if (!calendarTest) byId('clinic-messenger-test-help').focus();
     }
   }
 
