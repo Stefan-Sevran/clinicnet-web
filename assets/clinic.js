@@ -1767,9 +1767,14 @@
         const page = messengerSetup.clinicName || 'your Facebook Page';
         const verifying = connection?.status==='verifying';
         detail.textContent = verifying?'Facebook approved. Send '+page+' a private test booking request, then check the connection.':
-          connected?'Connected to '+page+'.':'Choose '+page+' in Facebook and approve access.';
-        row.append(channelButton(verifying?'Check connection':connected?'Reconnect Messenger':'Connect Messenger',
-          button=>verifying?checkMessenger(button):startMessenger(button,messengerSetup),true));
+          connected?'Connected to '+page+'.':messengerSetup.preconfigured?'Verify the Messenger connection to '+page+'.':
+            'Choose '+page+' in Facebook and approve access.';
+        if (!connected || !messengerSetup.preconfigured) {
+          const actionLabel = verifying?'Check connection':connected?'Reconnect Messenger':
+            messengerSetup.preconfigured?'Verify Messenger':'Connect Messenger';
+          row.append(channelButton(actionLabel,
+            button=>verifying?checkMessenger(button):startMessenger(button,messengerSetup),true));
+        }
         if (verifying && messengerSetup.pageUrl) {
           const testLink = document.createElement('a');
           testLink.href = messengerSetup.pageUrl;
@@ -3183,6 +3188,15 @@
         method: 'POST', body: JSON.stringify({ accountId, locationId })
       });
       if (!state.session || byId('clinic-account').value !== accountId || byId('clinic-location').value !== locationId) {
+        button.disabled = false;
+        return;
+      }
+      if (result.status === 'verifying' || result.status === 'connected') {
+        await refreshActivity();
+        if (state.session && byId('clinic-account').value === accountId && byId('clinic-location').value === locationId) {
+          channelFeedback('facebook_messenger', result.status === 'connected' ? 'Messenger is connected.' :
+            'Page verified. Send a private test message to finish connecting.', 'success');
+        }
         button.disabled = false;
         return;
       }
