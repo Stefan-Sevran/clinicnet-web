@@ -39,7 +39,7 @@
       "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
       "/assets/clinic-rescue.js?v=1",
       "/assets/clinic-operations.js?v=3",
-      "/assets/clinic.js?v=ask-eden-page-help-1"
+      "/assets/clinic.js?v=patient-pilot-1"
     ]
   },
   {
@@ -100,7 +100,7 @@
     "header": false,
     "footer": false,
     "styles": [],
-    "scripts": ["/assets/pearlsmile-pilot.js?v=1"]
+    "scripts": ["/assets/pearlsmile-pilot.js?v=patient-conversation-3"]
   },
   {
     "id": "about",

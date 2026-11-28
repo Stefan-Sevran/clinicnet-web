@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/assets/site.css">
 <link rel="stylesheet" href="/assets/brand-actions.css?v=1">
 <script src="/assets/navigation.js?v=2"></script>
-<script defer src="/assets/pearlsmile-pilot.js?v=1"></script>
+<script defer src="/assets/pearlsmile-pilot.js?v=patient-conversation-3"></script>
 </head><body data-page="pearlsmile-cebu" data-header="hidden" data-footer="hidden">
 <a class="skip-link" href="#main-content">Skip to content</a>
 
@@ -499,6 +499,75 @@ font-size: 12px;
 #pearlsmile-voice-button-2026:active { transform:scale(.98); }
 #pearlsmile-voice-button-2026:disabled { opacity:.62; cursor:wait; }
 
+
+body[data-pearlsmile-calendar-preview] #pearlsmile-floating-bar-2026 {
+  display: none;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-voice-row-2026 {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 16px;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-voice-status {
+  max-width: 46ch;
+  color: #3b5369;
+  font-size: .85rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+body[data-pearlsmile-calendar-preview] #pearlsmile-chat-send-2026 {
+  inset-block: 0;
+  margin-block: auto;
+  display: grid;
+  place-items: center;
+  transform: none;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-options:not(:empty) {
+  margin-top: 10px;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-action {
+  min-height: 42px;
+  padding: 7px 12px;
+  border: 1px solid #d4c6ec;
+  border-radius: 12px;
+  background: #fff;
+  color: #432798;
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-action:enabled:hover {
+  background: #f2ebff;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-action:focus-visible {
+  outline: 2px solid #6944be;
+  outline-offset: 2px;
+}
+
+body[data-pearlsmile-calendar-preview] .pearlsmile-pilot-action:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+body[data-pearlsmile-calendar-preview] br + .pearlsmile-pilot-action {
+  margin-top: 8px;
+}
+
 /* V19: larger PearlSmile experience on laptop / desktop */
 @media (min-width:768px) {
   #pearlsmile-reception-chat-2026 .pearlsmile-chat-card-2026 {
@@ -531,6 +600,8 @@ document.getElementById(
 );
 
 if (!root) return;
+if (location.hostname === 'codex-ask-eden-preview.clinicnet-web.pages.dev' &&
+    new URLSearchParams(location.search).get('calendar-pilot') === '1') return;
 
 const messages =
 root.querySelector(

@@ -63,6 +63,47 @@
   pearlPilotLink.textContent = 'Open PearlSmile chat pilot';
   pearlPilotLink.hidden = true;
   byId('clinic-inbox').before(pearlPilotLink);
+  const pearlCalendarPilotLink = document.createElement('a');
+  pearlCalendarPilotLink.href = '/pearlsmile-cebu/?calendar-pilot=1#pearlsmile-reception-chat-2026';
+  pearlCalendarPilotLink.textContent = 'Test PearlSmile calendar booking';
+  pearlCalendarPilotLink.hidden = true;
+  byId('clinic-inbox').before(pearlCalendarPilotLink);
+  const pearlPatientPilot = document.createElement('div');
+  pearlPatientPilot.hidden = true;
+  const pearlPatientLinkButton = document.createElement('button');
+  pearlPatientLinkButton.type = 'button';
+  pearlPatientLinkButton.className = 'clinic-secondary';
+  pearlPatientLinkButton.textContent = 'Create patient test link';
+  const pearlPatientLinkField = document.createElement('input');
+  pearlPatientLinkField.type = 'url';
+  pearlPatientLinkField.readOnly = true;
+  pearlPatientLinkField.hidden = true;
+  pearlPatientLinkField.setAttribute('aria-label', 'Patient test link');
+  const pearlPatientLinkStatus = document.createElement('p');
+  pearlPatientLinkStatus.setAttribute('role', 'status');
+  pearlPatientPilot.append(pearlPatientLinkButton, pearlPatientLinkField, pearlPatientLinkStatus);
+  byId('clinic-inbox').before(pearlPatientPilot);
+  pearlPatientLinkButton.addEventListener('click', async () => {
+    pearlPatientLinkButton.disabled = true;
+    pearlPatientLinkField.hidden = true;
+    pearlPatientLinkStatus.textContent = '';
+    const generation = state.generation;
+    try {
+      const { token } = await request('/clinic/pilots/pearlsmile/patient-link', { method: 'POST' });
+      if (!token || generation !== state.generation) return;
+      const url = new URL('/pearlsmile-cebu/?calendar-pilot=1&patient=1', location.origin);
+      url.hash = 'patient-link=' + token;
+      pearlPatientLinkField.value = url.href;
+      pearlPatientLinkField.hidden = false;
+      pearlPatientLinkField.focus();
+      pearlPatientLinkField.select();
+      pearlPatientLinkStatus.textContent = 'Copy this link into an incognito window. It expires in one hour and books one fictional consultation.';
+    } catch (error) {
+      if (generation === state.generation) pearlPatientLinkStatus.textContent = error.message;
+    } finally {
+      pearlPatientLinkButton.disabled = false;
+    }
+  });
   const commentPilotPanel = document.createElement('section');
   commentPilotPanel.className = 'clinic-events';
   commentPilotPanel.hidden = true;
@@ -76,7 +117,7 @@
   let manualBooking;
   const inboxFilters = [...daily.querySelectorAll('[data-filter]')];
   let dailyEvents = [];
-  let inboxFilter = 'all';
+  let inboxFilter = requestedView === 'daily' && query.get('inbox') === 'booked' ? 'booked' : 'all';
   const inboxPageSize = 5;
   let inboxPage = 0;
   let inboxLocation;
@@ -1931,10 +1972,17 @@
       }
       const meta = document.createElement('small');
       meta.className = 'clinic-inbox-meta';
+      const appointmentTime = Date.parse(latest?.appointment_at || event.details?.appointmentAt);
+      const showAppointment = ['Booked', 'Confirmed', 'Visit completed'].includes(statusLabel) &&
+        Number.isFinite(appointmentTime);
+      const timeZone = event.details?.calendarEventId ? 'Asia/Manila' : clinicTimeZone(event.location_id);
       meta.textContent = [bookingSourceLabels[event.channel] || event.channel,
         statusLabel ? null : event.status,
+        showAppointment ? 'Appointment ' + new Intl.DateTimeFormat(undefined, {
+          dateStyle: 'medium', timeStyle: 'short', timeZone
+        }).format(appointmentTime) + (event.details?.calendarEventId ? ' (Cebu time)' : '') :
         event.occurred_at && new Date(event.occurred_at).toLocaleString(undefined, {
-          dateStyle: 'medium', timeStyle: 'short', timeZone: clinicTimeZone(event.location_id)
+          dateStyle: 'medium', timeStyle: 'short', timeZone
         })].filter(Boolean).join(' · ');
       row.append(heading, meta);
       if (setupSample) {
@@ -2000,7 +2048,7 @@
           line.append(original);
           details.append(line);
         }
-        if (latest?.appointment_at) {
+        if (latest?.appointment_at && !showAppointment) {
           const appointment = document.createElement('small');
           const timeZone = clinicTimeZone(event.location_id);
           appointment.textContent = 'Appointment · ' + new Date(latest.appointment_at).toLocaleString(undefined, {
@@ -2913,6 +2961,14 @@
       clinicTeamAvailable = team !== null;
       clinicTeam = new Map((team || []).map(row => [row.user_id, row.display_name]));
       pearlPilotLink.hidden = locationId !== 'b865c71a-e9f1-4b09-acb5-0b5043ab4307';
+      pearlCalendarPilotLink.hidden = !window.edenClinicPreview ||
+        !state.locations.some(location => location.id === locationId && location.name === 'Test Location');
+      pearlPatientPilot.hidden = pearlCalendarPilotLink.hidden;
+      if (pearlPatientPilot.hidden) {
+        pearlPatientLinkField.hidden = true;
+        pearlPatientLinkField.value = '';
+        pearlPatientLinkStatus.textContent = '';
+      }
       renderChannels();
       renderCommentPilot(inbox);
       const website = connections.find(row => row.channel === 'website_chat');
